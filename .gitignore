@@ -1,0 +1,6 @@
+# Local HTTP client credentials (dev-only, keep out of the public repo)
+task-back-end/http-requests/http-client.env.json
+
+# OS
+.DS_Store
+Thumbs.db

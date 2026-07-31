@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=mydatabase'
+      - 'POSTGRES_PASSWORD=secret'
+      - 'POSTGRES_USER=myuser'
+    ports:
+      - '61655:5432'
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./compose/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    command:
+      "start-dev --import-realm --log-level=INFO,org.keycloak.services:DEBUG,org.keycloak.authentication:DEBUG,org.keycloak.protocol:DEBUG"

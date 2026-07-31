@@ -1,0 +1,22 @@
+recurring-tasks:
+  create-due-tasks:
+    cron: "0 0 4 * * *"
+
+spring:
+  application.name: task-back-end
+  datasource:
+    url: jdbc:postgresql://localhost:5432/mydatabase
+    username: myuser
+    password: secret
+    driver-class-name: org.postgresql.Driver
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/realms/portal-realm
+  mvc.async.request-timeout: 0
+  jackson.deserialization.fail-on-null-for-primitives: false
+
+
+## avoid sse events connection to be cut off
+server.tomcat.connection-timeout: 0

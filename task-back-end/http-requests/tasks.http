@@ -1,0 +1,14 @@
+POST {{host}}/api/tasks
+Content-Type: application/json
+Authorization: Bearer {{$auth.token("keycloak")}}
+
+{
+    "name": "Test",
+    "importance": "IMPORTANT",
+    "description": "This is a test",
+    "dueDate": "2026-04-01",
+    "startDate": "2026-03-25",
+    "context": "Personal"
+}
+
+###

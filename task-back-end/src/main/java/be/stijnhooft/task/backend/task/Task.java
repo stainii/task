@@ -1,0 +1,167 @@
+package be.stijnhooft.task.backend.task;
+
+import be.stijnhooft.task.backend.utils.DateTimeUtils;
+import be.stijnhooft.task.backend.utils.ObjectUtils;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.*;
+import org.jspecify.annotations.Nullable;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.relational.core.mapping.MappedCollection;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.function.Consumer;
+
+@Data
+@Builder
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode(exclude = "version")
+public class Task {
+
+    @Id
+    @Builder.Default
+    private UUID id = UUID.randomUUID();
+
+    private String name;
+
+    @Builder.Default
+    private LocalDateTime creationDateTime = LocalDateTime.now();
+
+    @Builder.Default
+    private LocalDate startDate = LocalDate.now();
+
+    @Nullable
+    private LocalDate dueDate;
+
+    private String context;
+
+    @Nullable
+    private Importance importance;
+
+    @Nullable
+    private String description;
+
+    @Builder.Default
+    private TaskStatus status = TaskStatus.OPEN;
+
+    @Setter(AccessLevel.PRIVATE)
+    @Builder.Default
+    @MappedCollection(idColumn = "task_id", keyColumn = "order_index")
+    private List<TaskPatch> history = new ArrayList<>();
+
+    @Version
+    private long version;
+
+    public void patch(TaskPatch taskPatch) {
+        // apply patch
+        patchIfNeeded(taskPatch, "name", this::setName);
+        patchIfNeeded(taskPatch, "startDate", newValue -> this.setStartDate(DateTimeUtils.parseAsLocalDate(newValue)));
+        patchIfNeeded(taskPatch, "dueDate", newValue -> this.setDueDate(DateTimeUtils.parseAsLocalDate(newValue)));
+        patchIfNeeded(taskPatch, "context", this::setContext);
+        patchIfNeeded(taskPatch, "importance", newValue -> this.setImportance(newValue == null ? null : Importance.valueOf(newValue)));
+        patchIfNeeded(taskPatch, "description", this::setDescription);
+        patchIfNeeded(taskPatch, "status", newValue -> this.setStatus(newValue == null ? null : TaskStatus.valueOf(newValue)));
+
+        // add patch to history
+        if (history == null) {
+            history = new ArrayList<>();
+        }
+        history.add(taskPatch);
+
+        // reapply newer patches
+        history.stream()
+                .filter(otherUpdate -> otherUpdate.getDateTime().isAfter(taskPatch.getDateTime()))
+                .findFirst()
+                .ifPresent(this::patch);
+    }
+
+    private void patchIfNeeded(TaskPatch taskPatch, String field, Consumer<String> action) {
+        if (taskPatch.containsChange(field)) {
+            action.accept(taskPatch.getChange(field));
+        }
+    }
+
+    public void undoPatch(TaskPatch taskPatch) {
+        HashMap<String, String> revertedChanges = calculateUndoPatchChanges(taskPatch);
+
+        var undoPatch = TaskPatch.builder()
+                .id(UUID.randomUUID())
+                .dateTime(LocalDateTime.now())
+                .taskId(id)
+                .changes(revertedChanges)
+                .build();
+
+        patch(undoPatch);
+    }
+
+    @JsonIgnore
+    public TaskPatch getCreationPatch() {
+        return history.getFirst();
+    }
+
+    private HashMap<String, String> calculateUndoPatchChanges(TaskPatch taskPatchToUndo) {
+        int patchIndexInHistory = history.indexOf(taskPatchToUndo);
+        if (patchIndexInHistory < 0) {
+            throw new IllegalArgumentException("Patch with id " + taskPatchToUndo.getId() + " is not in the history of task with id " + this.id);
+        } else if (patchIndexInHistory == 0) {
+            // reverting the "create task" patch. That can't actually be done: once a task is made it is made. We do the next best thing: completing the task
+            var changes = new HashMap<String, String>();
+            changes.put("status", "COMPLETED");
+            return changes;
+        } else {
+            Task copyOfTaskWithPatchReverted = new Task();
+            history.stream()
+                    .filter(taskPatch -> !taskPatch.equals(taskPatchToUndo))
+                    .forEach(copyOfTaskWithPatchReverted::patch);
+
+            // check what has been reverted and which are the new values
+            var revertedChanges = new HashMap<String, String>();
+            for (String change : taskPatchToUndo.getChanges().keySet()) {
+                Object taskValue = copyOfTaskWithPatchReverted.get(change);
+                String revertedPatchValue = taskPatchToUndo.getChange(change);
+                if (!Objects.equals(taskValue, revertedPatchValue)) {
+                    if (taskValue == null) {
+                        revertedChanges.put(change, null);
+                    } else {
+                        revertedChanges.put(change, taskValue.toString());
+                    }
+                }
+            }
+            return revertedChanges;
+        }
+    }
+
+    @SneakyThrows
+    private Object get(String field) {
+        return ObjectUtils.getAllFieldsAndTheirValues(this)
+                .get(field);
+    }
+
+    /// private method, use the other builder methods
+    private static TaskBuilder builder() {
+        throw new UnsupportedOperationException();
+    }
+
+    public static TaskBuilder builderForInitialTask() {
+        return new TaskBuilder() {
+            public Task build() {
+                var task = super.build();
+
+                Map<String, String> changes = ObjectUtils.getAllFieldsAndTheirValues(task);
+                changes.remove("history");
+                var initialPatch = TaskPatch.builder()
+                        .id(UUID.randomUUID())
+                        .taskId(task.getId())
+                        .dateTime(task.getCreationDateTime())
+                        .changes(changes)
+                        .build();
+                task.history.addFirst(initialPatch);
+
+                return task;
+            }
+        };
+    }
+}
