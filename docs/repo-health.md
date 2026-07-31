@@ -14,7 +14,7 @@ The migration is in **better shape than "unknown" implies**: the back-end builds
 
 The soft spots are the **front-end** (both of its two tests fail, and after login it renders patches instead of tasks because it never sends its auth token), **pitest** (does not complete as configured, so there is no mutation baseline today), and a handful of **genuine defects** in back-end code that the green test suite does not catch — including one that stops long-interval recurring tasks from ever firing.
 
-The single most useful structural fact: **test quality is split in two.** Where unit tests reach the code, they are strong (92% test strength). But every controller, mapper, the scheduler and the whole `template` service are covered *only* by integration tests — which is simultaneously why mutation coverage reads 35% and why pitest cannot finish.
+The single most useful structural fact: **test quality is split in two, by intent.** Where unit tests reach the code they are strong (92% test strength); every controller, mapper, the scheduler and the whole `template` service are covered *only* by integration tests — a deliberate choice, since those layers hold little business logic. That split is simultaneously why mutation coverage reads 35% and why pitest cannot finish, which is what [#32](https://github.com/stainii/task/issues/32) exists to resolve. **Do not read 35% as a quality gap.**
 
 ---
 
@@ -95,9 +95,13 @@ BUILD SUCCESS
 | `recurring.mapper` | 23% (11/47) | 12% (2/17) | 100% |
 | `config`, `task.config`, `task.controller`, `task.mapper`, `task.service.helper`, `recurring.controller`, `recurring.scheduler`, `template.controller`, `template.mapper`, `template.service` | **0%** | **0%** | — |
 
-**Read this carefully — the numbers say something specific.** *Test strength of 92%* means that where unit tests reach the code at all, they are genuinely good: they assert enough to kill almost every mutant. *Mutation coverage of 35%* is low for the opposite reason — **ten packages are reached only by integration tests, and are therefore invisible to mutation testing.** Every controller, every mapper, the recurring scheduler and the whole `template` service have no unit test touching them.
+**Read this carefully — and do not read 35% as a quality verdict.** *Test strength of 92%* means that where unit tests reach the code at all, they are genuinely good: they assert enough to kill almost every mutant. *Mutation coverage of 35%* is low because **ten packages are reached only by integration tests, and are therefore invisible to mutation testing** — every controller, every mapper, the recurring scheduler and the whole `template` service.
 
-So the real state of test quality is a **split**: a well-tested domain core (`Task`, `TaskPatch`, the services) and an entirely integration-only outer shell. That is exactly the tension that makes pitest unrunnable in the first place — the only tests covering half the codebase are the ones too expensive to mutate.
+That is **deliberate, not neglect.** The author writes integration tests in preference to unit tests where there is little business logic: for a controller, a mapper or a CRUD service, a test that exercises the real HTTP layer, the real mapper and a real database carries more value than a mocked unit test asserting that a delegation happened. On that reading, most of the 0% measures *"covered a different way"*, not *"uncovered"*.
+
+So the honest statement of test quality is a **split by intent**: a well-tested domain core (`Task`, `TaskPatch`, the services) with real unit tests, and an outer shell covered end to end. The number to be suspicious of is not 35% — it is that **pitest cannot see the second half at all**, which is simultaneously why it cannot finish. Whether mutation score is a meaningful measure of this codebase, and what pitest is for at all, is [#32](https://github.com/stainii/task/issues/32); it blocks the quality bar in #10.
+
+Two things keep this from being a purely philosophical point: D1 below is exactly the class of bug mutation testing catches and the integration suite did not, and chasing the number with mock-heavy unit tests would be a real cost for no value.
 
 Note also `PIT >> Project uses Spring, but the Arcmutate Spring plugin is not present.` — pitest itself points at the missing piece for mutating a Spring app affordably.
 
