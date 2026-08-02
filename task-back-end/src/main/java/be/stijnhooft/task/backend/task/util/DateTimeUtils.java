@@ -1,6 +1,4 @@
-package be.stijnhooft.task.backend.utils;
-
-import org.jspecify.annotations.Nullable;
+package be.stijnhooft.task.backend.task.util;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -15,14 +13,6 @@ public class DateTimeUtils {
     @SuppressWarnings("SuspiciousDateFormat")
     private static final DateTimeFormatter LOOSE_ISO_DATE_TIME_ZONE_PARSER = DateTimeFormatter.ofPattern(
             "[yyyyMMdd][yyyy-MM-dd][yyyy-DDD]['T'[HHmmss][HHmm][HH:mm:ss][HH:mm][.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]][OOOO][O][z][XXXXX][XXXX]['['VV']']");
-
-    public static Optional<LocalDate> addDaysTo(@Nullable LocalDate base, @Nullable Integer days) {
-        if (base == null || days == null) {
-            return Optional.empty();
-        } else {
-            return Optional.of(base.plusDays(days));
-        }
-    }
 
     public static ZonedDateTime parseAsZonedDateTime(String input) {
         if (input == null) {

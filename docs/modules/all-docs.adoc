@@ -1,0 +1,23 @@
+== TaskBackEndApplication
+plantuml::components.puml[,,format=svg]
+
+== Config
+plantuml::module-config.puml[,,format=svg]
+include::module-config.adoc[]
+
+== Goal
+plantuml::module-goal.puml[,,format=svg]
+include::module-goal.adoc[]
+
+== Task
+plantuml::module-task.puml[,,format=svg]
+include::module-task.adoc[]
+
+== Recurring
+plantuml::module-recurring.puml[,,format=svg]
+include::module-recurring.adoc[]
+
+== Template
+plantuml::module-template.puml[,,format=svg]
+include::module-template.adoc[]
+

@@ -16,7 +16,9 @@ class TaskBackEndApplicationTests extends AbstractIntegrationTestCases {
     void verifiesModularStructure() {
         ApplicationModules modules = ApplicationModules.of(TaskBackEndApplication.class);
         modules.verify();
-        new Documenter(modules)
+
+        // written into the repo, not target/, so the module graph is reviewable in a diff — see ADR-0003
+        new Documenter(modules, "../docs/modules")
                 .writeDocumentation();
     }
 

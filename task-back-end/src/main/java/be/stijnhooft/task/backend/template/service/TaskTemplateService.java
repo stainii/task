@@ -18,8 +18,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static be.stijnhooft.task.backend.utils.DateTimeUtils.addDaysTo;
-import static be.stijnhooft.task.backend.utils.VariableUtils.fillInVariables;
+import static be.stijnhooft.task.backend.template.util.DateTimeUtils.addDaysTo;
+import static be.stijnhooft.task.backend.template.util.VariableUtils.fillInVariables;
 
 @Service
 @RequiredArgsConstructor

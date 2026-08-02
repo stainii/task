@@ -1,0 +1,8 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`be.stijnhooft.task.backend.config`
+|Spring components
+|* `b.s.t.b.c.JdbcConfig`
+* `b.s.t.b.c.SpringSecurityConfig`
+|===

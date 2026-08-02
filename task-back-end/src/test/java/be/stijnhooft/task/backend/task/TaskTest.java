@@ -1,6 +1,6 @@
 package be.stijnhooft.task.backend.task;
 
-import be.stijnhooft.task.backend.utils.ObjectUtils;
+import be.stijnhooft.task.backend.task.util.ObjectUtils;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;

@@ -1,7 +1,7 @@
 package be.stijnhooft.task.backend.task;
 
-import be.stijnhooft.task.backend.utils.DateTimeUtils;
-import be.stijnhooft.task.backend.utils.ObjectUtils;
+import be.stijnhooft.task.backend.task.util.DateTimeUtils;
+import be.stijnhooft.task.backend.task.util.ObjectUtils;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 import org.jspecify.annotations.Nullable;
