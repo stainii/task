@@ -29,6 +29,46 @@ Patches are what make the app offline-capable on several devices at once. Patche
 client-side (id included) and merged as a **sorted fold** — last writer wins per field, ordered by
 the patch's own timestamp, not by arrival.
 
+A patch is the **only** way a client writes. The first patch for a task id creates that task and must
+carry every field; every later patch changes it. There is no whole-task write.
+
+A patch carries **two clocks**, and neither does the other's job: its client-minted `dateTime`
+orders the fold, and its server-assigned **sequence** orders delivery.
+
+### Sequence
+
+**The server's monotonic counter of patches it has learned about** — assigned on receipt, never by a
+client.
+
+It is the only sync cursor: it is the SSE event id, the value of `Last-Event-ID`, and what a client
+persists to know where it left off. It is never used to merge, because it says when the server heard
+about a change, not when the change was made.
+
+### Void patch
+
+**How a task patch is undone.** A patch that names another patch as void, rather than one that sets
+the old values back.
+
+The fold skips voided patches and recomputes, so an undo removes exactly that patch's contribution
+and nothing else's — whatever arrived in between, in whatever order. Undoing the creation patch
+completes the task instead, because a task cannot un-exist. History stays append-only: a void is
+appended, never a deletion.
+
+### Outbox
+
+**The client's queue of patches not yet accepted by the server.** Durable, drained strictly in order.
+
+A `4xx` means the patch is permanently wrong, so it is dropped and shown in a visible failed-to-sync
+list; anything else means the patch is fine and the world is not, so the queue stalls in place rather
+than reordering around it.
+
+### Resync
+
+**The server telling a client to throw its local state away and start from a fresh snapshot** —
+issued when a client resumes from a sequence the server cannot serve.
+
+It is the same lever as the user's own hard reset, pulled by the server.
+
 ### Task template
 
 **A generator of tasks.** Holds everything a firing needs: a name, a context, an importance, a
@@ -110,3 +150,7 @@ Resolved in [#4](https://github.com/stainii/task/issues/4).
 - **Flow id** — dropped; a generated task points at its template directly.
 - **Subscription** — dropped; cross-module reactions are Spring Modulith application events,
   written only where a listener exists.
+- **Compensating patch** — replaced by the **void patch**; an undo names the patch it undoes instead
+  of writing the old values back.
+- **Last updated** (as a sync cursor) — replaced by **sequence**; a wall-clock time cannot say what
+  the server has already sent you.
