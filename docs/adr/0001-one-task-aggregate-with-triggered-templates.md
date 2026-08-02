@@ -1,0 +1,95 @@
+# 1. One task aggregate, with templates that fire on a trigger
+
+Date: 2026-08-02
+
+## Status
+
+Accepted. Resolves [#2](https://github.com/stainii/task/issues/2).
+
+## Context
+
+`task-back-end` inherited three separate concepts from portal, because `portal-todo` and
+`portal-recurring-tasks` were separate services that each reinvented "a thing to do":
+
+- `Task` — the plain todo.
+- `TaskTemplate` — a manually-run template producing several tasks, with variables and date offsets.
+- `RecurringTaskTemplate` — min/max days between executions, an `executions` date log, and an
+  `activeTask` boolean.
+
+The goal of the migration is to integrate recurring tasks properly, so we needed to know whether
+"kinds of task" are one model or several before anything else could be modelled or ported.
+
+Two candidate kinds were ruled out before this decision. [#13](https://github.com/stainii/task/issues/13)
+established that `deployment-name` becomes **context** — so housagotchi, setlist and health are
+filters, not kinds — and that `portal-social` disappears entirely, so a person is a template in the
+`social` context rather than a kind. [#13](https://github.com/stainii/task/issues/13) also widened
+scope with a third recurrence behaviour: **calendar-based**, which portal never had.
+
+## Decision
+
+**One `Task` aggregate.** There are no task subtypes. Everything the user ticks off has the same
+shape, so status, importance, patch history and offline sync have exactly one thing to deal with.
+
+**One `TaskTemplate` generator**, absorbing `RecurringTaskTemplate`. It holds the shared core
+(name, context, importance, description, variables, one or more `TaskDefinition`s) plus one
+**`Trigger`**. Producing several tasks per firing is therefore available to every trigger, not only
+to manual runs.
+
+**`Trigger` is a sealed interface of three records** — `Manual`, `MinMax(min, max)`,
+`Calendar(rule)` — each answering "when do I next fire?" itself, so a fourth trigger cannot be
+half-implemented. Persisted as a discriminator column plus typed nullable columns, keeping min/max
+values readable in SQL for the portal data migration ([#8](https://github.com/stainii/task/issues/8)).
+
+`Calendar` rules come from a small fixed vocabulary — every N days from a start date, every N weeks
+on given weekdays, every N months on a day of the month, yearly on a date — not RRULE and not cron.
+Each rule can enumerate the dates it produces.
+
+**The two scheduled triggers differ by design in whether they drift.** Min/max measures from the
+*completion* of the previous occurrence, so forgetting pushes the rhythm out — that is the point.
+Calendar fires on absolute dates and never drifts. Anything that must happen weekly regardless of
+neglect uses calendar.
+
+**An occurrence is derived, not stored.** A firing is not an entity: `Task` gains a template id and
+an occurrence id shared by siblings from the same firing, and everything else follows from the task
+and its append-only patch history — fire date is the creation date, close date is the patch that
+closed it, and "does this template have an open occurrence?" is a query. This is only safe because
+tasks are never deleted; there is no delete endpoint for tasks, only for templates.
+
+`Execution` and the `activeTask` boolean are removed. A scheduled template does not fire while one
+of its occurrences is open; for calendar triggers the skipped firing does **not** move the clock.
+
+## Consequences
+
+- **`activeTask` cannot silently freeze a template**, which is the failure mode of the current code.
+  But a completion-anchored clock still needs an answer for tasks that are cancelled rather than
+  completed — handed to [#33](https://github.com/stainii/task/issues/33), which already asks it.
+- **Defect D1 disappears rather than being fixed.** `RecurringTaskTemplate.shouldTaskBeCreatedBecauseItIsDue`
+  used `Period.between(...).getDays()` — the day *component*, so any template with `min > 30` could
+  never fire. `MinMax` computes total elapsed days from scratch.
+- **Missed calendar firings are derivable, not stored.** The rule enumerates the dates that should
+  have fired; the generated tasks show which did. The gap is the miss. No third outcome and no extra
+  state — but note the map currently rules reporting out of scope, so this is a possibility the
+  model leaves open, not work that has been added.
+- **The min/max clock now reads its anchor from the patch history**, which is offline-merged. Portal's
+  `ExecutionDto` allowed an explicit "I did it last Tuesday" date; reproducing that needs a field on
+  `Task`, since a patch's timestamp is when it was written, not when the thing was done. Handed to
+  [#33](https://github.com/stainii/task/issues/33).
+- **The `template` and `recurring` modules merge.** The boundary detail belongs to
+  [#6](https://github.com/stainii/task/issues/6).
+- **`TaskDefinition`'s start/due date offsets need an anchor** when no base date was typed by hand.
+  For a generated occurrence, the natural anchors are the firing date and the occurrence's due date.
+  Backlog detail for [#11](https://github.com/stainii/task/issues/11).
+- **The `goal` module is untouched.** If a goal turns out to be a template with an end condition,
+  this model has room for it; [#4](https://github.com/stainii/task/issues/4) is unaffected either way.
+
+## Alternatives considered
+
+- **One `Task` with an embedded recurrence rule**, rolling forward on completion. Rejected: it puts
+  scheduling inside the aggregate that has to survive offline merging, and loses the history of what
+  was actually done.
+- **Three aggregates**, one per type. Rejected: the three differ by a two-field payload, and
+  everything the user interacts with is identical.
+- **Keeping task templates and recurring templates apart.** Rejected: they differ only in trigger and
+  cardinality, and merging makes multi-task recurrence available for free.
+- **A real `Occurrence` table.** Rejected: every field is derivable from data we already keep, and a
+  second copy of "when did I do it" can drift from the task's own history.
