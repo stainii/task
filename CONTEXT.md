@@ -79,6 +79,26 @@ tasks with a different context.
 Importance is an optional grade on a task. Status is `OPEN`, `COMPLETED` or `CANCELLED` — tasks are
 closed, never deleted.
 
+## Terms deliberately left undefined
+
+### Goal
+
+**A standing theme you work toward** — "health", "the house", "keeping up with friends". A goal
+never completes; when it stops being relevant you deactivate or remove it. Tasks serve goals, and
+the point of having them is to report on how much work goes into each one.
+
+**Nothing in the model represents a goal, and nothing should until goals are actually built.**
+Goals are post-migration work — new functionality portal never had. Whether a goal is a second axis
+alongside **context**, or is what **context** becomes once it grows a target and an on/off switch,
+is an open question: it turns on whether a real goal ever wants tasks from two different contexts.
+Either answer arrives later as one Flyway migration and a nullable column, so deciding early buys
+nothing.
+
+A finishable outcome is *not* a goal — that is a **task template** that fires once and produces the
+tasks the project consists of.
+
+Resolved in [#4](https://github.com/stainii/task/issues/4).
+
 ## Terms we deliberately do not use
 
 - **Recurring task template** — folded into **task template**; recurrence is a trigger, not a type.
