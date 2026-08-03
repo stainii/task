@@ -275,3 +275,45 @@ none, so today the app cannot cold-start offline at all.
 - [#9](https://github.com/stainii/task/issues/9) owns: IndexedDB store, the outbox, the failed-to-sync
   list, per-reconnect token refresh, the service worker and PWA installability, and disabling
   template editing while offline.
+
+## Amendments
+
+### `401` / `403` stall the outbox; they do not drop from it
+
+Amended by [Feature triage: portal front-end features](https://github.com/stainii/task/issues/14),
+2026-08-03.
+
+This ADR's outbox rule is `4xx` drop-and-continue into a visible failed-to-sync list, `5xx` and
+network errors stall-and-preserve-order. `401` and `403` are `4xx`, and under the rule as written
+they drop.
+
+That is wrong, and the failure is the silent kind this ADR exists to prevent. `4xx` drops because
+the patch will never be accepted — it is malformed, or its task does not exist. `401`/`403` say
+nothing about the patch: it is fine, and **the client is not authenticated yet**. Under the
+unamended rule, coming back online after a week away with an expired refresh token discards the
+entire week of queued work into a failed-to-sync pile, one patch at a time, without ever naming
+authentication as the cause.
+
+`401` and `403` are therefore **stall-and-preserve-order**, like `5xx`, with one addition: when the
+client is online, the stall **raises a visible login prompt**. Offline there is nothing to prompt
+for and the outbox simply waits. Once authentication succeeds the queue drains in order behind it.
+
+This is the same behaviour portal's retry interceptor had in cruder form — FE-028 re-logged in on an
+expired token before retrying.
+
+The prompt is distinct from Keycloak's `onLoad: 'login-required'`, which
+[#14](https://github.com/stainii/task/issues/14) deletes. That setting gates the app at boot and
+makes an offline cold start impossible. This prompt is raised *because a sync needs it*, at the
+moment it is needed.
+
+### The auth rule: authenticate to sync, not to see
+
+Same amendment. First run requires authentication — `GET /api/tasks` is first-run-only, so there is
+nothing to render before it. Every cold boot after that renders from IndexedDB with no token and no
+network. Reads and writes both work offline; writes queue. An expired token degrades the client to
+offline mode rather than bouncing it to a login screen.
+
+The consequence is that task data is readable on an unlocked device without a login. Accepted as the
+right trade for a personal app behind a device passcode — the alternative is an offline-first app
+that does not work offline. Handed to [#28](https://github.com/stainii/task/issues/28) as a security
+posture decision made here rather than there.

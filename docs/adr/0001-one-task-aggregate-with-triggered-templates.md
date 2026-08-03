@@ -93,3 +93,27 @@ of its occurrences is open; for calendar triggers the skipped firing does **not*
   cardinality, and merging makes multi-task recurrence available for free.
 - **A real `Occurrence` table.** Rejected: every field is derivable from data we already keep, and a
   second copy of "when did I do it" can drift from the task's own history.
+
+## Amendments
+
+### The min/max anchor reads *completed*, not *closed*
+
+Amended by [Feature triage: portal front-end features](https://github.com/stainii/task/issues/14),
+2026-08-03.
+
+This ADR anchors the `MinMax` trigger's clock to "the last completion". That was written when
+`CANCELLED` was a status nothing in the system could set: portal declared it in `TaskStatus` and
+never wired a UI to it, so in practice every task left the list by being completed.
+
+[#14](https://github.com/stainii/task/issues/14) makes cancelling a real action (swipe left on the
+task panel). A cancelled occurrence is a task that was **not done**, so it must **not** move the
+clock. The anchor is therefore the last patch that set status to `COMPLETED` — not the last patch
+that closed the task.
+
+`TaskOccurrences.lastCompletionOf` ([ADR-0003](0003-two-modules-with-package-visibility-as-the-boundary.md))
+is already named for the correct semantics; this amendment fixes the reading, not the port.
+
+Note the migration consequence, recorded and deliberately not acted on: portal's historical data
+cannot distinguish a genuine completion from a task cleared off the list by pressing Complete,
+because there was no other way to do it. Imported anchors inherit that ambiguity. The first
+unambiguous anchors are the ones written after cutover.
