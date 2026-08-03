@@ -247,3 +247,45 @@ decided, and turns "the data is safe" from an assumption into a fact.
 - **Time-of-day is lost** on start and due dates, by TODO-001's decision that dates are `LocalDate`.
   Portal's container JVM ran UTC while the browser ran Brussels; truncation is applied at import and
   the discrepancy is not reconstructable afterwards.
+
+## Amendments
+
+### The `flowId` prefix is not in this repo, and is not the database name
+
+Raised by [#15](https://github.com/stainii/task/issues/15) while triaging RES-011 (the portal
+READMEs, which this ledger had never read).
+
+The decision above matches a migrated task's `flowId` against `<context>-<id>`, treating
+`deploymentName` as known. It is not. `deployment-name` exists **only as a deployment-time
+environment variable** — `DEPLOYMENT_NAME`, passed through `portal-recurring-tasks/Dockerfile` — and
+appears in **no committed configuration anywhere in portal**. The only sample of a real value is the
+README's own example, `Housagotchi-1001`, which is **capitalised**, whereas DB-002/003's database
+names are lowercase (`portal-housagotchi`).
+
+So there are two distinct namespaces that this ADR previously conflated:
+
+- the **database name**, which is what [#35](https://github.com/stainii/task/issues/35) enumerates on
+  the server, and
+- the **`deployment-name` value**, which is what actually appears as a `flowId` prefix in the Mongo
+  data.
+
+They may differ in case, and nothing guarantees they differ *only* in case.
+
+**The importer must therefore derive the prefix set from the data, never from a table in this
+repo.** A hardcoded map that guesses wrong does not fail loudly — it silently fails to match, and a
+whole deployment's history migrates as orphaned tasks with no `taskTemplateId`, which is exactly the
+permanent, one-shot loss step 1 exists to prevent. Concretely:
+
+1. Enumerate the distinct `flowId` prefixes present in the Mongo `task` collection. This set — not
+   any list written by hand — defines the deployments that existed.
+2. Match prefixes to the dumped recurring-tasks databases **case-insensitively**, and report any
+   prefix with no database, or database with no prefix, in the diff report. Either is an abort
+   signal, not a warning.
+3. The `context` a migrated task receives is derived from the prefix, so its **casing is a visible
+   product decision** (`Housagotchi` vs `housagotchi`) that lands in the UI as a card label
+   ([ADR-0006](0006-one-overview-grouped-by-a-swappable-axis.md)). Normalise deliberately rather
+   than inheriting whatever the env var happened to say.
+
+This strengthens rather than contradicts the "free consequence" above: the prefixes in the dump do
+name the deployments that actually existed — and they are now the **only** source that does.
+[#35](https://github.com/stainii/task/issues/35) is amended to record them alongside its row counts.
