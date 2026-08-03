@@ -1,30 +1,19 @@
-import {ComponentFixture, TestBed, waitForAsync} from '@angular/core/testing';
+import {TestBed} from '@angular/core/testing';
+import {provideRouter} from '@angular/router';
 
 import {App} from './app';
-import {MatButtonModule} from "@angular/material/button";
-import {MatIconModule} from '@angular/material/icon';
-import {MatListModule} from "@angular/material/list";
-import {MatToolbarModule} from '@angular/material/toolbar';
-import {MatSidenavModule} from '@angular/material/sidenav';
+import {routes} from './app.routes';
 
 describe('App', () => {
-  let component: App;
-  let fixture: ComponentFixture<App>;
+  it('renders the shell', async () => {
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [provideRouter(routes)],
+    }).compileComponents();
 
-  beforeEach(waitForAsync(() => {
-    TestBed.configureTestingModule({
-      declarations: [App],
-      imports: [MatButtonModule, MatIconModule, MatListModule, MatSidenavModule, MatToolbarModule],
-    });
-  }));
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
 
-  beforeEach(() => {
-    fixture = TestBed.createComponent(App);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-  });
-
-  it('should compile', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

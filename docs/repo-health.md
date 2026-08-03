@@ -14,6 +14,10 @@ The migration is in **better shape than "unknown" implies**: the back-end builds
 
 The soft spots are the **front-end** (both of its two tests fail, and after login it renders patches instead of tasks because it never sends its auth token), **pitest** (does not complete as configured, so there is no mutation baseline today), and a handful of **genuine defects** in back-end code that the green test suite does not catch — including one that stops long-interval recurring tasks from ever firing.
 
+> **Update — [#30](https://github.com/stainii/task/issues/30) (2026-08-03): every front-end finding below is now history, not work.**
+> The scaffold was discarded rather than repaired: `src/app/` is reduced to a building, booting, empty shell, and `@ngrx/signals` is dropped. **F1, F2 and F3 died with the code they lived in**, and both failing tests are gone — `ng build` and `ng test` are green.
+> The findings are kept verbatim because they *are* the evidence that discard was the right call: each one is a bug in code whose contract [ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md) had already replaced. Read this section as a record of the spike, not as a defect list. The back-end findings are unaffected and still live.
+
 The single most useful structural fact: **test quality is split in two, by intent.** Where unit tests reach the code they are strong (92% test strength); every controller, mapper, the scheduler and the whole `template` service are covered *only* by integration tests — a deliberate choice, since those layers hold little business logic. That split is simultaneously why mutation coverage reads 35% and why pitest cannot finish, which is what [#32](https://github.com/stainii/task/issues/32) exists to resolve. **Do not read 35% as a quality gap.**
 
 ---
@@ -117,7 +121,7 @@ Output location: task-front-end/dist/task-front-end
 
 `npm ci` installed 478 packages cleanly, but reports **34 advisories (1 critical, 19 high, 11 moderate, 3 low)**. Most are ordinary patch-level currency drift rather than anything exotic — e.g. `@angular/common` and `@angular/core` are pinned below 21.2.17, and the critical is `node-tar` (decompression DoS). This is the "no Renovate today" gap made concrete ([#21](https://github.com/stainii/task/issues/21)–[#25](https://github.com/stainii/task/issues/25)).
 
-### Front-end — `ng test`: BOTH TESTS FAIL
+### Front-end — `ng test`: BOTH TESTS FAIL *(resolved by deletion in #30)*
 
 There are exactly two tests and **neither passes**.
 
@@ -178,7 +182,7 @@ Started TaskBackEndApplication in 23.502 seconds
 
 The `http-requests/tasks.http` file contains a single `POST /api/tasks` request; its equivalent **passes**. The gitignored `http-client.env.json` (dev-only credentials) is present locally.
 
-### Front-end: RUNS, AUTHENTICATES, BUT DOES NOT WORK
+### Front-end: RUNS, AUTHENTICATES, BUT DOES NOT WORK *(resolved by deletion in #30)*
 
 `ng serve` came up on :4200. The app redirects to Keycloak (`portal-realm`), and after a successful interactive login it returns and renders. So the Keycloak wiring is genuinely functional. What it renders, however, is wrong:
 
@@ -211,6 +215,8 @@ GET /api/task-patches?since=2026-07-31T19:18:04.056Z → 200 OK
 Two streams, identical `since`, one later aborted — but both delivered the replayed patch before that happened, so it was appended twice. Hence the duplicate in the screenshot. (Note the `since` value is the moment `onInit` ran, not the last-seen patch time, because `updateLastUpdated(new Date())` is called synchronously right after the *asynchronous* `fetchTasks()` is dispatched.)
 
 So the honest summary is: **the front-end authenticates and connects, and does nothing else correctly.** It is a scaffold, and the parts that exist are miswired.
+
+[#30](https://github.com/stainii/task/issues/30) took that summary at its word and deleted the scaffold. The decisive argument was not that F1–F3 were hard to fix — F1 is a one-line regex — but that the code they live in is *already superseded*: `?since=<dateTime>` is the silent-divergence defect ADR-0004 was written to kill, `localStorage` is replaced by IndexedDB, and the missing patch-application logic is now specified as a fold pinned by shared golden fixtures. Repairing F1–F3 would have bought a correct implementation of a wrong contract.
 
 ---
 
