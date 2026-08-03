@@ -119,6 +119,34 @@ tasks with a different context.
 Importance is an optional grade on a task. Status is `OPEN`, `COMPLETED` or `CANCELLED` — tasks are
 closed, never deleted.
 
+### Importance bucket
+
+**One of four names for the quadrant a task falls in**, computed in the front end from importance ×
+remaining time and rendered as the colour stripe down a task panel: `focus` (red), `long-game`
+(green), `fit-in` (orange), `back-burner` (grey). Two are about importance, two about proximity —
+`long-game` is important but not near, `fit-in` is near but not important, and telling those two
+apart is the whole reason the stripe exists.
+
+Client-side only: no column, no endpoint, no migration. The green bucket was called `goals` in
+portal, which squatted on **goal**.
+
+### Visible work
+
+**What the overview shows before you open anything.** Everything overdue or due today is always
+visible, however many that is; below that the band is topped up to 5 in rank order. Overdue and due
+today are one set, not two rules. Everything else starts folded.
+
+A front-end rule over data the client already holds, so it works identically offline.
+
+### Grouping axis
+
+**What the overview's cards group by** — `context` today. The axis is a property of the card row
+alone: swapping it changes the cards and leaves the bands, the ordering and the panels untouched.
+This is how the overview stays ready for **goal** without representing one.
+
+Resolved in [#9](https://github.com/stainii/task/issues/9),
+[ADR-0006](docs/adr/0006-one-overview-grouped-by-a-swappable-axis.md).
+
 ## Terms deliberately left undefined
 
 ### Goal
@@ -137,7 +165,12 @@ nothing.
 A finishable outcome is *not* a goal — that is a **task template** that fires once and produces the
 tasks the project consists of.
 
-Resolved in [#4](https://github.com/stainii/task/issues/4).
+The overview keeps a slot for goals without building one: the **grouping axis** is swappable, so
+goals can replace or join context as what the cards group by. Whether a task row would then show
+both its context and its goal is left open with the rest.
+
+Resolved in [#4](https://github.com/stainii/task/issues/4), slot kept by
+[#9](https://github.com/stainii/task/issues/9).
 
 ## Terms we deliberately do not use
 
@@ -154,3 +187,5 @@ Resolved in [#4](https://github.com/stainii/task/issues/4).
   of writing the old values back.
 - **Last updated** (as a sync cursor) — replaced by **sequence**; a wall-clock time cannot say what
   the server has already sent you.
+- **`goals`** (as an importance bucket) — renamed **`long-game`**; the term is reserved for a
+  standing theme.

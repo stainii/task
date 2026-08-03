@@ -1,0 +1,391 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #9, question 2.
+  "Where do complete and cancel live, when a mouse has no swipe?"
+  Three variants of the task panel's action affordance, switchable via ?variant=A|B|C
+  and the floating bar at the bottom. Swipe works with mouse drag AND touch (Pointer Events),
+  in all three variants, because a desktop can swipe today.
+  Layout/data are identical across variants on purpose — only the affordance differs.
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — task panel actions</title>
+<style>
+  :root {
+    --focus: #e53935;
+    --long-game: #7cb342;
+    --fit-in: #fb8c00;
+    --back-burner: #9e9e9e;
+    --ink: #1c1b1f;
+    --muted: #5f6368;
+    --line: #e3e3e6;
+    --surface: #fff;
+    --bg: #f6f6f8;
+    --accent: #3f51b5;
+    --complete: #2e7d32;
+    --cancel: #c62828;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 90px;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header.app .ctx { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    font-size: 12px; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted); background: #fafafa;
+  }
+  main { max-width: 1400px; margin: 0 auto; padding: 20px; }
+  section { margin-bottom: 28px; }
+  section > h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  .band {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  }
+  .collapsed-note { font-size: 13px; color: var(--muted); }
+
+  /* ---------- the panel ---------- */
+  .panel {
+    position: relative; overflow: hidden; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px;
+    touch-action: pan-y; user-select: none; cursor: grab;
+  }
+  .panel.dragging { cursor: grabbing; }
+  .panel::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10px;
+    background: var(--back-burner);
+  }
+  .panel[data-bucket="focus"]::before { background: var(--focus); }
+  .panel[data-bucket="long-game"]::before { background: var(--long-game); }
+  .panel[data-bucket="fit-in"]::before { background: var(--fit-in); }
+  .panel[data-bucket="back-burner"]::before { background: var(--back-burner); }
+
+  .fill {
+    position: absolute; top: 0; bottom: 0; width: 0;
+    display: flex; align-items: center; gap: 8px;
+    color: #fff; font-weight: 600; font-size: 13px;
+    padding: 0; overflow: hidden; white-space: nowrap; pointer-events: none;
+  }
+  .fill > span { padding: 0 14px; }
+  .fill.right { left: 0; background: var(--complete); justify-content: flex-start; }
+  .fill.left { right: 0; background: var(--cancel); justify-content: flex-end; }
+
+  .row {
+    position: relative; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px 12px 24px; background: transparent;
+  }
+  .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+  .ctxlabel { font-size: 12px; color: var(--muted); }
+  .time { font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .time.overdue { color: var(--cancel); font-weight: 600; }
+
+  .iconbtn {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px;
+    width: 32px; height: 32px; display: grid; place-items: center;
+    cursor: pointer; font-size: 15px; line-height: 1; color: var(--muted);
+  }
+  .iconbtn:hover { background: #f0f0f4; color: var(--ink); }
+  .iconbtn.ok:hover { border-color: var(--complete); color: var(--complete); }
+  .iconbtn.no:hover { border-color: var(--cancel); color: var(--cancel); }
+
+  .body {
+    padding: 0 14px 12px 24px; border-top: 1px solid var(--line);
+    font-size: 14px; color: var(--muted);
+  }
+  .body .desc { margin: 10px 0; white-space: pre-wrap; }
+  .body .actions { display: flex; gap: 8px; }
+  .txtbtn {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px;
+    padding: 6px 12px; cursor: pointer; font-size: 13px; color: var(--muted);
+  }
+  .txtbtn:hover { background: #f0f0f4; color: var(--ink); }
+
+  /* variant A: expand to reveal */
+  .v-A .row { cursor: pointer; }
+  .v-A .body { display: none; }
+  .v-A .panel.open .body { display: block; }
+  .v-A .caret { color: var(--muted); font-size: 12px; transition: transform .15s; }
+  .v-A .panel.open .caret { transform: rotate(180deg); }
+
+  /* variant B: always visible */
+  .v-B .body { display: none; }
+  .v-B .panel.open .body { display: block; }
+
+  /* variant C: hover reveal */
+  .v-C .body { display: none; }
+  .v-C .panel.open .body { display: block; }
+  /* actions overlay the row rather than reserving space, so the task name gets
+     full width at rest and nothing reflows on hover */
+  .v-C .hoveracts {
+    opacity: 0; transition: opacity .12s;
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: var(--surface); padding-left: 12px;
+    box-shadow: -12px 0 12px -6px var(--surface);
+  }
+  .v-C .panel:hover .hoveracts,
+  .v-C .panel:focus-within .hoveracts { opacity: 1; }
+  @media (hover: none) {
+    .v-C .hoveracts { opacity: 1; }
+  }
+
+  .empty { color: var(--muted); font-size: 14px; }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 90px;
+    background: #1c1b1f; color: #fff; padding: 9px 16px; border-radius: 8px;
+    font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ---------- switcher (deliberately not part of the design) ---------- */
+  #switcher {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: #1c1b1f; color: #fff; border-radius: 999px;
+    display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.28); z-index: 30; font-size: 13px;
+  }
+  #switcher button {
+    background: transparent; border: 0; color: #fff; cursor: pointer;
+    font-size: 16px; padding: 4px 10px; border-radius: 999px;
+  }
+  #switcher button:hover { background: rgba(255,255,255,.15); }
+  #label { padding: 0 10px; white-space: nowrap; }
+  #label b { font-weight: 700; }
+  #hint { font-size: 11px; opacity: .6; padding-right: 8px; }
+
+  @media (max-width: 640px) {
+    main { padding: 12px; }
+    header.app .ctx { display: none; }
+    .band { grid-template-columns: 1fr; }
+    .ctxlabel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Tasks</h1>
+  <div class="ctx">
+    <span class="chip">all</span>
+    <span class="chip">house</span>
+    <span class="chip">social</span>
+    <span class="chip">health</span>
+    <span class="chip">setlist</span>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<div id="toast"></div>
+
+<div id="switcher">
+  <button id="prev" title="Previous variant">←</button>
+  <span id="label"></span>
+  <button id="next" title="Next variant">→</button>
+  <span id="hint">← → to switch</span>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+const TASKS = [
+  { n: "Vacuum the living room",              b: "focus",       c: "house",   t: "2d overdue", od: true,  d: "Including under the couch. The robot gave up in 2019." },
+  { n: "Call mum",                            b: "focus",       c: "social",  t: "today",      od: false, d: "It has been three weeks." },
+  { n: "Book dentist appointment",            b: "focus",       c: "health",  t: "in 2 days",  od: false, d: "Six-month check-up, they sent a reminder." },
+  { n: "Replace the kitchen tap washer",      b: "fit-in",      c: "house",   t: "in 3 days",  od: false, d: "Dripping since spring. Parts are in the drawer." },
+  { n: "Learn 'Wish You Were Here' intro",    b: "long-game",   c: "setlist", t: "in 5 days",  od: false, d: "Slow it to 60% first." },
+  { n: "Descale the coffee machine",          b: "fit-in",      c: "house",   t: "in 1 week",  od: false, d: "It is starting to taste like the tap." },
+  { n: "Coffee with Tom",                     b: "long-game",   c: "social",  t: "in 1 week",  od: false, d: "Last time was March." },
+  { n: "Renew bike insurance",                b: "fit-in",      c: "house",   t: "in 9 days",  od: false, d: "" },
+  { n: "Stretch routine",                     b: "back-burner", c: "health",  t: "in 10 days", od: false, d: "Ten minutes, the one from the physio." },
+  { n: "Clean the gutters",                   b: "back-burner", c: "house",   t: "in 2 weeks", od: false, d: "Before the autumn leaves." },
+  { n: "Write to Anne",                       b: "long-game",   c: "social",  t: "in 2 weeks", od: false, d: "" },
+  { n: "Restring the acoustic",               b: "back-burner", c: "setlist", t: "in 3 weeks", od: false, d: "" },
+];
+const FUTURE = [
+  { n: "Winter tyres on",                     b: "fit-in",      c: "house",   t: "in 6 weeks", od: false, d: "" },
+  { n: "Blood test follow-up",                b: "focus",       c: "health",  t: "in 2 months",od: false, d: "" },
+];
+
+const BANDS = [
+  { title: "Most important", tasks: TASKS.slice(0, 5) },
+  { title: "Also…",          tasks: TASKS.slice(5) },
+  { title: "Starting in the future…", tasks: FUTURE },
+];
+
+const VARIANTS = {
+  A: "Expand to reveal (portal, extended)",
+  B: "Always-visible actions",
+  C: "Hover-revealed on desktop",
+};
+
+// ---------------------------------------------------------------- render
+function panelHTML(task, variant) {
+  const acts = {
+    A: `<span class="caret">▾</span>`,
+    B: `<button class="iconbtn no" data-act="cancel" title="Cancel">✕</button>
+        <button class="iconbtn ok" data-act="complete" title="Complete">✓</button>
+        <button class="iconbtn" data-act="edit" title="Edit">✎</button>`,
+    C: `<span class="hoveracts" style="display:flex;gap:6px">
+          <button class="iconbtn no" data-act="cancel" title="Cancel">✕</button>
+          <button class="iconbtn ok" data-act="complete" title="Complete">✓</button>
+          <button class="iconbtn" data-act="edit" title="Edit">✎</button>
+        </span>`,
+  }[variant];
+
+  const bodyActions = variant === "A"
+    ? `<div class="actions">
+         <button class="txtbtn" data-act="edit">✎ Edit</button>
+         <button class="txtbtn" data-act="complete">✓ Complete</button>
+         <button class="txtbtn" data-act="cancel">✕ Cancel</button>
+       </div>`
+    : `<div class="actions"><button class="txtbtn" data-act="edit">✎ Edit</button></div>`;
+
+  return `
+  <div class="panel" data-bucket="${task.b}">
+    <div class="fill right"><span>✓ Complete</span></div>
+    <div class="fill left"><span>Cancel ✕</span></div>
+    <div class="row">
+      <span class="name">${task.n}</span>
+      <span class="meta">
+        <span class="ctxlabel">${task.c}</span>
+        <span class="time ${task.od ? "overdue" : ""}">${task.t}</span>
+        ${acts}
+      </span>
+    </div>
+    <div class="body">
+      <p class="desc">${task.d || "<em>No description.</em>"}</p>
+      ${bodyActions}
+    </div>
+  </div>`;
+}
+
+function render(variant) {
+  const app = document.getElementById("app");
+  app.className = "v-" + variant;
+  app.innerHTML = BANDS.map(band => `
+    <section>
+      <h2>${band.title}</h2>
+      <div class="band">${band.tasks.map(t => panelHTML(t, variant)).join("")}</div>
+    </section>`).join("");
+  wire(variant);
+}
+
+// ---------------------------------------------------------------- behaviour
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove("show"), 1400);
+}
+
+function act(panel, what) {
+  const name = panel.querySelector(".name").textContent;
+  toast(`${what} — ${name}`);
+  panel.style.transition = "opacity .25s, transform .25s";
+  panel.style.opacity = "0";
+  panel.style.transform = what === "Completed" ? "translateX(40px)" : "translateX(-40px)";
+  setTimeout(() => { panel.style.transition = ""; panel.style.opacity = ""; panel.style.transform = ""; resetFill(panel); }, 700);
+}
+
+function resetFill(panel) {
+  panel.querySelector(".fill.right").style.width = "0px";
+  panel.querySelector(".fill.left").style.width = "0px";
+}
+
+const THRESHOLD = 110;
+
+function wire(variant) {
+  document.querySelectorAll(".panel").forEach(panel => {
+    // buttons
+    panel.querySelectorAll("[data-act]").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        const a = btn.dataset.act;
+        if (a === "complete") act(panel, "Completed");
+        else if (a === "cancel") act(panel, "Cancelled");
+        else toast("Edit — " + panel.querySelector(".name").textContent);
+      });
+    });
+
+    // variant A: click the row to expand. B/C: click the row to expand too,
+    // but the primary verbs never depend on it.
+    panel.querySelector(".row").addEventListener("click", () => {
+      if (panel._dragged) return;
+      panel.classList.toggle("open");
+    });
+
+    // swipe — mouse drag and touch alike
+    let startX = null, dx = 0;
+    panel.addEventListener("pointerdown", e => {
+      if (e.target.closest("[data-act]")) return;
+      startX = e.clientX; dx = 0; panel._dragged = false;
+      panel.classList.add("dragging");
+      panel.setPointerCapture(e.pointerId);
+    });
+    panel.addEventListener("pointermove", e => {
+      if (startX === null) return;
+      dx = e.clientX - startX;
+      if (Math.abs(dx) > 6) panel._dragged = true;
+      const right = panel.querySelector(".fill.right");
+      const left = panel.querySelector(".fill.left");
+      right.style.width = dx > 0 ? Math.min(dx, panel.offsetWidth) + "px" : "0px";
+      left.style.width = dx < 0 ? Math.min(-dx, panel.offsetWidth) + "px" : "0px";
+    });
+    const end = () => {
+      if (startX === null) return;
+      panel.classList.remove("dragging");
+      if (dx > THRESHOLD) act(panel, "Completed");
+      else if (dx < -THRESHOLD) act(panel, "Cancelled");
+      else resetFill(panel);
+      startX = null;
+      setTimeout(() => { panel._dragged = false; }, 0);
+    };
+    panel.addEventListener("pointerup", end);
+    panel.addEventListener("pointercancel", end);
+  });
+}
+
+// ---------------------------------------------------------------- switcher
+const keys = Object.keys(VARIANTS);
+function current() {
+  const v = new URLSearchParams(location.search).get("variant");
+  return keys.includes(v) ? v : "A";
+}
+function go(v) {
+  const u = new URL(location);
+  u.searchParams.set("variant", v);
+  history.replaceState({}, "", u);
+  paint();
+}
+function paint() {
+  const v = current();
+  document.getElementById("label").innerHTML = `<b>${v}</b> — ${VARIANTS[v]}`;
+  render(v);
+}
+document.getElementById("prev").onclick = () => go(keys[(keys.indexOf(current()) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => go(keys[(keys.indexOf(current()) + 1) % keys.length]);
+document.addEventListener("keydown", e => {
+  if (["INPUT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+paint();
+</script>
+</body>
+</html>

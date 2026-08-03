@@ -1,0 +1,551 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #9, question 3 (+ refinements).
+  "How does one screen make contexts visible, not merely filterable?"
+  Variants on the floating bar (or ← / →):
+    D — hybrid: app-like context cards + global bands   <-- chosen, being refined
+    A — context becomes the layout
+    B — bands primary, context summary strip
+    C — two-axis grid (bands x contexts)
+  Refinements now under test in D:
+    * visible-work rule: everything due today/overdue is ALWAYS shown, even if that is
+      more than 5; otherwise the band is topped up to 5. Nothing else is open by default.
+    * goal-readiness: the card row is the swappable second axis. The "group by" toggle
+      swaps context -> goal with NO change to anything below it. Goals are NOT built.
+  Panel affordance is fixed to the decided variant (expand to reveal, swipe both ways).
+  The grey bar under the header is prototype scaffolding, not design.
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — overview & context visibility</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --complete: #2e7d32; --cancel: #c62828;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 90px;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+
+  /* prototype scaffolding — deliberately ugly, not part of the design */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--line);
+    padding: 8px 20px; font-size: 12px; color: var(--muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 20px; }
+  h2.band {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  h2.band .n { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 7px; }
+  .foldable > h2.band { cursor: pointer; user-select: none; }
+  .foldable > h2.band .hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: #a5a5ad; margin-left: 7px; }
+
+  /* ---------------- panel (fixed: decided affordance) ---------------- */
+  .panel {
+    position: relative; overflow: hidden; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 10px;
+    touch-action: pan-y; user-select: none; cursor: grab; margin-bottom: 8px;
+  }
+  .panel.dragging { cursor: grabbing; }
+  .panel::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10px; background: var(--back-burner); }
+  .panel[data-bucket="focus"]::before { background: var(--focus); }
+  .panel[data-bucket="long-game"]::before { background: var(--long-game); }
+  .panel[data-bucket="fit-in"]::before { background: var(--fit-in); }
+  .panel[data-bucket="back-burner"]::before { background: var(--back-burner); }
+  .fill {
+    position: absolute; top: 0; bottom: 0; width: 0; display: flex; align-items: center;
+    color: #fff; font-weight: 600; font-size: 13px; padding: 0;
+    overflow: hidden; white-space: nowrap; pointer-events: none;
+  }
+  .fill > span { padding: 0 14px; }
+  .fill.right { left: 0; background: var(--complete); justify-content: flex-start; }
+  .fill.left { right: 0; background: var(--cancel); justify-content: flex-end; }
+  .row { position: relative; display: flex; align-items: center; gap: 10px; padding: 11px 12px 11px 22px; cursor: pointer; }
+  .name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+  .ctxlabel { font-size: 12px; color: var(--muted); }
+  .time { font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .time.today { color: var(--ink); font-weight: 600; }
+  .time.overdue { color: var(--cancel); font-weight: 600; }
+  .caret { color: var(--muted); font-size: 11px; transition: transform .15s; }
+  .panel.open .caret { transform: rotate(180deg); }
+  .body { display: none; padding: 0 12px 12px 22px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  .panel.open .body { display: block; }
+  .body .desc { margin: 10px 0; white-space: pre-wrap; }
+  .body .actions { display: flex; gap: 8px; }
+  .txtbtn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .txtbtn:hover { background: #f0f0f4; color: var(--ink); }
+
+  /* ---------------- D: hybrid ---------------- */
+  .lay-D .axisbar { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .lay-D .axisbar .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+  .lay-D .strip { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); margin-bottom: 26px; }
+  .lay-D .ctxcard {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 13px 15px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 8px; transition: border-color .12s, box-shadow .12s;
+  }
+  .lay-D .ctxcard:hover { border-color: var(--accent); }
+  .lay-D .ctxcard.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(63,81,181,.14); }
+  .lay-D .ctxcard > header { display: flex; align-items: baseline; gap: 8px; }
+  .lay-D .ctxcard h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .lay-D .ctxcard .count { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .lay-D .ctxcard .alarm { font-size: 12px; color: var(--cancel); font-weight: 600; }
+  .lay-D .ctxcard .todaycount { font-size: 12px; color: var(--ink); font-weight: 600; }
+  .lay-D .spark { display: flex; gap: 3px; }
+  .lay-D .spark i { display: block; height: 6px; flex: 1; border-radius: 3px; background: var(--line); }
+  .lay-D .ctxcard .after { font-size: 12px; color: var(--muted); }
+  .lay-D .ctxcard .after .q { font-style: italic; }
+  .lay-D .grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+  .lay-D section { margin-bottom: 24px; }
+  .lay-D .scope { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 14px; }
+  .lay-D .scope .clear {
+    border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px;
+    cursor: pointer; font-size: 12px; color: var(--muted);
+  }
+  .lay-D .scope .clear:hover { background: #f0f0f4; color: var(--ink); }
+  .lay-D .folded .grid { display: none; }
+
+  /* ---------------- A: context becomes the layout ---------------- */
+  .lay-A .columns { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: start; }
+  .lay-A .col { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .lay-A .col > header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .lay-A .col h3 { margin: 0; font-size: 15px; }
+  .lay-A .col .count { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .lay-A .col .alarm { font-size: 12px; color: var(--cancel); font-weight: 600; }
+  .lay-A .col .quiet { font-size: 13px; color: var(--muted); font-style: italic; padding: 6px 0 10px; }
+  .lay-A .subband { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 6px; }
+  .lay-A .ctxlabel { display: none; }
+
+  /* ---------------- B: bands + context strip ---------------- */
+  .lay-B .strip { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 22px; }
+  .lay-B .ctxcard { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; cursor: pointer; }
+  .lay-B .ctxcard:hover { border-color: var(--accent); }
+  .lay-B .ctxcard.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(63,81,181,.14); }
+  .lay-B .ctxcard .t { font-size: 14px; font-weight: 600; }
+  .lay-B .ctxcard .n { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .lay-B .ctxcard .n .bad { color: var(--cancel); font-weight: 600; }
+  .lay-B .spark { display: flex; gap: 3px; margin-top: 8px; }
+  .lay-B .spark i { display: block; height: 5px; flex: 1; border-radius: 3px; background: var(--line); }
+  .lay-B .grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+  .lay-B section { margin-bottom: 26px; }
+
+  /* ---------------- C: two-axis grid ---------------- */
+  .lay-C .matrix { display: grid; gap: 12px; grid-template-columns: 120px repeat(4, 1fr); align-items: start; }
+  .lay-C .colhead { font-weight: 600; font-size: 14px; padding-bottom: 6px; border-bottom: 2px solid var(--line); }
+  .lay-C .colhead .n { font-weight: 400; font-size: 12px; color: var(--muted); margin-left: 6px; }
+  .lay-C .rowhead { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; padding-top: 10px; }
+  .lay-C .cell { min-height: 34px; }
+  .lay-C .cell .none { font-size: 12px; color: #c4c4c8; padding: 8px 0; }
+  .lay-C .ctxlabel { display: none; }
+  .lay-C .corner { border-bottom: 2px solid var(--line); }
+
+  .note { max-width: 1500px; margin: 0 auto 14px; padding: 9px 20px; font-size: 13px; color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; }
+
+  #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 90px; background: #1c1b1f; color: #fff;
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+  #toast.show { opacity: 1; }
+
+  #switcher {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #1c1b1f; color: #fff;
+    border-radius: 999px; display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.28); z-index: 30; font-size: 13px;
+  }
+  #switcher button { background: transparent; border: 0; color: #fff; cursor: pointer; font-size: 16px; padding: 4px 10px; border-radius: 999px; }
+  #switcher button:hover { background: rgba(255,255,255,.15); }
+  #label { padding: 0 10px; white-space: nowrap; }
+  #label b { font-weight: 700; }
+  #hint { font-size: 11px; opacity: .6; padding-right: 8px; }
+
+  @media (max-width: 780px) {
+    main { padding: 12px; }
+    .lay-C .matrix { grid-template-columns: 1fr; }
+    .lay-C .rowhead { padding-top: 18px; }
+    .lay-C .colhead { margin-top: 10px; }
+    .lay-C .ctxlabel { display: inline; }
+    .ctxlabel { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app"><h1>Tasks</h1></header>
+
+<div id="rig">
+  <span class="grp"><b>scenario:</b>
+    <button data-sc="0">1 due today</button>
+    <button data-sc="1">3 due today</button>
+    <button data-sc="2">7 due today</button>
+  </span>
+  <span class="grp"><b>group by:</b>
+    <button data-axis="c">context</button>
+    <button data-axis="g">goal (not built — proves the slot)</button>
+  </span>
+  <span id="rigreport"></span>
+</div>
+
+<div class="note" id="note"></div>
+<main id="app"></main>
+<div id="toast"></div>
+
+<div id="switcher">
+  <button id="prev" title="Previous">←</button>
+  <span id="label"></span>
+  <button id="next" title="Next">→</button>
+  <span id="hint">← → to switch</span>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+// dueIn: days from now. negative = overdue, 0 = today. > 35 = "starting in the future".
+// c = context, g = goal (a coarser standing theme — several contexts can serve one)
+const T = (n, b, c, g, dueIn, d) => ({ n, b, c, g, dueIn, d: d || "" });
+const BASE = [
+  T("Vacuum the living room",           "focus",       "house",   "a calm house",     -2, "Including under the couch. The robot gave up in 2019."),
+  T("Call mum",                         "focus",       "social",  "keeping in touch",  0, "It has been three weeks."),
+  T("Book dentist appointment",         "focus",       "health",  "staying well",      2, "Six-month check-up, they sent a reminder."),
+  T("Replace the kitchen tap washer",   "fit-in",      "house",   "a calm house",      3, "Dripping since spring. Parts are in the drawer."),
+  T("Learn 'Wish You Were Here' intro", "long-game",   "setlist", "playing better",    5, "Slow it to 60% first."),
+  T("Descale the coffee machine",       "fit-in",      "house",   "a calm house",      7, "It is starting to taste like the tap."),
+  T("Coffee with Tom",                  "long-game",   "social",  "keeping in touch",  7, "Last time was March."),
+  T("Renew bike insurance",             "fit-in",      "house",   "a calm house",      9, ""),
+  T("Stretch routine",                  "back-burner", "health",  "staying well",     10, "Ten minutes, the one from the physio."),
+  T("Clean the gutters",                "back-burner", "house",   "a calm house",     14, "Before the autumn leaves."),
+  T("Write to Anne",                    "long-game",   "social",  "keeping in touch", 14, ""),
+  T("Restring the acoustic",            "back-burner", "setlist", "playing better",   21, ""),
+  T("Clear the shed",                   "back-burner", "house",   "a calm house",     21, ""),
+  T("Sort the sheet music folder",      "back-burner", "setlist", "playing better",   28, ""),
+  T("Winter tyres on",                  "fit-in",      "house",   "a calm house",     42, ""),
+  T("Blood test follow-up",             "focus",       "health",  "staying well",     60, ""),
+];
+// scenarios pull different tasks forward onto today, to exercise the visible-work rule
+const SCENARIOS = [
+  { name: "1 due today",  due: ["Call mum"] },
+  { name: "3 due today",  due: ["Call mum", "Replace the kitchen tap washer", "Descale the coffee machine"] },
+  { name: "7 due today",  due: ["Call mum", "Replace the kitchen tap washer", "Descale the coffee machine",
+                                "Coffee with Tom", "Renew bike insurance", "Stretch routine", "Restring the acoustic"] },
+];
+
+let scenario = 1;
+let axis = "c";          // "c" = context, "g" = goal
+let filter = null;
+let folded = { 1: true, 2: true };   // Also… and Future start closed
+
+function tasks() {
+  const due = new Set(SCENARIOS[scenario].due);
+  return BASE.map(t => ({ ...t, dueIn: due.has(t.n) ? 0 : t.dueIn }));
+}
+const keyOf = t => axis === "c" ? t.c : t.g;
+function groups(all) { return [...new Set(all.map(keyOf))]; }
+
+function label(dueIn) {
+  if (dueIn < 0) return `${-dueIn}d overdue`;
+  if (dueIn === 0) return "today";
+  if (dueIn === 1) return "tomorrow";
+  if (dueIn < 14) return `in ${dueIn} days`;
+  if (dueIn < 60) return `in ${Math.round(dueIn / 7)} weeks`;
+  return `in ${Math.round(dueIn / 30)} months`;
+}
+const timeClass = t => t.dueIn < 0 ? "overdue" : t.dueIn === 0 ? "today" : "";
+
+// THE VISIBLE-WORK RULE
+//   everything overdue or due today is always visible, however many that is;
+//   if that is fewer than 5, top up to 5 with the next in rank order.
+const FUTURE_FROM = 35;
+function split(all) {
+  const future = all.filter(t => t.dueIn > FUTURE_FROM);
+  const live = all.filter(t => t.dueIn <= FUTURE_FROM).sort((a, b) => a.dueIn - b.dueIn);
+  const now = live.filter(t => t.dueIn <= 0);
+  const rest = live.filter(t => t.dueIn > 0);
+  const topUp = Math.max(0, 5 - now.length);
+  return { visible: [...now, ...rest.slice(0, topUp)], also: rest.slice(topUp), future, dueNow: now.length };
+}
+
+// ---------------------------------------------------------------- panel
+function panelHTML(t, hideGroup) {
+  return `
+  <div class="panel" data-bucket="${t.b}">
+    <div class="fill right"><span>✓ Complete</span></div>
+    <div class="fill left"><span>Cancel ✕</span></div>
+    <div class="row">
+      <span class="name">${t.n}</span>
+      <span class="meta">
+        ${hideGroup ? `` : `<span class="ctxlabel">${keyOf(t)}</span>`}
+        <span class="time ${timeClass(t)}">${label(t.dueIn)}</span>
+        <span class="caret">▾</span>
+      </span>
+    </div>
+    <div class="body">
+      <p class="desc">${t.d || "<em>No description.</em>"}</p>
+      <div class="actions">
+        <button class="txtbtn" data-act="edit">✎ Edit</button>
+        <button class="txtbtn" data-act="complete">✓ Complete</button>
+        <button class="txtbtn" data-act="cancel">✕ Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- D
+function layoutD() {
+  const all = tasks();
+  const cards = groups(all).map(g => {
+    const mine = all.filter(t => keyOf(t) === g);
+    const over = mine.filter(t => t.dueIn < 0).length;
+    const today = mine.filter(t => t.dueIn === 0).length;
+    const next = mine.filter(t => t.dueIn > 0).sort((a, b) => a.dueIn - b.dueIn)[0];
+    const bars = mine.slice().sort((a, b) => a.dueIn - b.dueIn).slice(0, 6)
+      .map(t => `<i style="background:var(--${t.b})"></i>`).join("");
+    const badge = over ? `<span class="alarm">${over} overdue</span>`
+                : today ? `<span class="todaycount">${today} today</span>` : ``;
+    return `
+      <div class="ctxcard ${filter === g ? "active" : ""}" data-ctx="${g}">
+        <header>
+          <h3>${g}</h3>
+          ${badge}
+          <span class="count">${mine.length}</span>
+        </header>
+        <div class="spark">${bars}</div>
+        <div class="after">${next ? `next: ${next.n} · ${label(next.dueIn)}` : `<span class="q">nothing pending</span>`}</div>
+      </div>`;
+  }).join("");
+
+  const shown = filter ? all.filter(t => keyOf(t) === filter) : all;
+  const { visible, also, future, dueNow } = split(shown);
+
+  const scope = filter
+    ? `<div class="scope"><strong>${filter}</strong> — ${shown.length} open
+         <button class="clear" data-clear="1">← everything</button></div>`
+    : ``;
+
+  const band = (title, rows, idx, foldable) => {
+    if (!rows.length) return "";
+    const isFolded = foldable && folded[idx];
+    return `
+      <section class="${foldable ? "foldable" : ""} ${isFolded ? "folded" : ""}" data-fold="${foldable ? idx : ""}">
+        <h2 class="band">${title}<span class="n">${rows.length}</span>${foldable ? `<span class="hint">${isFolded ? "click to open" : "click to close"}</span>` : ``}</h2>
+        <div class="grid">${rows.map(t => panelHTML(t, !!filter)).join("")}</div>
+      </section>`;
+  };
+
+  const heading = dueNow > 5 ? `Due today <span class="n">— all ${dueNow}, the cap does not apply</span>`
+                             : `Due today &amp; next up`;
+
+  return `
+    <div class="axisbar"><span class="lbl">grouped by ${axis === "c" ? "context" : "goal"}</span></div>
+    <div class="strip">${cards}</div>
+    ${scope}
+    ${band(heading, visible, 0, false)}
+    ${band("Also…", also, 1, true)}
+    ${band("Starting in the future…", future, 2, true)}
+    ${visible.length ? "" : `<p class="empty">Relax! Nothing else to do.</p>`}`;
+}
+
+// ---------------------------------------------------------------- A / B / C (unchanged, for comparison)
+function bandOf(t, visibleSet) { return t.dueIn > FUTURE_FROM ? 2 : visibleSet.has(t.n) ? 0 : 1; }
+
+function layoutA() {
+  const all = tasks();
+  return `<div class="columns">` + groups(all).map(g => {
+    const mine = all.filter(t => keyOf(t) === g).sort((a, b) => a.dueIn - b.dueIn);
+    const over = mine.filter(t => t.dueIn < 0).length;
+    const now = mine.filter(t => t.dueIn <= FUTURE_FROM);
+    const later = mine.filter(t => t.dueIn > FUTURE_FROM);
+    return `
+      <div class="col">
+        <header><h3>${g}</h3>${over ? `<span class="alarm">${over} overdue</span>` : ``}<span class="count">${mine.length}</span></header>
+        ${now.length ? now.map(t => panelHTML(t, true)).join("") : `<div class="quiet">Nothing on.</div>`}
+        ${later.length ? `<div class="subband">Later</div>` + later.map(t => panelHTML(t, true)).join("") : ``}
+      </div>`;
+  }).join("") + `</div>`;
+}
+
+function layoutB() {
+  const all = tasks();
+  const strip = groups(all).map(g => {
+    const mine = all.filter(t => keyOf(t) === g);
+    const over = mine.filter(t => t.dueIn < 0).length;
+    const today = mine.filter(t => t.dueIn === 0).length;
+    const bars = mine.slice().sort((a, b) => a.dueIn - b.dueIn).slice(0, 6).map(t => `<i style="background:var(--${t.b})"></i>`).join("");
+    return `
+      <div class="ctxcard ${filter === g ? "active" : ""}" data-ctx="${g}">
+        <div class="t">${g}</div>
+        <div class="n">${mine.length} open${over ? ` · <span class="bad">${over} overdue</span>` : today ? ` · ${today} today` : ``}</div>
+        <div class="spark">${bars}</div>
+      </div>`;
+  }).join("");
+  const shown = filter ? all.filter(t => keyOf(t) === filter) : all;
+  const { visible, also, future } = split(shown);
+  const vs = new Set(visible.map(t => t.n));
+  const sect = (title, rows) => rows.length
+    ? `<section><h2 class="band">${title}</h2><div class="grid">${rows.map(t => panelHTML(t, !!filter)).join("")}</div></section>` : "";
+  return `<div class="strip">${strip}</div>${sect("Most important", visible)}${sect("Also…", also)}${sect("Starting in the future…", future)}`;
+}
+
+function layoutC() {
+  const all = tasks();
+  const gs = groups(all);
+  const { visible, also, future } = split(all);
+  const vs = new Set(visible.map(t => t.n));
+  const rowsOf = i => all.filter(t => bandOf(t, vs) === i);
+  const head = `<div class="corner"></div>` + gs.map(g => {
+    const mine = all.filter(t => keyOf(t) === g);
+    const over = mine.filter(t => t.dueIn < 0).length;
+    return `<div class="colhead">${g}<span class="n">${mine.length}${over ? ` · ${over} overdue` : ``}</span></div>`;
+  }).join("");
+  const body = ["Most important", "Also…", "Starting in the future…"].map((title, i) => {
+    const cells = gs.map(g => {
+      const mine = rowsOf(i).filter(t => keyOf(t) === g).sort((a, b) => a.dueIn - b.dueIn);
+      return `<div class="cell">${mine.length ? mine.map(t => panelHTML(t, true)).join("") : `<div class="none">—</div>`}</div>`;
+    }).join("");
+    return `<div class="rowhead">${title}</div>${cells}`;
+  }).join("");
+  return `<div class="matrix" style="grid-template-columns:120px repeat(${gs.length},1fr)">${head}${body}</div>`;
+}
+
+// ---------------------------------------------------------------- behaviour
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 1400);
+}
+function act(panel, what) {
+  toast(`${what} — ${panel.querySelector(".name").textContent}`);
+  panel.style.transition = "opacity .25s, transform .25s";
+  panel.style.opacity = "0";
+  panel.style.transform = what === "Completed" ? "translateX(40px)" : "translateX(-40px)";
+  setTimeout(() => { panel.style.transition = ""; panel.style.opacity = ""; panel.style.transform = ""; resetFill(panel); }, 700);
+}
+function resetFill(p) {
+  p.querySelector(".fill.right").style.width = "0px";
+  p.querySelector(".fill.left").style.width = "0px";
+}
+const THRESHOLD = 110;
+
+function wire() {
+  document.querySelectorAll("[data-clear]").forEach(b => b.addEventListener("click", () => { filter = null; paint(); }));
+  document.querySelectorAll(".ctxcard").forEach(card => {
+    card.addEventListener("click", () => { filter = filter === card.dataset.ctx ? null : card.dataset.ctx; paint(); });
+  });
+  document.querySelectorAll("section.foldable > h2.band").forEach(h => {
+    h.addEventListener("click", () => {
+      const i = h.parentElement.dataset.fold;
+      folded[i] = !folded[i];
+      paint();
+    });
+  });
+
+  document.querySelectorAll(".panel").forEach(panel => {
+    panel.querySelectorAll("[data-act]").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        const a = btn.dataset.act;
+        if (a === "complete") act(panel, "Completed");
+        else if (a === "cancel") act(panel, "Cancelled");
+        else toast("Edit — " + panel.querySelector(".name").textContent);
+      });
+    });
+    panel.querySelector(".row").addEventListener("click", () => {
+      if (panel._dragged) return;
+      panel.classList.toggle("open");
+    });
+    let startX = null, dx = 0;
+    panel.addEventListener("pointerdown", e => {
+      if (e.target.closest("[data-act]")) return;
+      startX = e.clientX; dx = 0; panel._dragged = false;
+      panel.classList.add("dragging"); panel.setPointerCapture(e.pointerId);
+    });
+    panel.addEventListener("pointermove", e => {
+      if (startX === null) return;
+      dx = e.clientX - startX;
+      if (Math.abs(dx) > 6) panel._dragged = true;
+      panel.querySelector(".fill.right").style.width = dx > 0 ? Math.min(dx, panel.offsetWidth) + "px" : "0px";
+      panel.querySelector(".fill.left").style.width  = dx < 0 ? Math.min(-dx, panel.offsetWidth) + "px" : "0px";
+    });
+    const end = () => {
+      if (startX === null) return;
+      panel.classList.remove("dragging");
+      if (dx > THRESHOLD) act(panel, "Completed");
+      else if (dx < -THRESHOLD) act(panel, "Cancelled");
+      else resetFill(panel);
+      startX = null;
+      setTimeout(() => { panel._dragged = false; }, 0);
+    };
+    panel.addEventListener("pointerup", end);
+    panel.addEventListener("pointercancel", end);
+  });
+}
+
+// ---------------------------------------------------------------- switcher / rig
+const VARIANTS = {
+  D: "Hybrid — app-like cards + global bands",
+  A: "Context becomes the layout",
+  B: "Bands primary + context strip",
+  C: "Two-axis grid (bands × contexts)",
+};
+const NOTES = {
+  D: "Visible work is capped: everything overdue or due today always shows, however many; below 5 it tops up to 5. Also… and the future band start closed. The card row is the swappable axis — flip “group by” and nothing under it changes.",
+  A: "One column per group. Maximum shape — but there is no single ranked list any more: one answer to “what’s next” per column, not one overall.",
+  B: "Same visible-work rule, but the cards are counts only — the shape is two small numbers rather than something you can read at a glance.",
+  C: "Both structures at once. Narrow the window and it stops being a grid and becomes A with extra headings.",
+};
+const keys = Object.keys(VARIANTS);
+function current() {
+  const v = new URLSearchParams(location.search).get("variant");
+  return keys.includes(v) ? v : keys[0];
+}
+function go(v) {
+  const u = new URL(location); u.searchParams.set("variant", v);
+  history.replaceState({}, "", u);
+  filter = null; paint();
+}
+function paint() {
+  const v = current();
+  document.getElementById("label").innerHTML = `<b>${v}</b> — ${VARIANTS[v]}`;
+  document.getElementById("note").textContent = NOTES[v];
+  document.querySelectorAll("#rig [data-sc]").forEach(b => b.classList.toggle("on", +b.dataset.sc === scenario));
+  document.querySelectorAll("#rig [data-axis]").forEach(b => b.classList.toggle("on", b.dataset.axis === axis));
+  const { visible, also, dueNow } = split(tasks());
+  document.getElementById("rigreport").innerHTML =
+    `<b>${dueNow}</b> due today/overdue → <b>${visible.length}</b> shown, <b>${also.length}</b> folded away`;
+  const app = document.getElementById("app");
+  app.className = "lay-" + v;
+  app.innerHTML = v === "D" ? layoutD() : v === "A" ? layoutA() : v === "B" ? layoutB() : layoutC();
+  wire();
+}
+document.getElementById("prev").onclick = () => go(keys[(keys.indexOf(current()) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => go(keys[(keys.indexOf(current()) + 1) % keys.length]);
+document.querySelectorAll("#rig [data-sc]").forEach(b => b.onclick = () => { scenario = +b.dataset.sc; filter = null; paint(); });
+document.querySelectorAll("#rig [data-axis]").forEach(b => b.onclick = () => { axis = b.dataset.axis; filter = null; paint(); });
+document.addEventListener("keydown", e => {
+  if (["INPUT", "TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+paint();
+</script>
+</body>
+</html>
