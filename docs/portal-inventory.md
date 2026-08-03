@@ -143,6 +143,8 @@ One deployable, deployed **four times** with a different `deployment-name` (`hou
 
 A thin app over `portal-recurring-tasks` (deployment `social-recurring-tasks`) plus `portal-image`. It owns only the person record; the contact rhythm *is* a recurring task.
 
+> **Correction (#19, 2026-08-03): these rows were read from an abandoned working tree.** `portal-social`'s committed HEAD is **Spring Boot 2.7.18 / Java 14**; the 3.4.7 / Java 17 state on disk is an **uncommitted, unfinished** upgrade attempt (5 modified source files and a `hibernate-java8` 5.6.15 pin). #19 fixed the source of truth as **committed HEAD for behaviour, production for data**, so the rows below describe code one major version ahead of the real HEAD. Blast radius is small — [#13](https://github.com/stainii/task/issues/13) drops 11 of these 12 rows and `portal-social` disappears entirely — so this is recorded rather than re-triaged. The persisted *shape* is unaffected either way: #19 diffed the whole upgrade run across `Task`, `TaskPatch`, `Execution` and `RecurringTask` and found only `javax`→`jakarta` imports and string-formatting idioms, with no field renamed and no type changed.
+
 | Id | Capability | Where it lives | Status in `task` | Notes / fidelity |
 |---|---|---|---|---|
 | SOC-001 | **Person** — name, colour thumbnail, sepia thumbnail, recurringTaskId, latestUpdates | `model/Person.java` | **MISSING** | |
