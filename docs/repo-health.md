@@ -6,6 +6,8 @@
 
 **Environment used**: macOS (darwin 25.5.0), Java 25 (Oracle GraalVM 25+37.1), Maven 3.9.12, Node v22.14.0, npm 11.6.2, Docker 29.6.1 (Docker Desktop).
 
+> **Superseded — [#20](https://github.com/stainii/task/issues/20) (2026-08-04): this is no longer the toolchain.** The environment line above records the machine this evidence was gathered on and is kept for that reason. The repo now targets **Java 26** (Temurin 26.0.2, pinned in `.sdkmanrc`), Maven 3.9.16, **Node 26** (pinned in `task-front-end/.nvmrc`) and npm 12.0.2, on Spring Boot 4.1.0 / Spring Modulith 2.1.0 / Angular 22.1 / TypeScript 6.0. All 82 back-end tests and the front-end build/test remain green on that toolchain.
+
 ---
 
 ## Headline
@@ -74,6 +76,23 @@ and then produced nothing but repeated minion deaths for the next ~16 minutes be
 ```
 
 The author confirms this is not a one-off: on previous complete runs pitest takes **extremely long and ends in an out-of-memory error**. The cause is structural — every mutation re-runs test classes that boot a full Spring context plus Postgres and Keycloak containers, so cost scales as (mutations × container startup) and heap accumulates across minions.
+
+> **Partly overturned on the new toolchain — [#20](https://github.com/stainii/task/issues/20) (2026-08-04): pitest *does* finish, and there is now a baseline.**
+> On `pitest-maven` **1.25.8** / Java 26 / Boot 4.1, a full `./mvnw clean verify` **completed with BUILD SUCCESS** and wrote a complete report to `target/pit-reports/`. **This is the first whole-project mutation baseline this repo has ever had**, and it supersedes both the "no baseline exists" claim above and the four-month-old stale report warned about below:
+>
+> | | |
+> |---|---|
+> | Classes | 28 |
+> | Line coverage | **85%** (521/613) |
+> | Mutation coverage | **73%** (171/235) |
+> | Test strength | **86%** (171/200) |
+> | Mutations with no coverage | 35 |
+>
+> **What did not change is the cost**: the run took **~1 hour** of wall clock for `verify` as a whole, and earlier the same day, on a loaded machine, the identical configuration produced repeated `Minion exited abnormally due to TIMED_OUT` and had to be abandoned. So the structural diagnosis above still stands — cost scales as (mutations × Spring context + container startup) and the run is very sensitive to machine load. What is wrong is only the absolute claim that it *cannot* finish; given an unloaded machine and an hour, it does.
+>
+> Two consequences. **[#32](https://github.com/stainii/task/issues/32) now has real numbers to reason about** rather than an absence — and note the shape of them: 73% mutation against 86% test strength, with whole packages at 0% (`config`, `task.config`) that are configuration classes no test asserts on. That is the "split by intent" above showing up as a number, not a quality gap. **[#23](https://github.com/stainii/task/issues/23) must not put this on the default CI build** at an hour a push, and it should also correct [#21](https://github.com/stainii/task/issues/21)'s estimate of ~13 billable minutes per push with pitest, which this run contradicts by an order of magnitude.
+>
+> Practical fact for whoever writes that CI job: the skip property is **`-DskipPitest=true`**. Both `-Dpitest.skip` and `-Dpit.skip` are silently ignored — they look like they work and the mutation run happens anyway.
 
 **Beware the stale report.** `target/pit-reports/` contains an index dated **18 March 2026** reporting 90% line / 81% mutation / 90% test strength across 25 classes. It is four months old, predates this state of the code, and is easy to mistake for a current result. It should not be used as the #10 baseline.
 
@@ -307,6 +326,7 @@ Real and load-bearing (Spring Data JDBC change detection is identity-based), but
 - 82 back-end tests, ~2,410 lines of test code, 17 test classes. No `@Disabled`, no `@Ignore`, no assertion-free tests found. Density is reasonable (e.g. `TaskTest`: 8 tests / 46 assertions; `RecurringTaskTemplateModuleIntegrationTest`: 10 / 55).
 - Weakest by that measure: `TaskPatchControllerTest` (4 tests / 5 assertions) and `RecurringTaskTemplateTest` (14 / 22 — and it still misses D1).
 - **Container images are unpinned**: tests use `postgres:latest` and the default `KeycloakContainer` image, which resolved to **26.0**, while `compose.yaml` pins **26.1**. Tests and local runtime are on different Keycloak versions, and `postgres:latest` resolved to **PostgreSQL 18.1** here.
+  **RESOLVED by [#20](https://github.com/stainii/task/issues/20)** — kept verbatim above as the evidence that the drift was real. Both sides are now pinned to the same explicit versions: `postgres:18.4` in `TestcontainersConfiguration` *and* `compose.yaml`, and `quay.io/keycloak/keycloak:26.7.0` in `AbstractIntegrationTestCases` *and* `compose.yaml`. The Keycloak image is now named explicitly rather than inherited from `testcontainers-keycloak`'s default, so a library bump cannot move it silently.
 - `TestcontainersConfiguration` carries three unused imports (`KeycloakContainer`, `DynamicPropertyRegistry`, `DynamicPropertySource`) — leftovers from a refactor.
 - Both containers use `.withReuse(true)`, which silently does nothing unless testcontainers reuse is enabled in the user's `~/.testcontainers.properties`.
 - Test realm is `test-realm` / `test-client` / `testuser`; runtime realm is `portal-realm` / `portal-client`. Divergent fixtures.

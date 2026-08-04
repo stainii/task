@@ -129,6 +129,25 @@ An example:
 It doesn't matter in task patch A gets sent to the server before task patch B. Even if A arrives later than B, they will be (re)applied in order of their date.
 
 ## Local Development
+
+### Toolchain
+The versions this repo is built and tested against are pinned in the repo, not left to whatever is on your machine:
+
+| | Pinned in | Version |
+|---|---|---|
+| JDK | `.sdkmanrc` (repo root) | Temurin 26 |
+| Node | `task-front-end/.nvmrc` | 26 |
+| Maven | `.mvn/wrapper/maven-wrapper.properties` | 3.9.16 (via `./mvnw`) |
+| Postgres | `compose.yaml` + `TestcontainersConfiguration` | 18.4 |
+| Keycloak | `compose.yaml` + `AbstractIntegrationTestCases` | 26.7.0 |
+
+Run `sdk env` in the repo root and `nvm use` in `task-front-end/` to pick these up.
+
+Two things that will waste your time otherwise:
+
+- **`~/.mavenrc` beats `sdk env`.** If you have a `~/.mavenrc` setting `JAVA_HOME` (to sdkman's `current` symlink, for instance), `./mvnw` uses *that* JDK regardless of the shell's `JAVA_HOME`, and the build fails with `release version 26 not supported`. Either make 26 your sdkman default (`sdk default java 26.0.2-tem`) or run with `MAVEN_SKIP_RC=1`.
+- **Skipping pitest is `-DskipPitest=true`.** `-Dpitest.skip` and `-Dpit.skip` are silently ignored — the mutation run happens anyway, and it adds about an hour to `verify`.
+
 ### Keycloak
 | Account type | Username               | Password |
 |--------------|------------------------|----------|

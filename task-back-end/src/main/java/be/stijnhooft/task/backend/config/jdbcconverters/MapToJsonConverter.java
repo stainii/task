@@ -1,6 +1,5 @@
 package be.stijnhooft.task.backend.config.jdbcconverters;
 
-import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.SneakyThrows;
 import org.postgresql.util.PGobject;
 import org.springframework.core.convert.converter.Converter;

@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.1</version>
+        <version>4.1.0</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>be.stijnhooft.task</groupId>
@@ -27,14 +27,13 @@
         <url/>
     </scm>
     <properties>
-        <java.version>25</java.version>
-        <spring-modulith.version>2.0.1</spring-modulith.version>
-        <jspecify.version>1.0.0</jspecify.version>
-        <testcontainers-keycloak.version>3.5.1</testcontainers-keycloak.version>
-        <pitest-maven.version>1.22.0</pitest-maven.version>
+        <java.version>26</java.version>
+        <spring-modulith.version>2.1.0</spring-modulith.version>
+        <jspecify.version>1.0.1</jspecify.version>
+        <testcontainers-keycloak.version>4.3.1</testcontainers-keycloak.version>
+        <pitest-maven.version>1.25.8</pitest-maven.version>
         <pitest-junit5-plugin.version>1.2.3</pitest-junit5-plugin.version>
-        <instancio-junit.version>5.5.1</instancio-junit.version>
-        <error_prone.version>2.47.0</error_prone.version>
+        <instancio-junit.version>5.6.0</instancio-junit.version>
         <mapstruct.version>1.6.3</mapstruct.version>
     </properties>
     <dependencies>
@@ -97,14 +96,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jdbc</artifactId>
         </dependency>
+        <!-- Modulith 2.1 split spring-modulith-observability into -api/-core and left the old
+             coordinate as a pom aggregator; starter-insight is the supported replacement and
+             bundles what spring-modulith-actuator + -observability used to provide. -->
         <dependency>
             <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-actuator</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-observability</artifactId>
+            <artifactId>spring-modulith-starter-insight</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
