@@ -289,3 +289,42 @@ permanent, one-shot loss step 1 exists to prevent. Concretely:
 This strengthens rather than contradicts the "free consequence" above: the prefixes in the dump do
 name the deployments that actually existed — and they are now the **only** source that does.
 [#35](https://github.com/stainii/task/issues/35) is amended to record them alongside its row counts.
+
+### Half the templates are gone, so provenance is a policy, not a promise
+
+Established by [#35](https://github.com/stainii/task/issues/35), which pulled the dump set and
+counted it. Three corrections to the section above, all from data rather than from reasoning.
+
+**The prefix set is a table, not a derivation.** The amendment above told the importer to enumerate
+distinct `flowId` prefixes because nothing else names the deployments. Something else does:
+`todo.subscription` has four rows, and `origin` holds exactly the four prefixes —
+`Housagotchi`, `Health`, `Setlist`, `social-recurring-tasks`. Three capitalised, one not, none equal
+to its database name, confirming the case mismatch this ADR predicted. Every prefix has a database
+and every in-scope database has a prefix, so the abort signal in step 2 above is checkable and
+currently clean. Read the four rows; keep the derivation as the cross-check.
+
+**Neither obvious parse of `flowId` is correct.** `social-recurring-tasks-7` puts hyphens inside the
+prefix, so splitting on the first hyphen is wrong. One task in 11855 carries a `Todo-<uuid>` whose
+final UUID segment is all digits, so splitting on the last hyphen is wrong too — it invents a
+deployment named `Todo-f660a98a-5fa5-4393-a614`. **Match against the four known prefixes, longest
+first; everything else is `Todo-<uuid>`.** Both wrong rules fail silently.
+
+**49% of recurring-generated tasks reference a template that no longer exists.** Tasks name 115
+distinct template ids; 43 of those templates survive. Deleting a recurring template took its
+`execution` rows with it via the foreign key, but left its tasks standing in Mongo, and six years of
+pruning accumulated: 3954 of 8086 tasks are orphaned this way (Setlist worst — 4 surviving templates
+against 2054 tasks, 1258 orphaned; Housagotchi 1583 of 2534; Health 969 of 2734;
+social-recurring-tasks 144 of 764). One surviving Housagotchi template was never referenced by any
+task.
+
+Step 1 above therefore cannot mean what it says for half the corpus. **A task whose `flowId` names a
+missing template imports with a null `taskTemplateId`** — it is still a complete, foldable task,
+because [ADR-0001](0001-one-task-aggregate-with-triggered-templates.md) derives occurrences from
+tasks rather than from templates, and nothing downstream requires the link to exist. The importer
+**counts** these in the diff report. It does not synthesise a template to hang them on: a
+reconstructed template is a claim about a rule that ran for years, invented from the tasks it
+happened to leave behind.
+
+This is a loss that predates the migration and no dump taken at any date could have recovered. What
+changes is the claim: "satisfying REC-007 retroactively, for years of history" holds for 51% of the
+recurring corpus, and the rest arrives as history without provenance.
