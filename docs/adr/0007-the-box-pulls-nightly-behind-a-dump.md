@@ -303,3 +303,44 @@ deliberately, not to discover.
   #15's `ngsw-config.json` and this ADR's restore-rewinds-`sequence`. The pattern is worth naming:
   the sync contract's guarantees live in code, but the things that break them live in YAML, nginx
   and operational procedure, where no test looks.
+
+## Amendments
+
+### Keycloak persists in the same Postgres instance, in its own database
+
+Amended by [Backups and disaster recovery](https://github.com/stainii/task/issues/26), 2026-08-04.
+
+This ADR put Keycloak in the production compose file and **never said where its data lives**. Left
+alone, that inherits the dev fixture's arrangement — `start-dev --import-realm`, no database
+configured, a file store inside a container whose realm exists only because a JSON file is re-imported
+at every boot. Production Keycloak on that footing turns #26's worst case, *losing the realm locks you
+out of your own data*, from a risk into a scheduled event.
+
+Keycloak gets its own **database inside the Postgres instance this stack already runs**. One container
+to run, patch and pin, and the backup becomes one artifact: a single `pg_dumpall` covers tasks, patch
+history and the realm together.
+
+This deepens the tension with [#15](https://github.com/stainii/task/issues/15) that this ADR already
+accepted, by one level: Postgres is now the shared auth server's dependency too. The *second app*
+tripwire is unchanged but grows a step — splitting the stack now also means separating two databases,
+which is a dump and a restore rather than data surgery. See
+[ADR-0008](0008-every-backup-restores-itself-before-it-is-kept.md).
+
+### `.env` carries the tunnel credential
+
+Amended by [Backups and disaster recovery](https://github.com/stainii/task/issues/26), 2026-08-04.
+
+The *Runtime configuration is a short, closed list* table omits `cloudflared`. The tunnel runs as a
+container in the same compose file and is configured from `.env` like everything else, so its
+credential is a fifth entry in that table — and, usefully, it means a restored archive contains
+everything needed to put the app back on the internet. Without it a rebuilt box would hold the data
+and have no route to it until the tunnel was re-provisioned by hand.
+
+### The Keycloak stack's configuration is no longer unversioned
+
+Amended by [Backups and disaster recovery](https://github.com/stainii/task/issues/26), 2026-08-04.
+
+This ADR's consequence *the Keycloak stack's configuration lives only on the box, unversioned* is
+discharged rather than carried. With the realm in Postgres it rides in the nightly dump, and the
+container's configuration is `.env` plus the committed production compose file. Nothing about Keycloak
+now exists solely as unbacked state on the machine.
