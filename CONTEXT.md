@@ -65,9 +65,18 @@ than reordering around it.
 ### Resync
 
 **The server telling a client to throw its local state away and start from a fresh snapshot** —
-issued when a client resumes from a sequence the server cannot serve.
+issued when a client resumes from a sequence the server cannot serve, or from a previous **epoch**.
 
 It is the same lever as the user's own hard reset, pulled by the server.
+
+### Epoch
+
+**Which lineage of history the server is on.** One integer, changed only when history is rewritten —
+in practice, when a database backup is restored.
+
+A sequence number only means the same patch forever *within one epoch*. Restoring a backup rewinds
+the server's counter, so clients carry the epoch alongside their cursor and present both on
+reconnect; a stale epoch is answered with a **resync** rather than a stream.
 
 ### Task template
 

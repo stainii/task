@@ -317,3 +317,48 @@ The consequence is that task data is readable on an unlocked device without a lo
 right trade for a personal app behind a device passcode — the alternative is an offline-first app
 that does not work offline. Handed to [#28](https://github.com/stainii/task/issues/28) as a security
 posture decision made here rather than there.
+
+### The epoch: `sequence` is only monotonic within one lineage of history
+
+Amended by [Where does this deploy, and what does CD look like?](https://github.com/stainii/task/issues/22),
+2026-08-04. See [ADR-0007](0007-the-box-pulls-nightly-behind-a-dump.md).
+
+This ADR makes `sequence` the only sync cursor and rests the whole read side on one promise:
+**number N always means the same patch, forever.** That promise assumed the server's history only
+ever moves forward. ADR-0007 introduces an operation that moves it backwards — **restoring a
+database backup**, which is the schema half of rollback.
+
+The failure, with the phone and the laptop both in sync at sequence 40:
+
+| Time | Event | Server | Phone believes | Laptop believes |
+| --- | --- | --- | --- | --- |
+| 02:00 | nightly dump taken, last patch in it is 40 | 40 | 40 | 40 |
+| 02:05 | deploy runs, Flyway migrates, the new version is bad | 40 | 40 | 40 |
+| 07:00 | three patches made on the phone | 41, 42, 43 | 43 | 40 |
+| 09:00 | rollback: previous digest pinned, 02:00 dump restored | **40** | 43 | 40 |
+| 09:05 | a due date changed on the laptop | assigns **41** | 43 | 41 |
+| 09:10 | phone reconnects: *"I have up to 43, send me 44+"* | nothing past 41 | **43** | 41 |
+
+Losing patches 41–43 is expected — that is what restoring a backup means, and three changes get
+re-entered by hand. The damage is what happens afterwards:
+
+- The phone is told nothing and concludes it is **up to date, permanently**. It never receives the
+  laptop's change, and nothing about it looks broken. This is the same silent-divergence class as
+  the `?since=<dateTime>` defect above.
+- **41 now means two different things** — "renamed a task" on the phone, "changed a due date" on the
+  server and laptop. Two devices holding contradictory records of the same number, forever.
+
+**The server therefore carries an `epoch`: one integer naming which lineage of history it is on.**
+Clients persist it alongside their cursor and present both on every reconnect. The restore procedure
+increments it. A client presenting a stale epoch is answered with a **resync** — the lever this ADR
+already defines — rather than a stream, so it reloads from a fresh snapshot and lands in the current
+lineage.
+
+`sequence` is unchanged: still server-assigned, still monotonic, still never used to merge. The
+epoch narrows the promise to what is actually true — **N means the same patch forever *within one
+epoch***.
+
+Cost: one stored value, one field on the snapshot and the stream handshake, one comparison on
+connect. The alternative considered and rejected was a rollback procedure instructing the operator
+to clear site data on every device — free, and dependent on remembering every device that has ever
+opened the app, at the worst possible moment.
