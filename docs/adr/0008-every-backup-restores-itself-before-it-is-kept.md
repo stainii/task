@@ -40,13 +40,22 @@ properties matter:
 
 - **It is a pull.** The laptop holds the SSH key and initiates. The server holds no credential to the
   laptop and cannot reach it — so that copy survives a fully compromised box. This direction is kept.
-- **It does contain the databases.** Production uses bind mounts under the home directory rather than
-  the named Docker volumes `docker-compose-for-swarm.yml` declares, so the data is genuinely in the
-  archive.
 - **Its log cannot report failure.** There is no `set -e` and no status check anywhere: the `scp`
   runs whether or not the zip succeeded, the cleanup runs regardless, and the final
   `echo "Backup completed"` is unconditional. The one artifact that exists to say the backup is
   healthy has never been capable of saying anything else.
+- **It has never contained a database.** Production does use bind mounts under the home directory
+  rather than the named Docker volumes `docker-compose-for-swarm.yml` declares — but the files inside
+  them are mode `600`, owned by the containers' uid, and unreadable by the user the backup runs as.
+  `zip` skipped all 311 of them and exited 18; the missing status check turned that into
+  `Backup completed`. Verified against an archive already held on the laptop: every `db/data` entry in
+  `server_backup_2026-07-31.zip` is a zero-byte **directory** entry, fourteen of them, with **no
+  database files at all** — 611 MB of application files, nginx configuration and images. This was
+  true for `portal-todo`'s Mongo, and for every other service.
+
+  **So this ADR is not hardening an existing backup. It is designing the first one.** Detection
+  mattering more than mechanism, below, is a conclusion drawn from this, not a preference: the backup
+  that was believed to exist failed at the only step nobody checked.
 
 **A file copy of a live database is defensible here but still loses.** With a handful of writes a
 day the directory is quiescent almost all the time, so the torn-copy risk is low rather than a coin
@@ -253,16 +262,21 @@ a month is unrecoverable.** Two things soften it, one by design and one by accid
 before cutover has an archive that never expires; and `backup-server.sh` has never pruned, so the
 weekly zips accumulate on the laptop for as long as they are not tidied away.
 
-### Portal is out of scope
+### Portal is out of scope — except that it currently has no backup at all
 
-This ADR changes nothing about the old stack. Its weekly, unverified, file-copy backup keeps
-protecting it until cutover, and [#35](https://github.com/stainii/task/issues/35) freezes it
-permanently. ADR-0005 says portal is archived, not maintained, and improving a system on its way out
-spends effort where it earns nothing.
+This ADR was written to change nothing about the old stack: ADR-0005 says portal is archived, not
+maintained, and improving a system on its way out spends effort where it earns nothing.
 
-The exception worth naming: `backup-server.sh`'s unconditional success log is a two-line fix
-(`set -euo pipefail`, and log the real status), and until cutover that script is what stands between
-years of real data and a disk failure. Offered, not required.
+**That reasoning assumed portal had a backup. It does not** — see *What actually exists* above. The
+conclusion inverts: until cutover, portal holds every task, patch and template that exists, and
+nothing protects it. [#35](https://github.com/stainii/task/issues/35) was scheduled as cutover
+housekeeping — pull and archive the dump set — and is now the only thing that would produce a first
+real backup, so it is **urgent rather than eventual**, and its output is a *live safety net* rather
+than a historical archive.
+
+This does not reopen portal's backup *design*; a one-off dump set, refreshed until cutover, is
+proportionate for a system being switched off. It does mean the migration currently runs with its
+source data unprotected, which was not a risk anyone had accepted.
 
 ### The drill happens once, by hand, before cutover
 
@@ -303,6 +317,10 @@ After that, #29's pre-flight keeps the path warm; no scheduled re-drill.
   second-app tripwire now also means separating two databases.
 - **The nightly job is slower and can fail for a new reason** — the verification restore. A flaky
   verifier blocks deploys for a reason that is not real.
+- **[#35](https://github.com/stainii/task/issues/35) is now urgent.** Until it runs, the data this
+  entire migration exists to preserve has no backup of any kind.
 - **This is the fourth defect of the "a guarantee broken by something outside the code" shape** on
   this map, after #15's `ngsw-config.json`, ADR-0007's restore-rewinds-`sequence`, and its nginx SSE
-  defaults. This one is the purest: a backup script whose success log is a string literal.
+  defaults — and the only one that had already caused real, unnoticed harm rather than being caught
+  in design. It is also the purest: a backup script whose success log is a string literal, standing
+  in for a backup that never contained anything.
