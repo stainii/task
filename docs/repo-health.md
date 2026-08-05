@@ -14,13 +14,15 @@
 
 The migration is in **better shape than "unknown" implies**: the back-end builds, all 82 tests pass, Spring Modulith's own structural checks pass, the app boots against a real Postgres and Keycloak, and every REST endpoint responds. The front-end builds.
 
-The soft spots are the **front-end** (both of its two tests fail, and after login it renders patches instead of tasks because it never sends its auth token), **pitest** (does not complete as configured, so there is no mutation baseline today), and a handful of **genuine defects** in back-end code that the green test suite does not catch — including one that stops long-interval recurring tasks from ever firing.
+The soft spots are the **front-end** (both of its two tests fail, and after login it renders patches instead of tasks because it never sends its auth token), **pitest** (does not complete as configured, so there is no mutation baseline today — *[#32](https://github.com/stainii/task/issues/32) has since removed pitest altogether; there is deliberately no baseline*), and a handful of **genuine defects** in back-end code that the green test suite does not catch — including one that stops long-interval recurring tasks from ever firing.
 
 > **Update — [#30](https://github.com/stainii/task/issues/30) (2026-08-03): every front-end finding below is now history, not work.**
 > The scaffold was discarded rather than repaired: `src/app/` is reduced to a building, booting, empty shell, and `@ngrx/signals` is dropped. **F1, F2 and F3 died with the code they lived in**, and both failing tests are gone — `ng build` and `ng test` are green.
 > The findings are kept verbatim because they *are* the evidence that discard was the right call: each one is a bug in code whose contract [ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md) had already replaced. Read this section as a record of the spike, not as a defect list. The back-end findings are unaffected and still live.
 
-The single most useful structural fact: **test quality is split in two, by intent.** Where unit tests reach the code they are strong (92% test strength); every controller, mapper, the scheduler and the whole `template` service are covered *only* by integration tests — a deliberate choice, since those layers hold little business logic. That split is simultaneously why mutation coverage reads 35% and why pitest cannot finish, which is what [#32](https://github.com/stainii/task/issues/32) exists to resolve. **Do not read 35% as a quality gap.**
+The single most useful structural fact: **test quality is split in two, by intent.** Where unit tests reach the code they are strong; every controller, mapper, the scheduler and the whole `template` service are covered *only* by integration tests — a deliberate choice, since those layers hold little business logic.
+
+> **Amended by [#32](https://github.com/stainii/task/issues/32) (2026-08-05).** The second half of this paragraph used to read *"that split is simultaneously why mutation coverage reads 35% and why pitest cannot finish"*. **That was wrong** — the 35% came from a run that deliberately excluded the integration tests, so it measured the exclusion, not the split. On the full suite pitest scored the controllers and the scheduler at 100%. The split by intent is real as a *philosophy*; it never had the numeric consequence stated here. **pitest has since been removed entirely** — see the pitest section below for what the number was actually made of.
 
 ---
 
@@ -54,7 +56,9 @@ One non-fatal but real symptom — **the test JVM does not shut down**:
 
 This costs 30s on every build. Likely causes visible in the code: `AbstractIntegrationTestCases` starts a `KeycloakContainer` in a **static initialiser and never stops it**, and the SSE emitter machinery holds non-daemon threads.
 
-### Back-end — pitest: NOT USABLE AS CONFIGURED
+### Back-end — pitest: REMOVED (resolved by [#32](https://github.com/stainii/task/issues/32), 2026-08-05)
+
+> **This whole section is history.** pitest is no longer in `task-back-end/pom.xml`. Everything below is kept verbatim as the evidence the decision was made on — including two claims this section itself got wrong, corrected in the closing amendment. **There is no mutation baseline and there is not meant to be one.** Skip to *"Resolved by #32"* at the end of this section for what actually holds.
 
 **This is the most consequential finding for [#10](https://github.com/stainii/task/issues/10): there is no mutation-score baseline today, because pitest as configured does not finish.**
 
@@ -129,6 +133,28 @@ So the honest statement of test quality is a **split by intent**: a well-tested 
 Two things keep this from being a purely philosophical point: D1 below is exactly the class of bug mutation testing catches and the integration suite did not, and chasing the number with mock-heavy unit tests would be a real cost for no value.
 
 Note also `PIT >> Project uses Spring, but the Arcmutate Spring plugin is not present.` — pitest itself points at the missing piece for mutating a Spring app affordably.
+
+---
+
+> #### Resolved by [#32](https://github.com/stainii/task/issues/32) (2026-08-05): pitest is removed, and two claims above were wrong
+>
+> **pitest is gone from the build.** `pitest-maven`, `pitest-junit5-plugin` and their `<properties>` are deleted from `task-back-end/pom.xml`. No mutation score, no threshold, no gate, no nightly job. `-DskipPitest=true` is now a fact about a plugin that no longer exists.
+>
+> **Correction 1 — "ten packages are invisible to mutation testing" is false, and it was the load-bearing claim.** The 35% and the ten 0% packages both come from the *scoped* run above, which explicitly passed `-DexcludedTestClasses=...*ControllerTest,*ModuleIntegrationTest,...`. Of course the controllers scored 0% — their tests were switched off. The full run in the current report (`target/pit-reports/`, 2026-08-05) shows the opposite: `task.controller` **100%**, `recurring.controller` **100%**, `recurring.scheduler` **100%**, `recurring` **100%**, `template.service` 69%. pitest sees integration-tested code perfectly well; it runs whatever tests you give it. Only `config` and `task.config` are at 0%, six mutations in total.
+>
+> So *"the split by intent shows up as the number"* was an artifact of the measurement, not a property of the codebase, and this file asserted it in its own summary for four months. **[Integration tests over unit tests](https://github.com/stainii/task/issues/32) survives as a testing philosophy — it just never had the numeric consequence claimed here.**
+>
+> **Correction 2 — the Arcmutate Spring plugin is not "the missing piece for mutating a Spring app affordably".** It is commercially licensed (pro subscription; licence file `arcmutate-licence.txt` required at the project root, in a repo [#31](https://github.com/stainii/task/issues/31) keeps deliberately public), and what it does is *clear the Spring context after each test so mutated beans are actually re-instantiated*. That is an **accuracy** fix that defeats context caching — it makes a 46-minute run **longer**. It would have made the cost problem worse and cost money to do it.
+>
+> It does explain the `@Bean` survivors, though: with contexts cached, a mutant in a `@Bean` method is never executed, so `SpringSecurityConfig`, `SseConfig` and `JdbcConfig` hold mutants **no test could ever kill**.
+>
+> **What the number was actually made of.** Of the 61 survivors in the final full run: **27 (44%) are in MapStruct-generated `*MapperImpl` classes** — `TaskTemplateMapperImpl` alone holds 21, the worst class in the report, and pitest cannot even render its source because it lives in `target/generated-sources` — and **6 more are the uncatchable `@Bean` mutants above**. **54% of the signal was code no human wrote and no test could kill.** The genuinely interesting remainder is ~28 mutants, several of them in `Task.patch()`, which [ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md) deletes outright.
+>
+> **What replaces it.** Nothing tool-shaped. D1 (`Period.getDays()`) below stays the standing argument that this codebase has the class of bug mutation testing catches — so [#10](https://github.com/stainii/task/issues/10) carries it as a **testing convention instead of a tool**: date and comparison logic gets tested at its boundaries, not only in the middle. That is aimed squarely at #11's sorted fold, the three `Trigger` implementations and ADR-0005's importer. pitest remains available ad-hoc, on the [#19](https://github.com/stainii/task/issues/19) OpenRewrite footing — a power tool, not infrastructure.
+>
+> **Measured after removal: `./mvnw -B clean verify` is BUILD SUCCESS in `01:49`, 82 tests, 0 failures** — against `45:45` with pitest. The build got **25× faster** and lost nothing anyone was reading.
+>
+> **For [#23](https://github.com/stainii/task/issues/23):** `verify` no longer carries a 46-minute mutation run, so the "must not put this on the default CI build" constraint is discharged at the source rather than worked around, and [#21](https://github.com/stainii/task/issues/21)'s ~13-billable-minutes-with-pitest line is moot — the no-pitest figure (~8 min/push) is the only one left.
 
 **One timeout survived even the scoped run**, in the package containing `Task`. Worth checking whether it is the recursion in `Task.patch()` (defect D2 below): a mutant that flips the `isAfter` comparison would make the reapplication loop non-terminating. Unconfirmed, but it would explain both the timeout and the OOM on full runs.
 

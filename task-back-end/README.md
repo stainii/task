@@ -143,10 +143,13 @@ The versions this repo is built and tested against are pinned in the repo, not l
 
 Run `sdk env` in the repo root and `nvm use` in `task-front-end/` to pick these up.
 
-Two things that will waste your time otherwise:
+One thing that will waste your time otherwise:
 
 - **`~/.mavenrc` beats `sdk env`.** If you have a `~/.mavenrc` setting `JAVA_HOME` (to sdkman's `current` symlink, for instance), `./mvnw` uses *that* JDK regardless of the shell's `JAVA_HOME`, and the build fails with `release version 26 not supported`. Either make 26 your sdkman default (`sdk default java 26.0.2-tem`) or run with `MAVEN_SKIP_RC=1`.
-- **Skipping pitest is `-DskipPitest=true`.** `-Dpitest.skip` and `-Dpit.skip` are silently ignored — the mutation run happens anyway, and it adds about an hour to `verify`.
+
+### Mutation testing
+
+There isn't any, on purpose — [#32](https://github.com/stainii/task/issues/32) removed pitest. It cost ~46 minutes on every `verify`, over half its surviving mutants were in MapStruct-generated `*MapperImpl` classes and `@Bean` methods that no test can kill, and the accuracy fix (the Arcmutate Spring plugin) is a paid subscription needing a licence file in this public repo. It remains a legitimate ad-hoc tool — add the plugin, run it, take it out again — but nothing in the build depends on it. **Please read #32 before reinstating it.**
 
 ### Keycloak
 | Account type | Username               | Password |

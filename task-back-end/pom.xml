@@ -31,8 +31,6 @@
         <spring-modulith.version>2.1.0</spring-modulith.version>
         <jspecify.version>1.0.1</jspecify.version>
         <testcontainers-keycloak.version>4.3.1</testcontainers-keycloak.version>
-        <pitest-maven.version>1.25.8</pitest-maven.version>
-        <pitest-junit5-plugin.version>1.2.3</pitest-junit5-plugin.version>
         <instancio-junit.version>5.6.0</instancio-junit.version>
         <mapstruct.version>1.6.3</mapstruct.version>
     </properties>
@@ -228,27 +226,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.pitest</groupId>
-                <artifactId>pitest-maven</artifactId>
-                <version>${pitest-maven.version}</version>
-                <executions>
-                    <execution>
-                        <id>pit-report</id>
-                        <phase>post-integration-test</phase>
-                        <goals>
-                            <goal>mutationCoverage</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.pitest</groupId>
-                        <artifactId>pitest-junit5-plugin</artifactId>
-                        <version>${pitest-junit5-plugin.version}</version>
-                    </dependency>
-                </dependencies>
             </plugin>
         </plugins>
     </build>
