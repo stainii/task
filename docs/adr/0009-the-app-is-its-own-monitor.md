@@ -233,3 +233,20 @@ thing that needs it.
 - **The observability answer is now load-bearing on the front-end**, which is where this map put
   almost none of its detection until today. A front-end that ships without the banners ships without
   monitoring.
+
+## Amendments
+
+### `/actuator/health` was never unauthenticated
+
+Corrected by [Security posture of an internet-exposed personal app](https://github.com/stainii/task/issues/28),
+2026-08-05.
+
+This ADR recorded that `management:` exposes `health` only, "unauthenticated, so compose's
+`healthcheck:` can use it". The exposure half was enacted; the unauthenticated half was not, and was
+not true — `SpringSecurityConfig` was `anyRequest().authenticated()`, so the health endpoint required
+a JWT and the compose health check would have failed on the first deploy that used it.
+
+[ADR-0010](0010-a-tunnel-an-allowlist-and-a-role.md) makes it real, and improves on what this ADR
+asked for: `/actuator/health` is `permitAll` in Spring Security **and** absent from nginx's
+allowlist. The health check reaches it container-to-container inside the Docker network, and it is
+not on the internet at all. Its real protection is the allowlist, not the Spring rule.

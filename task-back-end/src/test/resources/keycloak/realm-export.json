@@ -1,7 +1,6 @@
 {
   "realm": "test-realm",
   "enabled": true,
-
   "clients": [
     {
       "clientId": "test-client",
@@ -16,7 +15,6 @@
       ]
     }
   ],
-
   "users": [
     {
       "username": "testuser",
@@ -37,7 +35,20 @@
           "view-profile",
           "manage-account"
         ]
-      }
+      },
+      "realmRoles": [
+        "task-user"
+      ]
     }
-  ]
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "task-user",
+        "description": "May use the task app (ADR-0010).",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  }
 }

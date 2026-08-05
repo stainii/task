@@ -1,6 +1,6 @@
 {
   "id": "07c17460-2c7e-4415-8ef3-d4ef72b05f73",
-  "realm": "portal-realm",
+  "realm": "stijnhooft-realm",
   "displayName": "",
   "displayNameHtml": "",
   "notBefore": 0,
@@ -9,8 +9,8 @@
   "refreshTokenMaxReuse": 0,
   "accessTokenLifespan": 300,
   "accessTokenLifespanForImplicitFlow": 900,
-  "ssoSessionIdleTimeout": 1800,
-  "ssoSessionMaxLifespan": 36000,
+  "ssoSessionIdleTimeout": 2592000,
+  "ssoSessionMaxLifespan": 2592000,
   "ssoSessionIdleTimeoutRememberMe": 0,
   "ssoSessionMaxLifespanRememberMe": 0,
   "offlineSessionIdleTimeout": 2592000,
@@ -37,7 +37,7 @@
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
   "editUsernameAllowed": false,
-  "bruteForceProtected": false,
+  "bruteForceProtected": true,
   "permanentLockout": false,
   "maxTemporaryLockouts": 0,
   "bruteForceStrategy": "MULTIPLE",
@@ -60,7 +60,7 @@
       },
       {
         "id": "c38aa696-1d88-45d3-ace4-c1e0df563f0d",
-        "name": "default-roles-dummy-realm",
+        "name": "default-roles-stijnhooft-realm",
         "description": "${role_default-roles}",
         "composite": true,
         "composites": {
@@ -83,6 +83,14 @@
         "id": "07b82810-9495-43c5-a600-b93bf771ff1d",
         "name": "offline_access",
         "description": "${role_offline-access}",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "07c17460-2c7e-4415-8ef3-d4ef72b05f73",
+        "attributes": {}
+      },
+      {
+        "name": "task-user",
+        "description": "May use the task app. Required on every /api request; membership of this shared realm is not sufficient.",
         "composite": false,
         "clientRole": false,
         "containerId": "07c17460-2c7e-4415-8ef3-d4ef72b05f73",
@@ -435,7 +443,7 @@
   ],
   "defaultRole": {
     "id": "c38aa696-1d88-45d3-ace4-c1e0df563f0d",
-    "name": "default-roles-dummy-realm",
+    "name": "default-roles-stijnhooft-realm",
     "description": "${role_default-roles}",
     "composite": true,
     "clientRole": false,
@@ -698,110 +706,6 @@
       ]
     },
     {
-      "id": "4f8f29aa-f812-47b5-8090-b5de359abab8",
-      "clientId": "dummy-client",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "redirectUris": [
-        "http://localhost:3000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:3000"
-      ],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "publicClient": true,
-      "frontchannelLogout": false,
-      "protocol": "openid-connect",
-      "attributes": {
-        "realm_client": "false",
-        "post.logout.redirect.uris": "+"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": true,
-      "nodeReRegistrationTimeout": -1,
-      "defaultClientScopes": [
-        "web-origins",
-        "acr",
-        "profile",
-        "roles",
-        "basic",
-        "email"
-      ],
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "organization",
-        "offline_access",
-        "microprofile-jwt"
-      ]
-    },
-    {
-      "id": "7b57d4b5-f36a-4a6f-85ba-bb3fc3e77393",
-      "clientId": "portal-client",
-      "name": "Portal",
-      "description": "",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
-      "surrogateAuthRequired": false,
-      "enabled": true,
-      "alwaysDisplayInConsole": false,
-      "clientAuthenticatorType": "client-secret",
-      "redirectUris": [
-        "*"
-      ],
-      "webOrigins": [
-        "*"
-      ],
-      "notBefore": 0,
-      "bearerOnly": false,
-      "consentRequired": false,
-      "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
-      "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": false,
-      "publicClient": true,
-      "frontchannelLogout": true,
-      "protocol": "openid-connect",
-      "attributes": {
-        "realm_client": "false",
-        "oidc.ciba.grant.enabled": "false",
-        "backchannel.logout.session.required": "true",
-        "post.logout.redirect.uris": "+",
-        "frontchannel.logout.session.required": "true",
-        "oauth2.device.authorization.grant.enabled": "false",
-        "display.on.consent.screen": "false",
-        "backchannel.logout.revoke.offline.tokens": "false",
-        "pkce.code.challenge.method": "S256"
-      },
-      "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": true,
-      "nodeReRegistrationTimeout": -1,
-      "defaultClientScopes": [
-        "web-origins",
-        "acr",
-        "profile",
-        "roles",
-        "basic",
-        "email"
-      ],
-      "optionalClientScopes": [
-        "address",
-        "phone",
-        "organization",
-        "offline_access",
-        "microprofile-jwt"
-      ]
-    },
-    {
       "id": "3eaec7bd-4501-4691-9e4d-a6df896c066d",
       "clientId": "realm-management",
       "name": "${client_realm-management}",
@@ -909,6 +813,44 @@
         "address",
         "phone",
         "organization",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "task",
+      "name": "task",
+      "description": "The task PWA. Public client, authorization code + PKCE.",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "https://task.stijnhooft.be/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "basic",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
         "offline_access",
         "microprofile-jwt"
       ]
@@ -2576,7 +2518,10 @@
           "view-profile",
           "manage-account"
         ]
-      }
+      },
+      "realmRoles": [
+        "task-user"
+      ]
     }
   ]
 }

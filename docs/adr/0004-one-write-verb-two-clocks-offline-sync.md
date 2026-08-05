@@ -385,3 +385,39 @@ and the outbox semantics are untouched.
 See [ADR-0009](0009-the-app-is-its-own-monitor.md), which rejected front-end telemetry in favour of
 this guarantee: an error report arrives after the tick has been forgotten, while a write that refuses
 to lie is visible at the moment it matters.
+
+### The write-path contract: a duplicate patch id is `200`, not an error
+
+Amended by [Security posture of an internet-exposed personal app](https://github.com/stainii/task/issues/28),
+2026-08-05.
+
+This ADR made patch ids **client-minted** and made the outbox stall on `5xx` while preserving order.
+Both are right, and together they deadlock.
+
+Patch ids are the primary key. On an ordinary mobile connection the client POSTs a patch, the server
+commits it, and the response is lost. The outbox retries — exactly as specified. The retry hits a
+primary key violation, which surfaces as `500`. The `5xx` rule says stall and preserve order. It
+retries. Another `500`. **Forever.** A successful write, retried once, permanently wedges the queue,
+and [ADR-0009](0009-the-app-is-its-own-monitor.md)'s *online but not syncing* banner fires correctly
+on a system where nothing is wrong except that the server refused to be told the truth twice.
+
+**A patch id already stored is `200`, a no-op.** The client-minted id is the idempotency key — that is
+what it was always for, and it is what this ADR's "`409` never reaches the client" was reaching for.
+Replay stops being a hazard and becomes the mechanism that makes the retry path safe.
+
+The full contract, since the rest of it was implied rather than written:
+
+| Case | Response |
+| --- | --- |
+| Patch id already stored | **`200`**, no-op |
+| Unknown field name in `changes` | `400` |
+| Value does not parse as its field's type | `400` |
+| Creating patch missing a required field | `400` |
+| Patch for a task id that does not exist | `404` (the orphan rule above) |
+| Body over the size cap | `413` |
+| Anything else | `5xx` |
+
+Unknown fields are rejected rather than ignored because the patch log is append-only and
+[ADR-0005](0005-migration-by-replay-into-one-history.md) replays it forever: anything accepted is
+accepted permanently. See [ADR-0010](0010-a-tunnel-an-allowlist-and-a-role.md), which also
+re-examined this ADR's rejection of a client-clock guard and **left it closed**.

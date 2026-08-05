@@ -344,3 +344,30 @@ This ADR's consequence *the Keycloak stack's configuration lives only on the box
 discharged rather than carried. With the realm in Postgres it rides in the nightly dump, and the
 container's configuration is `.env` plus the committed production compose file. Nothing about Keycloak
 now exists solely as unbacked state on the machine.
+
+### Keycloak's own public path, its two hostnames, and a wrong variable name
+
+Amended by [Security posture of an internet-exposed personal app](https://github.com/stainii/task/issues/28),
+2026-08-05.
+
+This ADR said `cloudflared` points at nginx and nginx proxies `/api/**`. That cannot be the whole
+story: OIDC login is a **browser redirect**, so the phone's browser must reach Keycloak itself and
+`KEYCLOAK_ISSUER_URI` must resolve from the public internet. Keycloak *is* exposed; this ADR simply
+never wrote down how. [ADR-0010](0010-a-tunnel-an-allowlist-and-a-role.md) settles it: nginx also
+routes `/realms/**`, `/resources/**` and `/js/**`, on the app's own origin at
+**`task.stijnhooft.be`**, and returns `404` for `/admin/**`, which is published on a LAN-only host
+port instead.
+
+Three configuration facts come with it, and each half-works rather than fails if missed:
+
+- **`hostname` must be pinned** to `https://task.stijnhooft.be`. Keycloak otherwise derives its URLs
+  from the request, so a login through the LAN address mints tokens whose `iss` the back-end rejects.
+- **`hostname-admin`** must be the LAN URL, or the admin console's own links point at the public host.
+- **`proxy-headers=xforwarded`** is required. TLS terminates at Cloudflare, so Keycloak sees plain
+  HTTP; with `sslRequired: external` it will either refuse the login or emit `http://` redirects.
+  Production also runs `start --optimized`, not `start-dev`, which disables those very checks.
+
+And one row of the `.env` table is wrong: **`KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` are
+deprecated in Keycloak 26** in favour of `KC_BOOTSTRAP_ADMIN_USERNAME` /
+`KC_BOOTSTRAP_ADMIN_PASSWORD`. Setting the old names does nothing and yields a Keycloak with no admin
+account — discovered on the first deploy, on the box, with no admin console to fix it from.

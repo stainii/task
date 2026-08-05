@@ -34,7 +34,9 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8081/realms/portal-realm
+          # ADR-0010: the realm is shared infrastructure named after its owner, not after this app;
+          # `task` is one client in it. Dev value only — production arrives as KEYCLOAK_ISSUER_URI.
+          issuer-uri: http://localhost:8081/realms/stijnhooft-realm
   mvc.async.request-timeout: 0
   jackson.deserialization.fail-on-null-for-primitives: false
 
