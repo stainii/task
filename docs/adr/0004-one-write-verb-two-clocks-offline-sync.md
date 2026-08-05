@@ -362,3 +362,26 @@ Cost: one stored value, one field on the snapshot and the stream handshake, one 
 connect. The alternative considered and rejected was a rollback procedure instructing the operator
 to clear site data on every device — free, and dependent on remembering every device that has ever
 opened the app, at the worst possible moment.
+
+### A local write is acknowledged only once it is durably in the outbox
+
+Amended by [Observability: how do you find out it's broken?](https://github.com/stainii/task/issues/27),
+2026-08-05.
+
+This ADR made the outbox the single ordered path for every write, and specified what happens to a
+patch once it is in there — `4xx` drops to a visible failed-to-sync list, `5xx` and network errors
+stall and preserve order. It never said what happens if the patch **never gets in there**.
+
+If IndexedDB throws on put — quota exceeded, storage evicted mid-session, a private-window
+restriction — the tick lands in the UI and nothing is queued. It looks exactly like a successful
+write, and it is discovered when the task reappears, or never. That is the same class as the
+`?since=<dateTime>` defect and the rewound `sequence`: a silent divergence with no symptom at the
+moment it happens.
+
+**The UI acknowledges a write only after the patch is durably in the outbox.** A failed local write
+shows as failed. This is a rendering rule, not a change to the sync contract — `sequence`, the fold
+and the outbox semantics are untouched.
+
+See [ADR-0009](0009-the-app-is-its-own-monitor.md), which rejected front-end telemetry in favour of
+this guarantee: an error report arrives after the tick has been forgotten, while a write that refuses
+to lie is visible at the moment it matters.

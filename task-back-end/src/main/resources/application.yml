@@ -2,6 +2,27 @@ recurring-tasks:
   create-due-tasks:
     cron: "0 0 4 * * *"
 
+# ADR-0009: health is the only management endpoint, and it exists for compose's healthcheck,
+# not for a monitoring stack. Details stay hidden — up or down is all anything needs.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+# ADR-0009: logs outlive container recreation, or a nightly deploy erases the week.
+logging:
+  file:
+    name: ${LOG_DIR:logs}/task-back-end.log
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${LOG_DIR:logs}/task-back-end.%d{yyyy-MM-dd}.%i.log.gz
+      max-history: 30
+      total-size-cap: 1GB
+
 spring:
   application.name: task-back-end
   datasource:

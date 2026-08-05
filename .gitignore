@@ -11,3 +11,6 @@ task-back-end/http-requests/http-client.env.json
 # OS
 .DS_Store
 Thumbs.db
+
+# ADR-0009: logs are written to a volume in production, and to ./logs when run locally.
+logs/
