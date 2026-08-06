@@ -21,6 +21,10 @@ import java.util.function.Consumer;
 @Service
 @RequiredArgsConstructor
 @Transactional
+/// Parked by #10 (docs/quality-bar.md): orElseThrow is called for its side effect only, to
+/// assert the task exists. ADR-0004 replaces this method (the first patch creates the task),
+/// so the check is rewritten rather than restyled.
+@SuppressWarnings("ReturnValueIgnored")
 public class TaskPatchService {
 
     private final TaskPatchRepository taskPatchRepository;

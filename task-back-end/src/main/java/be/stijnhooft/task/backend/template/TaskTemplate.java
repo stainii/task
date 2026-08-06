@@ -19,6 +19,9 @@ import java.util.UUID;
 @AllArgsConstructor
 @EqualsAndHashCode(exclude = "version")
 @Table("task_template")
+/// Parked by #10 (docs/quality-bar.md): as TaskDefinition. ADR-0001 rebuilds this type to
+/// carry a Trigger, at which point the suppression goes.
+@SuppressWarnings("NullAway")
 public class TaskTemplate {
 
     @Id

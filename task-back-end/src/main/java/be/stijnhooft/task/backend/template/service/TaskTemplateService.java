@@ -23,6 +23,9 @@ import static be.stijnhooft.task.backend.template.util.VariableUtils.fillInVaria
 
 @Service
 @RequiredArgsConstructor
+/// Parked by #10 (docs/quality-bar.md): nullable startDate and context are passed where
+/// non-null is required. ADR-0001 makes the start date explicit on creation (REC-003).
+@SuppressWarnings("NullAway")
 public class TaskTemplateService {
 
     private final TaskTemplateRepository taskTemplateRepository;

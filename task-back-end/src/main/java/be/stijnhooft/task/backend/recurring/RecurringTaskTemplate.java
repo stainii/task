@@ -20,6 +20,13 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 @Table("recurring_task_template")
+/// Parked by #10 (docs/quality-bar.md). JavaPeriodGetDays here is DEFECT D1, not noise:
+/// Period.getDays() reads only the day component, so a template with a min interval over
+/// a month never becomes due. It is suppressed rather than fixed because ADR-0001 deletes
+/// this class outright, replacing it with TaskTemplate and a sealed Trigger. If this class
+/// is still here when you read this, D1 is still live: see docs/repo-health.md.
+/// NullAway: Lombok @Builder gives no constructor that proves the non-null fields are set.
+@SuppressWarnings({"NullAway", "JavaPeriodGetDays"})
 public class RecurringTaskTemplate {
 
     @Id

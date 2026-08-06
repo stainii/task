@@ -33,6 +33,8 @@
         <testcontainers-keycloak.version>4.3.1</testcontainers-keycloak.version>
         <instancio-junit.version>5.6.0</instancio-junit.version>
         <mapstruct.version>1.6.3</mapstruct.version>
+        <error-prone.version>2.47.0</error-prone.version>
+        <nullaway.version>0.12.7</nullaway.version>
     </properties>
     <dependencies>
         <dependency>
@@ -202,8 +204,50 @@
                             <artifactId>mapstruct-processor</artifactId>
                             <version>${mapstruct.version}</version>
                         </path>
+                        <path>
+                            <groupId>com.google.errorprone</groupId>
+                            <artifactId>error_prone_core</artifactId>
+                            <version>${error-prone.version}</version>
+                        </path>
+                        <path>
+                            <groupId>com.uber.nullaway</groupId>
+                            <artifactId>nullaway</artifactId>
+                            <version>${nullaway.version}</version>
+                        </path>
                     </annotationProcessorPaths>
+                    <compilerArgs>
+                        <!-- Error Prone, per docs/quality-bar.md (#10). Both flags below are required by
+                             Error Prone itself; the add-exports flags it also needs live in .mvn/jvm.config.
+                             The version pair is load-bearing: error_prone 2.50.0 breaks NullAway
+                             (NoClassDefFoundError: predicates/type/DescendantOf) and 2.41.0 does not run
+                             on JDK 26. Bump the two together and run a clean compile when you do. -->
+                        <arg>-XDcompilePolicy=simple</arg>
+                        <arg>--should-stop=ifError=FLOW</arg>
+                        <!-- Stock severities, plus the date/time and comparison family promoted to ERROR.
+                             The promotion is the point: JavaPeriodGetDays is only a warning by default,
+                             and it is defect D1, the bug that stopped every recurring task with a min
+                             interval over 30 days from ever firing. A warning would not have caught it.
+
+                             KEEP THE Xplugin ARGUMENT ON ONE LINE. Break it across lines and javac
+                             cannot resolve the plugin, so Error Prone silently does not run at all and
+                             the build still goes green. -->
+                        <arg>-Xplugin:ErrorProne -XepExcludedPaths:.*/generated-sources/.* -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:AnnotatedPackages=be.stijnhooft.task -Xep:NullAway:ERROR -Xep:JavaPeriodGetDays:ERROR -Xep:JavaTimeDefaultTimeZone:ERROR -Xep:JavaLocalDateTimeGetNano:ERROR -Xep:JavaLocalTimeGetNano:ERROR -Xep:JavaDurationGetSecondsGetNano:ERROR -Xep:JavaInstantGetSecondsGetNano:ERROR -Xep:JavaDurationWithNanos:ERROR -Xep:JavaDurationWithSeconds:ERROR -Xep:DateFormatConstant:ERROR -Xep:BadComparable:ERROR -Xep:ComparableAndComparator:ERROR -Xep:StringConcatToTextBlock:OFF</arg>
+                    </compilerArgs>
                 </configuration>
+                <executions>
+                    <execution>
+                        <!-- Error Prone gates src/main only, per docs/quality-bar.md (#10).
+                             On test sources NullAway is almost all noise: a test that asserts a value
+                             is present and then uses it is correct, and NullAway cannot see the
+                             assertion. The gate exists to protect what runs in production; whether
+                             test code is right is answered by whether the tests pass. Revisit this if
+                             a defect ever hides in test code. -->
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <compilerArgs combine.self="override"/>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

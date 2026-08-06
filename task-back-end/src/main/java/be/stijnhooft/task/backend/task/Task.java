@@ -19,6 +19,11 @@ import java.util.function.Consumer;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @EqualsAndHashCode(exclude = "version")
+/// Parked by #10 (docs/quality-bar.md). NullAway: Lombok @Builder and @Data cannot prove
+/// the non-null fields are initialised; records do not have this problem, which is evidence
+/// for #19's 'Lombok is judgment' when this entity is rebuilt under ADR-0004.
+/// JavaTimeDefaultTimeZone: awaits the Clock bean (TODO-043).
+@SuppressWarnings({"NullAway", "JavaTimeDefaultTimeZone"})
 public class Task {
 
     @Id

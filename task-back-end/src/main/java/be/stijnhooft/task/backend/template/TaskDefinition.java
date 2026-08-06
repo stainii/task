@@ -19,6 +19,9 @@ import java.util.UUID;
 @Table("task_definition")
 @NoArgsConstructor
 @AllArgsConstructor
+/// Parked by #10 (docs/quality-bar.md): Lombok @NoArgsConstructor leaves NullAway unable to
+/// prove the non-null fields are initialised. Resolved when the entity is rebuilt.
+@SuppressWarnings("NullAway")
 public class TaskDefinition {
 
     @Id

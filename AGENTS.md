@@ -6,6 +6,11 @@ A monorepo holding three projects:
 - `task-front-end/` — Angular
 - `task-workspace/` — the IntelliJ project config; this is the directory to open in the IDE
 
+## Quality bar
+
+What "green" means, the gates on each stack, and the testing and code conventions every ticket is
+built to: **`docs/quality-bar.md`**. Read it before writing code.
+
 ## Agent skills
 
 ### Issue tracker

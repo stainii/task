@@ -16,6 +16,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/task-templates")
 @RequiredArgsConstructor
+/// Parked by #10 (docs/quality-bar.md): the DTO's id is nullable on create and non-null on
+/// update, a split the single DTO cannot express. Resolved when the template API is rebuilt.
+@SuppressWarnings("NullAway")
 public class TaskTemplateController {
 
     private final TaskTemplateService taskTemplateService;

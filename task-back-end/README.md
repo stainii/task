@@ -147,6 +147,21 @@ One thing that will waste your time otherwise:
 
 - **`~/.mavenrc` beats `sdk env`.** If you have a `~/.mavenrc` setting `JAVA_HOME` (to sdkman's `current` symlink, for instance), `./mvnw` uses *that* JDK regardless of the shell's `JAVA_HOME`, and the build fails with `release version 26 not supported`. Either make 26 your sdkman default (`sdk default java 26.0.2-tem`) or run with `MAVEN_SKIP_RC=1`.
 
+### Static analysis
+
+`./mvnw verify` runs **Error Prone + NullAway** over `src/main`, and it fails the build. Two things
+to know before you touch its configuration in `pom.xml`:
+
+- **The versions are pinned as a pair** (Error Prone 2.47.0, NullAway 0.12.7). 2.50.0 breaks
+  NullAway; 2.41.0 does not run on JDK 26.
+- **The `-Xplugin` argument must stay on one line.** Split it and javac cannot find the plugin, so
+  Error Prone silently does not run and the build still goes green.
+
+Existing violations are parked behind suppressions that each say why:
+`grep -rn "Parked by #10" src` lists them. Delete one as part of the rewrite that fixes it.
+
+Full rules: `docs/quality-bar.md`.
+
 ### Mutation testing
 
 There isn't any, on purpose — [#32](https://github.com/stainii/task/issues/32) removed pitest. It cost ~46 minutes on every `verify`, over half its surviving mutants were in MapStruct-generated `*MapperImpl` classes and `@Bean` methods that no test can kill, and the accuracy fix (the Arcmutate Spring plugin) is a paid subscription needing a licence file in this public repo. It remains a legitimate ad-hoc tool — add the plugin, run it, take it out again — but nothing in the build depends on it. **Please read #32 before reinstating it.**

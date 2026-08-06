@@ -1,7 +1,7 @@
-import {ApplicationConfig, provideBrowserGlobalErrorListeners} from '@angular/core';
-import {provideRouter} from '@angular/router';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideRouter } from '@angular/router';
 
-import {routes} from './app.routes';
+import { routes } from './app.routes';
 
 // Deliberately empty beyond routing. The Keycloak wiring that used to live here was removed
 // in #30, because every one of its settings is overruled by a decision already made:
@@ -13,8 +13,5 @@ import {routes} from './app.routes';
 //   (defect F1 in docs/repo-health.md)
 // It is rebuilt, not repaired, as part of the front-end rewrite.
 export const appConfig: ApplicationConfig = {
-  providers: [
-    provideBrowserGlobalErrorListeners(),
-    provideRouter(routes),
-  ]
+  providers: [provideBrowserGlobalErrorListeners(), provideRouter(routes)],
 };

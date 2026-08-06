@@ -22,6 +22,9 @@ import java.util.stream.StreamSupport;
 @Slf4j
 @EnableScheduling
 @Transactional
+/// Parked by #10 (docs/quality-bar.md): now() reads the machine's default time zone.
+/// The fix is the Clock bean of TODO-043, which lands with this scheduler's rebuild.
+@SuppressWarnings("JavaTimeDefaultTimeZone")
 public class CreateDueTasks {
 
     public static final String $_RECURRING_TASKS_CREATE_DUE_TASKS_CRON = "${recurring-tasks.create-due-tasks.cron}";

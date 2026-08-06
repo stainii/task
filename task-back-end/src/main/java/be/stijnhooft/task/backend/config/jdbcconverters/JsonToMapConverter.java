@@ -10,6 +10,10 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.Map;
 
 @ReadingConverter
+/// Parked by #10 (docs/quality-bar.md): converts a null column to a null map, which the
+/// @NullMarked package forbids. Left as-is because the converter is rewritten with the
+/// entities under ADR-0004.
+@SuppressWarnings("NullAway")
 public class JsonToMapConverter implements Converter<PGobject, Map<String, String>> {
 
     private static final ObjectMapper MAPPER = JsonMapper.builder().build();

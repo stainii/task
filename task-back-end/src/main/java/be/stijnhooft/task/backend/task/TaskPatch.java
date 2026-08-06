@@ -19,6 +19,9 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(exclude = "version")
+/// Parked by #10 (docs/quality-bar.md): Lombok @Builder gives NullAway no constructor that
+/// proves the non-null fields are set. Resolved when ADR-0004 rebuilds this type.
+@SuppressWarnings("NullAway")
 public class TaskPatch {
 
     @Id
