@@ -266,7 +266,9 @@ Recorded because they document intended behaviour and because the map raises the
 
 ## 8. Out of scope, restated
 
-Already ruled out on the map; listed so a reader of this ledger does not go looking for rows: `portal-activity`, `portal-weather`, `portal-location`, `portal-image`, `portal-notifications`, `portal-proxy`, `portal-authentication`, `portal-model`, `portal-auth-starter`, `fridge/`. Their front-end counterparts (`activity/` — 24 files, `notification/` — 17 files) are likewise out of scope, though `notification/` is the UI half of the "does anything need reminders?" question the map still holds as fog.
+Already ruled out on the map; listed so a reader of this ledger does not go looking for rows: `portal-activity`, `portal-weather`, `portal-location`, `portal-image`, `portal-notifications`, `portal-proxy`, `portal-authentication`, `portal-model`, `portal-auth-starter`, `fridge/`. Their front-end counterparts (`activity/` — 24 files, `notification/` — 17 files) are likewise out of scope.
+
+**`notification/`'s pointer is discharged.** This section used to note that `notification/` was "the UI half of the *does anything need reminders?* question the map still holds as fog". That question was answered by [#34](https://github.com/stainii/task/issues/34) / [ADR-0012](adr/0012-one-push-at-0730-derived-not-stored.md): a reminder survives, but as **one Web Push notification at 07:30 listing tasks due today**, with **nothing stored and no inbox** — a projection of the task list, not an object. All 17 files stay out of scope permanently. The evidence was portal's own data: of 8,201 notifications, **336 were ever marked read (4%)**, and **5 of 412 in 2026**.
 
 ---
 

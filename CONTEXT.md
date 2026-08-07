@@ -178,6 +178,19 @@ This is how the overview stays ready for **goal** without representing one.
 Resolved in [#9](https://github.com/stainii/task/issues/9),
 [ADR-0006](docs/adr/0006-one-overview-grouped-by-a-swappable-axis.md).
 
+### Push subscription
+
+**One device's registration to receive the daily notification.** Created when you flip the toggle on
+that device and grant permission; deleted by the server when the push service answers `410 Gone`. One
+row per device, all of them sent to.
+
+It is the **only** thing this app persists about notifications. There is no notification entity, no
+inbox and no read state: a notification is a projection of the tasks due that day, computed at 07:30
+and not remembered.
+
+Resolved in [#34](https://github.com/stainii/task/issues/34),
+[ADR-0012](docs/adr/0012-one-push-at-0730-derived-not-stored.md).
+
 ## Terms deliberately left undefined
 
 ### Goal

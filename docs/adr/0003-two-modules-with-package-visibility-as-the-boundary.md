@@ -149,3 +149,27 @@ put in a module.
   refactor of code ADR-0001 has already condemned.
 - **Deleting the `Documenter` call.** Rejected: the diagram is the cheapest way to see an unwanted
   arrow appear.
+
+## Amendments
+
+### A fifth module, `notification`
+
+Added by [Does anything need to reach you when the app is closed?](https://github.com/stainii/task/issues/34),
+2026-08-07.
+
+[ADR-0012](0012-one-push-at-0730-derived-not-stored.md) adds a `notification` module owning a
+`PushSubscription` aggregate. The module list is now `task`, `template`, `notification`, `config`,
+`goal`.
+
+This extends rather than contradicts the *three or more modules* alternative rejected above: what was
+rejected there was **splitting existing concerns** — firing out of `template`, patch/SSE out of
+`task`. `PushSubscription` is a new aggregate with its own lifecycle that did not exist when this ADR
+was written, and the aggregate test is the one this ADR used.
+
+The direction is `notification → task`, via a purpose-built query port in the shape of
+`TaskOccurrences` (`tasksDueOn(LocalDate)`). **`task` still has no outbound module dependencies** —
+which is the reason the feature is not simply placed inside it, since that would have handed `task` a
+scheduler, a public registration endpoint, an outbound internet call and BouncyCastle.
+
+No second application event is minted: the rule *queries go direct, facts go by event* puts this on
+the query side.
