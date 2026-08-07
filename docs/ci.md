@@ -11,20 +11,37 @@ release job, no manual trigger.
 
 ## 1. The jobs
 
-| Job | What it runs | Roughly |
+| Job | What it runs | Measured, run 1 |
 |---|---|---|
-| `back-end` | `./mvnw verify` in `task-back-end` — tests, `ApplicationModules.verify()`, Error Prone/NullAway | ~3 min |
-| `error-prone-canary` | proves Error Prone is actually running (see §3) | ~1 min |
-| `front-end` | `npm ci`, `npm run lint`, `npm run format:check`, `npm test`, `npm run build` in `task-front-end` | ~2 min |
-| `detect-e2e` | decides whether the Playwright job activates | seconds |
-| `end-to-end` | Playwright against the real stack — **inert until Playwright is installed**, see §4 | — |
-| `green` | fails unless every job above passed | seconds |
+| `back-end` | `./mvnw verify` in `task-back-end` — tests, `ApplicationModules.verify()`, Error Prone/NullAway | 2m10s |
+| `error-prone-canary` | proves Error Prone is actually running (see §3) | 25s |
+| `front-end` | `npm ci`, `npm run lint`, `npm run format:check`, `npm test`, `npm run build` in `task-front-end` | 33s |
+| `detect-e2e` | decides whether the Playwright job activates | 4s |
+| `end-to-end` | Playwright against the real stack — **inert until Playwright is installed**, see §4 | skipped |
+| `green` | fails unless every job above passed | 3s |
 
-They run in parallel. `green` is the aggregate.
+They run in parallel: **2m18s wall clock**, about **7 billable minutes** once GitHub rounds each job
+up to the minute. That lands on [#21](https://github.com/stainii/task/issues/21)'s ~8 min/push
+estimate, and the repo is public, so it is free either way. Note that roughly half a minute of the
+back-end job is the Surefire wait described in §2, not work.
 
-**Require only `green` on `main`.** Adding a job to the workflow then never needs the branch
-protection rule to be edited — and `green` checks each job's *result* explicitly, so a job that was
-skipped or cancelled can never be mistaken for a job that passed.
+`green` is the aggregate.
+
+**Only `green` is required on `main`**, by the repository ruleset *"main must be green"*. Adding a
+job to the workflow therefore never needs the rule to be edited — and `green` checks each job's
+*result* explicitly, so a job that was skipped or cancelled can never be mistaken for a job that
+passed.
+
+Two things about that ruleset are deliberate:
+
+- **The repository admin bypasses it.** You push straight to `main`; that is how this repo has always
+  worked and this ticket did not set out to change it. The rule binds pull requests — including from
+  forks, which [#31](https://github.com/stainii/task/issues/31) accepted as a real possibility on a
+  public repo. Your own pushes still run CI, and [#24](https://github.com/stainii/task/issues/24)
+  will only publish from a green one; the rule is not what keeps a red commit off the box.
+- **Force-pushes to `main` are blocked** (`non_fast_forward`), for everyone. ADR-0007 has the box
+  `git pull` this branch unattended at night. A rewritten history is the one thing that turns that
+  into a failure nobody sees.
 
 ---
 
