@@ -421,3 +421,38 @@ Unknown fields are rejected rather than ignored because the patch log is append-
 [ADR-0005](0005-migration-by-replay-into-one-history.md) replays it forever: anything accepted is
 accepted permanently. See [ADR-0010](0010-a-tunnel-an-allowlist-and-a-role.md), which also
 re-examined this ADR's rejection of a client-clock guard and **left it closed**.
+
+### `completedOn` is a domain clock, and it is not a third sync clock
+
+Amended by [How does a template learn one of its occurrences was done?](https://github.com/stainii/task/issues/33),
+2026-08-07. See [ADR-0011](0011-completion-is-a-task-fact-the-template-reads.md).
+
+Reproducing portal's explicit *"I did it last Tuesday"* adds a **`completedOn`** date to `Task` — a
+normal patchable field, set on every completion and defaulting to today.
+
+It could have been expressed by backdating the completing patch's own `dateTime`, at no schema cost.
+That is precisely what this ADR forbids: `dateTime` is the **write** clock, ordering the fold and
+deciding last-writer-wins. Backdating it would make a Tuesday completion **lose** to any Wednesday
+edit from another device — correcting a name on a laptop would silently un-complete the chore — and
+on the complete-an-open-task path it would sort **before** that task's creation patch, which this ADR
+defines as the first patch for an id. A task completed before it existed.
+
+So `completedOn` is a third clock only in the sense that it is a **domain value on the aggregate**,
+carried in `changes` and merged by the ordinary fold. Correcting a mis-entered date is just a later
+patch winning, which is the right behaviour. The two sync clocks are untouched.
+
+Note for the fixtures: patch payloads and the golden fold fixtures both grow a field.
+
+### The fixture rule extends to template rendering
+
+Amended by the same ticket.
+
+This ADR pinned the fold with shared golden fixtures because it exists in Java and TypeScript, and
+[#10](https://github.com/stainii/task/issues/10) turned that into a rule — *no fold rule without a
+fixture*. ADR-0011 makes out-of-band completions **client-minted**, so that the "I already did this"
+affordance works offline, which puts **template rendering** in both languages too.
+
+Template rendering gets the same protection: a sibling fixture directory holding template + inputs →
+expected tasks, enumerated by both suites with the same non-empty assertion. **No rendering rule
+without a fixture.** The rendering code is small; the failure mode — a task named or dated
+differently on one device than another, visible only in history — is not.

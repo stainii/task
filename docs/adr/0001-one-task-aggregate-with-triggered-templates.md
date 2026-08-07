@@ -117,3 +117,38 @@ Note the migration consequence, recorded and deliberately not acted on: portal's
 cannot distinguish a genuine completion from a task cleared off the list by pressing Complete,
 because there was no other way to do it. Imported anchors inherit that ambiguity. The first
 unambiguous anchors are the ones written after cutover.
+
+### The anchor splits in two: history reads completions, scheduling reads closures
+
+Amended by [How does a template learn one of its occurrences was done?](https://github.com/stainii/task/issues/33),
+2026-08-07. See [ADR-0011](0011-completion-is-a-task-fact-the-template-reads.md).
+
+The amendment above is right about history and silently wrong about scheduling. With the anchor
+reading completions only, a cancelled `MinMax` task leaves nothing open to suppress the template
+while the last completion stays in the past — so the template **fires again the next day, and every
+day after, until a task is completed**. That is `activeTask`'s freeze bug inverted.
+
+Two questions were sharing one answer. *When did I last actually do this?* reads **completions**, as
+amended above — `TaskOccurrences.lastCompletionOf` is unchanged. *When should I next be asked?* reads
+the last **closed** task, so cancelling buys a full `min` interval of quiet. The deliberate drift this
+ADR wants comes from the suppression rule (an open task blocks refiring), not from the anchor, so it
+survives the split intact.
+
+### There is no occurrence-level completion
+
+Amended by the same ticket. This ADR says an occurrence "closes when every one of them is closed",
+which reads as an occurrence being a unit that gets completed. It is not: **a template is not
+completable, tasks are, separately.** An occurrence id is a group key naming which firing a task came
+from, with no completion date of its own.
+
+The anchor therefore reads tasks directly — the latest `completedOn` among the template's completed
+tasks — and a partly-completed, partly-cancelled firing needs no rule, because there is no round to
+judge. Suppression is unaffected and was always task-level.
+
+### Backdating gets its field
+
+Amended by the same ticket. This ADR noted that reproducing portal's explicit "I did it last Tuesday"
+date "needs a field on `Task`". It does, and it is **`completedOn`** — set on every completion,
+defaulting to today. Confirmed as a real feature rather than a theoretical one:
+`housagotchi-add-execution.component.html` carries a *required* datepicker labelled "When did you do
+it?".

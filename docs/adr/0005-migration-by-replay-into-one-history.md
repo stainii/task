@@ -328,3 +328,33 @@ happened to leave behind.
 This is a loss that predates the migration and no dump taken at any date could have recovered. What
 changes is the claim: "satisfying REC-007 retroactively, for years of history" holds for 51% of the
 recurring corpus, and the rest arrives as history without provenance.
+
+## Amendments
+
+### REC-005 keeps its shape and loses its endpoint
+
+Amended by [How does a template learn one of its occurrences was done?](https://github.com/stainii/task/issues/33),
+2026-08-07. See [ADR-0011](0011-completion-is-a-task-fact-the-template-reads.md).
+
+*An execution is a task that fired and closed at once* argued that once `Execution` was deleted, the
+register-an-execution endpoint REC-005 kept "can only mean *create a task for this template and
+complete it in the same breath*". **The meaning is confirmed. The endpoint is not.**
+
+ADR-0011 makes the out-of-band completion **client-minted**, written through the patch outbox rather
+than to a server endpoint, because "I already did this" must work offline — it was housagotchi's
+entire interaction, performed away from a desk. There is no `POST .../execution` successor.
+
+This ADR's guarantee is undamaged, because it never rested on the route: a migrated execution and a
+live out-of-band completion still produce **identical rows** — a task created and completed on the
+same date, with a creating patch and a completing patch. That is now guaranteed by the shape both
+paths build, not by their sharing a code path.
+
+REC-005's verdict should be read accordingly: **transform**, into a client affordance, not a kept
+endpoint. The affordance itself belongs to [#36](https://github.com/stainii/task/issues/36).
+
+### The importer sets `completedOn`
+
+Amended by the same ticket. ADR-0011 adds a `completedOn` date to `Task`, set on every completion.
+The importer sets it from the portal execution date — and, for ordinary completed tasks, from the
+completing patch's own date — rather than letting it default. Portal's `ExecutionDto` carried exactly
+this date and its UI made it required, so the value exists in the corpus and does not need inventing.

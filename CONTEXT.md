@@ -92,14 +92,32 @@ The description of one task a template will produce. Carries the name, context, 
 description of the task-to-be (any of which may contain `${variable}` placeholders), plus the
 day offsets that position its start and due dates relative to the firing.
 
+### Completed on
+
+**The date you actually did the thing**, as opposed to the date you told the app about it.
+
+Set on every completion, defaulting to today, and patchable like any other field — so "I ticked it
+off today but I did it last Tuesday" is a value, and correcting it later is just another patch.
+
+It is deliberately not the completing patch's `dateTime`, which is the **write** clock: backdating
+that would make an older-looking completion lose the fold to any later edit from another device. This
+is a domain clock, not a sync clock.
+
+The **min/max** trigger reads the latest `completedOn` among a template's completed tasks, which is
+what "when did I last actually do this" means.
+
 ### Trigger
 
 **When a task template fires.** A closed set of three:
 
 - **Manual** — fires when you ask it to. No clock.
-- **Min/max** — fires at *last completion + min days*; the task it produces is due at
-  *last completion + max days*. **Drifts on purpose**: if you forget, the whole rhythm moves with
+- **Min/max** — fires at *last closure + min days*; the task it produces is due at
+  *last closure + max days*. **Drifts on purpose**: if you forget, the whole rhythm moves with
   you. Use it for "no need to do this again within a week of actually doing it".
+  **Cancelling counts as a closure**, so declining a round buys a full interval of quiet rather than
+  the same task returning tomorrow — while *"when did I last do this"* still reads **completions
+  only** and honestly reports that you did not. Forgetting is the task sitting open, which suppresses
+  refiring on its own; that is where the drift comes from.
 - **Calendar** — fires on absolute dates from a fixed rule vocabulary (every N days, every N weeks
   on given weekdays, every N months on a day of the month, yearly on a date). **Never drifts.**
   Use it when the date is the date, whether or not you did the last one.
@@ -109,11 +127,15 @@ The drift difference is the whole reason both scheduled triggers exist.
 ### Occurrence
 
 **One firing of a task template** — a concept, not a table. The tasks a firing produced share an
-occurrence id; the firing's date is their creation date, and it closes when every one of them is
-closed. There is no separate record, because everything an occurrence would store already lives on
-the task and its patch history.
+occurrence id, and the firing's date is their creation date. There is no separate record, because
+everything an occurrence would store already lives on the task and its patch history.
 
-A scheduled template does not fire again while one of its occurrences is still open.
+**An occurrence is a group key, not a unit of work.** A template is not completable; its tasks are,
+separately. An occurrence has no completion date of its own, and a firing whose tasks ended
+differently — one completed, one cancelled — needs no rule, because there is nothing at that level to
+judge.
+
+A scheduled template does not fire again while it has an **open task**.
 
 ### Context
 
