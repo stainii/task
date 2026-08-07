@@ -17,14 +17,12 @@ public class AbstractIntegrationTestCases {
 
     static KeycloakContainer keycloakContainer;
 
-    /**
-     * Pinned explicitly rather than inheriting testcontainers-keycloak's default, so that tests and
-     * {@code compose.yaml} provably run the same Keycloak and a library bump cannot move it silently.
-     */
-    private static final String KEYCLOAK_IMAGE = "quay.io/keycloak/keycloak:26.7.0";
-
     static {
-        keycloakContainer = new KeycloakContainer(KEYCLOAK_IMAGE)
+        // Read from compose.yaml rather than pinned here, so tests and the dev stack cannot run
+        // different Keycloaks. #20 pinned it explicitly to stop testcontainers-keycloak's default
+        // moving it silently; #25 removed the duplicate so Renovate cannot move it silently either.
+        // See ComposeFile.
+        keycloakContainer = new KeycloakContainer(ComposeFile.imageOf("keycloak"))
                 .withRealmImportFile("keycloak/realm-export.json")
                 .withReuse(true);
         keycloakContainer.start();

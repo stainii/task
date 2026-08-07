@@ -251,12 +251,36 @@ jobs:
           path: task-front-end/playwright-report/
           retention-days: 7
 
+  renovate-config:
+    name: renovate (the config is valid)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # renovate.json5 (#25) is the one mechanism in this repo that nothing else exercises. Its failure
+    # mode is silence in both directions: a config Renovate rejects leaves the repo un-updated, and a
+    # mistyped option is simply ignored while the rest of the file keeps working.
+    #
+    # That is not hypothetical here. Writing it, `fileMatch` — the field every prose example still
+    # shows for customManagers — turned out not to exist in Renovate's schema at all; only reading
+    # the schema caught it. Exactly #10's -Xplugin finding, in a different file.
+    #
+    # This validates the schema, not the behaviour. The regexes matching anything real is asserted by
+    # ToolchainPinsTest, and the image tags by ComposeFile.
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: task-front-end/.nvmrc
+
+      - name: renovate-config-validator
+        run: npx --yes --package renovate@latest renovate-config-validator --strict
+
   green:
     name: green
     # The single check to require on `main`. Adding a job above never needs the branch protection
     # rule to be edited, and — because of the explicit result checks below — a job that is skipped
     # or cancelled can never be mistaken for a job that passed.
-    needs: [back-end, error-prone-canary, front-end, detect-e2e, end-to-end]
+    needs: [back-end, error-prone-canary, front-end, detect-e2e, end-to-end, renovate-config]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -274,6 +298,7 @@ jobs:
           check "error-prone-canary" "${{ needs.error-prone-canary.result }}"
           check "front-end"          "${{ needs.front-end.result }}"
           check "detect-e2e"         "${{ needs.detect-e2e.result }}"
+          check "renovate-config"    "${{ needs.renovate-config.result }}"
 
           # end-to-end is allowed to be skipped only while no Playwright config exists.
           if [ "${{ needs.detect-e2e.outputs.installed }}" = "true" ]; then

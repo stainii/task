@@ -1,0 +1,167 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+
+  // Dependency currency for #25, on the terms #19, #20, #21, #23 and ADR-0007 set.
+  //
+  // The motivation is the migration's own: keeping 13 services current by hand is a large part of
+  // what made portal not worth maintaining. So this file is not a nicety, and it is JSON5 rather
+  // than JSON because — like .github/workflows/ci.yml — the reasons matter more than the values.
+  //
+  // WHAT ONLY EXISTS HERE: the JDK. See customManagers at the bottom.
+
+  extends: [
+    'config:recommended',
+  ],
+
+  // Schedule times are meaningless without this.
+  timezone: 'Europe/Brussels',
+
+  // ---------------------------------------------------------------------------------------------
+  // Automerge, and why the window is in the morning
+  // ---------------------------------------------------------------------------------------------
+  // #19 deferred automerge with a named trigger; #31 fired it (public repo, free runners). ADR-0007
+  // then re-armed it against `main` auto-deploying. #25 settled it: automerge is ON, because the
+  // deploy is pull-based at night — the box takes whatever is on `main` at ~02:00 rather than being
+  // triggered by the merge.
+  //
+  // That does not isolate production, it delays it. What it buys is a REVERT WINDOW, and the size
+  // of that window is set right here: Renovate's default schedule is "at any time", which would let
+  // a merge land at 01:50 and deploy ten minutes later, with nobody awake. Weekday mornings give
+  // ~17 hours, on a day someone is around to notice.
+  //
+  // The safety argument is not "patch updates are safe" — #20 broke three times on MINOR bumps
+  // (Modulith 2.0->2.1 removed a jar and changed Documenter's signature; Boot 4.0->4.1 dropped
+  // Jackson 2). It is that all three were COMPILE failures, which the #23 gate catches outright.
+  // Automerge's residual risk is the narrower thing: a change that compiles, passes the suite, and
+  // behaves differently at 02:00.
+  schedule: [
+    'before 9am on monday through friday',
+  ],
+  automerge: true,
+  // Hand the merge to GitHub so it happens when `green` passes rather than on Renovate's next run.
+  // #21's footgun (automerge with no *required* check can merge failing PRs) cannot occur here: the
+  // "main must be green" ruleset requires the `green` check, and Renovate is not an admin bypass.
+  platformAutomerge: true,
+
+  // The other residual risk: a release that is broken and yanked hours later. Renovate will not
+  // even open the PR until the release has survived this long in the wild.
+  minimumReleaseAge: '3 days',
+
+  // ---------------------------------------------------------------------------------------------
+  // A report, not a firehose (#19)
+  // ---------------------------------------------------------------------------------------------
+  // #21 found the throttle that actually works: prHourlyLimit does not stop rebases, commitHourlyLimit
+  // does. With automerge on, PRs no longer pile up — but a red one lingers, and every merge to `main`
+  // rebases whatever is open, so both limits stay low.
+  dependencyDashboard: true,
+  commitHourlyLimit: 2,
+  prConcurrentLimit: 3,
+
+  // package.json pins with carets, so `replace` (the default via `auto`) would raise no PR at all for
+  // an in-range minor — the lockfile would quietly freeze while package.json looked current. That is
+  // #30's "looks settled, nobody re-reads it" failure with a dependency graph attached.
+  rangeStrategy: 'bump',
+
+  // In-range and transitive updates only move when the lockfile is refreshed. #20 found three
+  // moderate advisories living in @angular/cli's own transitive tree, reachable no other way.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: [
+      'before 9am on monday',
+    ],
+  },
+
+  // A security fix should not wait three days for a cooling-off period designed to protect against
+  // the ordinary case. This deliberately spends the revert window above. ADR-0010's "nothing gates
+  // on CVEs" is untouched — that rule is about failing builds, not about shipping fixes.
+  vulnerabilityAlerts: {
+    minimumReleaseAge: null,
+    schedule: [
+      'at any time',
+    ],
+  },
+
+  packageRules: [
+    {
+      description: 'The JDK is written in two files and must move in one commit. See ToolchainPinsTest.',
+      matchDepNames: [
+        'java',
+      ],
+      groupName: 'java (JDK)',
+    },
+    {
+      description: [
+        'Error Prone and NullAway are a version PAIR, not two dependencies (#10): 2.50.0 breaks',
+        'NullAway and 2.41.0 will not run on JDK 26. Bumping one alone is how the gate #10 installed',
+        'stops running — and #10 found that exact gate stated as real for months while absent.',
+      ],
+      matchPackageNames: [
+        'com.google.errorprone:{/,}**',
+        'com.uber.nullaway:{/,}**',
+      ],
+      groupName: 'error-prone + nullaway',
+    },
+    {
+      description: 'Spring Boot and Spring Modulith move together in practice; #20 upgraded them as one.',
+      matchPackageNames: [
+        'org.springframework.boot:{/,}**',
+        'org.springframework.modulith:{/,}**',
+      ],
+      groupName: 'spring',
+    },
+  ],
+
+  // ---------------------------------------------------------------------------------------------
+  // The JDK: the one pin no manager can see
+  // ---------------------------------------------------------------------------------------------
+  // Renovate has managers for nvm (.nvmrc), docker-compose, maven and github-actions. It has NO
+  // sdkman manager, so .sdkmanrc matches nothing — and #20 chose Java 26 over 25 LTS while knowingly
+  // accepting a 6-month forced-upgrade cadence. The dependency guaranteed to expire on a known date
+  // was the only one Renovate could not mention.
+  //
+  // #19 refused a customManagers regex once, for the container images. That refusal is reversed here
+  // and only here, on the difference that mattered: for the images a better mechanism existed
+  // (compose.yaml is now their single copy, read by the tests — see ComposeFile). For the JDK there
+  // is none.
+  //
+  // The java-version datasource queries Adoptium, which is the vendor #20 pinned (`-tem`), so the two
+  // agree by construction rather than by luck.
+  //
+  // CI is deliberately NOT a third copy — ci.yml reads the major from .sdkmanrc at runtime, which
+  // means a JDK bump PR runs the whole suite ON the new JDK. The upgrade tests itself.
+  //
+  // IF THIS REGEX STOPS MATCHING, JAVA SILENTLY VANISHES FROM THE DASHBOARD. ToolchainPinsTest fails
+  // the build in that case, which is the only reason a regex is acceptable here at all.
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'The JDK, in .sdkmanrc — the source of truth, also read by ci.yml.',
+      managerFilePatterns: [
+        '/^\\.sdkmanrc$/',
+      ],
+      matchStrings: [
+        'java=(?<currentValue>\\d+\\.\\d+\\.\\d+)-tem',
+      ],
+      // Keep the sdkman vendor suffix; only the version is Renovate's to move.
+      autoReplaceStringTemplate: 'java={{{newValue}}}-tem',
+      depNameTemplate: 'java',
+      packageNameTemplate: 'java-jdk',
+      datasourceTemplate: 'java-version',
+      extractVersionTemplate: '^(?<version>\\d+\\.\\d+\\.\\d+)',
+    },
+    {
+      customType: 'regex',
+      description: 'The same JDK, major only, in the POM. Grouped with the above so they cannot half-move.',
+      managerFilePatterns: [
+        'task-back-end/pom.xml',
+      ],
+      matchStrings: [
+        '<java\\.version>(?<currentValue>\\d+)</java\\.version>',
+      ],
+      depNameTemplate: 'java',
+      packageNameTemplate: 'java-jdk',
+      datasourceTemplate: 'java-version',
+      extractVersionTemplate: '^(?<version>\\d+)',
+    },
+  ],
+}
