@@ -349,6 +349,22 @@ public void addExecution(Execution execution) {
 
 Real and load-bearing (Spring Data JDBC change detection is identity-based), but it is a workaround carrying a comment that reads as unresolved. Worth an explicit decision rather than leaving it as folklore.
 
+**D7 — the committed module diagram reorders itself, so #6's tripwire channel carries noise.**
+*(Found by [#23](https://github.com/stainii/task/issues/23), 2026-08-07.)*
+
+[#6](https://github.com/stainii/task/issues/6) pointed the Spring Modulith `Documenter` at `docs/modules/` and committed the output **so that a new arrow between modules shows up as a diff**. The generated `components.puml` does not have a stable edge order:
+
+```
+Rel(...Recurring, ...Task, "depends on", ...)
+Rel(...Template, ...Task, "depends on", ...)
+```
+
+swaps places between runs — observed once in nine consecutive runs of `TaskBackEndApplicationTests`, same code, same JDK. The module set and the edge set are identical; only the line order changes.
+
+Low cost, but the failure mode is the map's usual one. A diff that is *usually* meaningful and *occasionally* noise is worse than one that is always noise, because the rare spurious hunk still reads as a real architectural change — and once it has been dismissed twice, the real one is dismissed too.
+
+The direct consequence for CI: **the build cannot gate on "the committed diagram matches a fresh run"**, because that check would flake. `docs/ci.md` §5 records why no such gate exists. The fix is to sort the `Documenter` output before writing it; it belongs with whoever next touches `TaskBackEndApplicationTests`, and [ADR-0003](adr/0003-two-modules-with-package-visibility-as-the-boundary.md)'s moves in #11 will touch that file anyway.
+
 ### Test-quality observations
 
 - 82 back-end tests, ~2,410 lines of test code, 17 test classes. No `@Disabled`, no `@Ignore`, no assertion-free tests found. Density is reasonable (e.g. `TaskTest`: 8 tests / 46 assertions; `RecurringTaskTemplateModuleIntegrationTest`: 10 / 55).
@@ -392,6 +408,8 @@ So the entire `template` and `recurring` surface — including everything housag
 **`target/` is not committed.** The ticket suspected it was; it is not. `git ls-files` matches zero paths under `target/` or `node_modules/`, and the working tree is clean. Both are covered by the nested `.gitignore` files (`task-back-end/.gitignore` ignores `target/`, `task-front-end/.gitignore` ignores `/node_modules` and `/dist`) — the root `.gitignore` only covers OS files and the local HTTP credentials. `target/` and `node_modules/` do exist on disk, and `target/pit-reports/` still holds a **stale pitest report from 18 March 2026** that is easy to mistake for a current one.
 
 **There is no CI.** No `.github/` directory, no workflow files, no Jenkinsfile, nothing carried over from portal. The only YAML in the repo is `task-back-end/compose.yaml`.
+
+> **Resolved by [#23](https://github.com/stainii/task/issues/23) (2026-08-07).** `.github/workflows/ci.yml` runs `docs/quality-bar.md` on every pull request and every push to `main`: back-end `verify`, front-end lint/format/test/build, an Error Prone canary, and a Playwright job that activates itself when the config file lands. One aggregate check, `green`. It holds no secrets, so a fork's pull request runs the whole suite. See `docs/ci.md`.
 
 **Documentation referenced by `AGENTS.md` does not exist.** `docs/agents/domain.md` prescribes a root `CONTEXT.md` and `docs/adr/`; **neither exists**. There are no ADRs, so none of the migration decisions already taken (Spring Data JDBC over JPA, modulith over microservices, the TaskPatch model, dropping the gateway) are recorded anywhere.
 

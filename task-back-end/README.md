@@ -1,5 +1,7 @@
 # Task (back-end)
 
+[![CI](https://github.com/stainii/task/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/stainii/task/actions/workflows/ci.yml)
+
 ## TODO list
 - [ ] Goals
 
@@ -160,7 +162,8 @@ to know before you touch its configuration in `pom.xml`:
 Existing violations are parked behind suppressions that each say why:
 `grep -rn "Parked by #10" src` lists them. Delete one as part of the rewrite that fixes it.
 
-Full rules: `docs/quality-bar.md`.
+Full rules: `docs/quality-bar.md`. CI proves this gate is live rather than trusting it — it compiles
+a deliberate violation and requires the build to fail. See `docs/ci.md` §3.
 
 ### Mutation testing
 

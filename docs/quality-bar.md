@@ -25,6 +25,10 @@ database.
 CI runs it on every push, which is where a slow check belongs. Run it by hand when you change a
 journey.
 
+**CI runs this list on every pull request and every push to `main`** — see [`ci.md`](ci.md) for the
+jobs, for how to reproduce a failure locally, and for the canary that proves the Error Prone gate is
+actually running rather than merely configured.
+
 ---
 
 ## 2. Back-end gates

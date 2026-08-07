@@ -1,0 +1,286 @@
+name: CI
+
+# What "green" means is defined in docs/quality-bar.md (#10), not here. This workflow's job is to
+# run that bar and nothing else. ADR-0007 deploys every green push to `main` with no staging, so
+# this file is the only thing between a commit and the real database.
+#
+# NO SECRETS ON THIS PATH. #31 accepted a public repo; #22/ADR-0007 put zero secrets on the deploy
+# path in both directions. Keeping CI secret-free is what lets a pull request from a fork run the
+# full suite instead of half of it. If a step ever needs a secret, that is a design change, not a
+# configuration change.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Never cancel a run on `main`. Its result is what #24 publishes an image from; a cancelled run
+  # is indistinguishable from a run that never happened, and the box would quietly deploy nothing.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# No `paths:` filter, deliberately. ADR-0007 tags both images with the same commit SHA precisely
+# because the fold exists in Java and TypeScript and drift between them is silent. A front-end-only
+# commit whose back-end job was skipped would still be published as a matching pair.
+
+jobs:
+  back-end:
+    name: back-end (mvnw verify)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read the pinned JDK from .sdkmanrc
+        id: toolchain
+        # One source of truth. Hard-coding the version here is how CI and the developers' machines
+        # start compiling against different JDKs without anything saying so.
+        run: |
+          major="$(sed -n 's/^java=\([0-9][0-9]*\).*/\1/p' .sdkmanrc)"
+          test -n "$major" || { echo "::error::could not read java= from .sdkmanrc"; exit 1; }
+          echo "java=$major" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.toolchain.outputs.java }}
+          distribution: temurin
+          cache: maven
+
+      - name: Cache the Maven distribution downloaded by ./mvnw
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('task-back-end/.mvn/wrapper/maven-wrapper.properties') }}
+
+      - name: Guard the jvm.config trap
+        # Error Prone needs the --add-exports flags in task-back-end/.mvn/jvm.config. Maven only
+        # reads that file when it is invoked with the project as its base directory, and MAVEN_OPTS
+        # overrides it. Both mistakes surface as an IllegalAccessError into jdk.compiler, minutes
+        # into a build, with nothing pointing at the cause.
+        run: |
+          test -f task-back-end/.mvn/jvm.config || { echo "::error::task-back-end/.mvn/jvm.config is missing"; exit 1; }
+          test -z "${MAVEN_OPTS:-}" || { echo "::error::MAVEN_OPTS is set; it overrides .mvn/jvm.config"; exit 1; }
+
+      - name: mvnw verify
+        # Tests, ApplicationModules.verify() and Error Prone/NullAway. Run from the project
+        # directory with no MAVEN_OPTS, per the guard above.
+        working-directory: task-back-end
+        run: ./mvnw -B verify
+
+  error-prone-canary:
+    name: back-end (Error Prone is actually running)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # #10 found that "the build gates on Error Prone" had been stated on this map for months while
+    # Error Prone did not exist in the build at all. It also found two ways the gate installs itself
+    # and silently does nothing while the build stays green: the -Xplugin argument reformatted
+    # across lines, and a version pair that no longer runs on this JDK.
+    #
+    # So the gate is not trusted, it is proven: a file that violates a promoted-to-ERROR check is
+    # written into src/main and the compile MUST fail. A green build here means the canary compiled,
+    # which means the gate is off.
+    #
+    # This runs in its own job so the canary can never reach the jar that `back-end` builds.
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read the pinned JDK from .sdkmanrc
+        id: toolchain
+        run: |
+          major="$(sed -n 's/^java=\([0-9][0-9]*\).*/\1/p' .sdkmanrc)"
+          test -n "$major" || { echo "::error::could not read java= from .sdkmanrc"; exit 1; }
+          echo "java=$major" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.toolchain.outputs.java }}
+          distribution: temurin
+          cache: maven
+
+      - name: Cache the Maven distribution downloaded by ./mvnw
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('task-back-end/.mvn/wrapper/maven-wrapper.properties') }}
+
+      - name: A deliberate violation must fail the compile
+        working-directory: task-back-end
+        run: |
+          set -u
+          canary=src/main/java/be/stijnhooft/task/backend/ErrorProneCanary.java
+          cat > "$canary" <<'JAVA'
+          package be.stijnhooft.task.backend;
+
+          import java.time.LocalDate;
+
+          /** Written by CI, never committed. See .github/workflows/ci.yml. */
+          final class ErrorProneCanary {
+              private ErrorProneCanary() {}
+
+              static LocalDate today() {
+                  return LocalDate.now();
+              }
+          }
+          JAVA
+          if ./mvnw -B compile > canary.log 2>&1; then
+            echo "::error::Error Prone is NOT running. LocalDate.now() compiled, and JavaTimeDefaultTimeZone is configured as ERROR. Check that the -Xplugin argument in pom.xml is still on one line and that the Error Prone/NullAway version pair still runs on this JDK. See docs/quality-bar.md."
+            exit 1
+          fi
+          if ! grep -q 'JavaTimeDefaultTimeZone' canary.log; then
+            echo "::error::The canary compile failed, but not for the expected reason. Error Prone may be broken rather than merely absent. Full log below."
+            cat canary.log
+            exit 1
+          fi
+          echo "Error Prone rejected the canary. The gate is live."
+
+  front-end:
+    name: front-end (lint, format, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: task-front-end
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          # .nvmrc is the pin (docs/quality-bar.md §3); the Angular CLI refuses to run on older Node.
+          node-version-file: task-front-end/.nvmrc
+          cache: npm
+          cache-dependency-path: task-front-end/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run format:check
+
+      - name: npm test
+        # `ng test` runs vitest against jsdom and exits; there is no watch mode to disable.
+        run: npm test
+
+      - name: npm run build
+        # Production configuration, so the bundle budgets in angular.json are part of the gate.
+        run: npm run build
+
+  detect-e2e:
+    name: end-to-end (installed?)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      installed: ${{ steps.check.outputs.installed }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        # The end-to-end job activates itself the moment a Playwright config is committed. It is not
+        # a placeholder that someone has to remember to enable later: docs/quality-bar.md §1 lists
+        # end-to-end as one of the three things "green" means, and a gate nobody wires up is exactly
+        # the fiction #10 found in Error Prone.
+        run: |
+          if [ -f task-front-end/playwright.config.ts ] || [ -f task-front-end/playwright.config.js ]; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+            echo "No Playwright config yet; end-to-end tests land with the front-end work." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  end-to-end:
+    name: end-to-end (Playwright, real stack)
+    needs: [detect-e2e]
+    if: needs.detect-e2e.outputs.installed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read the pinned JDK from .sdkmanrc
+        id: toolchain
+        run: |
+          major="$(sed -n 's/^java=\([0-9][0-9]*\).*/\1/p' .sdkmanrc)"
+          echo "java=$major" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ steps.toolchain.outputs.java }}
+          distribution: temurin
+          cache: maven
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: task-front-end/.nvmrc
+          cache: npm
+          cache-dependency-path: task-front-end/package-lock.json
+
+      - name: Build the back-end jar
+        # CI hands the suite a runnable jar and a working Docker daemon. Bringing the stack up is
+        # `npm run e2e`'s job, not this workflow's, so the same command works on a laptop —
+        # docs/quality-bar.md §4 expects it to be runnable by hand.
+        working-directory: task-back-end
+        run: ./mvnw -B -DskipTests package
+
+      - run: npm ci
+        working-directory: task-front-end
+
+      - run: npx playwright install --with-deps
+        working-directory: task-front-end
+
+      - name: The suite must contain tests
+        # #32's pitest run measured its own exclusion for four months, and #10 made both fold-fixture
+        # suites assert a non-zero count for the same reason. A suite that matches no files passes.
+        working-directory: task-front-end
+        run: |
+          npx playwright test --list > playwright-list.txt 2>&1 || { cat playwright-list.txt; exit 1; }
+          cat playwright-list.txt
+          grep -qE 'Total: *[1-9]' playwright-list.txt || { echo "::error::Playwright is configured but matched no tests."; exit 1; }
+
+      - name: npm run e2e
+        working-directory: task-front-end
+        env:
+          TASK_BACK_END_JAR: ${{ github.workspace }}/task-back-end/target/task-back-end-0.0.1-SNAPSHOT.jar
+        run: npm run e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: task-front-end/playwright-report/
+          retention-days: 7
+
+  green:
+    name: green
+    # The single check to require on `main`. Adding a job above never needs the branch protection
+    # rule to be edited, and — because of the explicit result checks below — a job that is skipped
+    # or cancelled can never be mistaken for a job that passed.
+    needs: [back-end, error-prone-canary, front-end, detect-e2e, end-to-end]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every gate must have passed
+        run: |
+          fail=0
+          check() {
+            if [ "$2" != "success" ]; then
+              echo "::error::$1 did not pass (result: $2)"
+              fail=1
+            fi
+          }
+          check "back-end"           "${{ needs.back-end.result }}"
+          check "error-prone-canary" "${{ needs.error-prone-canary.result }}"
+          check "front-end"          "${{ needs.front-end.result }}"
+          check "detect-e2e"         "${{ needs.detect-e2e.result }}"
+
+          # end-to-end is allowed to be skipped only while no Playwright config exists.
+          if [ "${{ needs.detect-e2e.outputs.installed }}" = "true" ]; then
+            check "end-to-end" "${{ needs.end-to-end.result }}"
+          elif [ "${{ needs.end-to-end.result }}" != "skipped" ]; then
+            echo "::error::end-to-end is not installed but its job did not skip (result: ${{ needs.end-to-end.result }})"
+            fail=1
+          fi
+
+          exit $fail

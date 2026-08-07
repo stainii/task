@@ -1,6 +1,12 @@
 # TaskFrontEnd
 
+[![CI](https://github.com/stainii/task/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/stainii/task/actions/workflows/ci.yml)
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.2.
+
+Node is pinned to 26 in `.nvmrc` — run `nvm use` first, or the CLI refuses to start. CI runs
+`npm run lint`, `npm run format:check`, `npm test` and `npm run build` on every push; see
+`../docs/ci.md`.
 
 ## Development server
 
