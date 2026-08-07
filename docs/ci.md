@@ -47,8 +47,14 @@ Two differences between your machine and the runner, and both have bitten this p
   fails with `release version 26 not supported` — while CI, which has no `~/.mavenrc`, is green.
   Run with `MAVEN_SKIP_RC=1`, or make 26 your sdkman default. This cost a session once; it is in
   `task-back-end/README.md` too.
-- **`npm ci`, not `npm install`.** CI installs from the lockfile exactly. If a build passes locally
-  and fails on CI with a version nobody chose, you have a lockfile that was never committed.
+- **`npm ci`, not `npm install`.** CI installs from the lockfile exactly, and validates it against
+  `package.json` for *every* platform — including the ones your machine skips. This is not
+  theoretical: the very first CI run failed here. The committed lockfile was missing seven
+  `@emnapi/*` entries, the wasm fallback bindings for `oxc-parser` and `rolldown`, which npm on
+  macOS never installs and therefore never records. `npm ci` on Linux refused the whole tree. Fixed
+  by regenerating the lockfile; if it happens again, `npm install --package-lock-only` and commit
+  the result — check the diff is purely additive before you do, or you have quietly bumped
+  everything.
 
 One line in the back-end log looks like a failure and is not:
 

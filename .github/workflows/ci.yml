@@ -51,7 +51,7 @@ jobs:
           cache: maven
 
       - name: Cache the Maven distribution downloaded by ./mvnw
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.m2/wrapper
           key: maven-wrapper-${{ hashFiles('task-back-end/.mvn/wrapper/maven-wrapper.properties') }}
@@ -102,7 +102,7 @@ jobs:
           cache: maven
 
       - name: Cache the Maven distribution downloaded by ./mvnw
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.m2/wrapper
           key: maven-wrapper-${{ hashFiles('task-back-end/.mvn/wrapper/maven-wrapper.properties') }}
