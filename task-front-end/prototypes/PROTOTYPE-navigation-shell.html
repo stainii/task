@@ -1,0 +1,712 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #37.
+  "What are the destinations, and where does 'I already did this' live?"
+
+  Variants on the floating bar (or the arrow keys):
+    A — one screen + FAB          : 1 destination. Capture sheet holds both "new task" and "I did this".
+    B — three destinations         : bottom bar (phone) / left rail (desktop). Chores is a real screen.
+    C — omnibox                    : 2 destinations. You capture by typing, not by navigating.
+    D — chores are a band          : 0 extra destinations. The overview absorbs the template list.
+
+  The rig bar (grey, ugly) is prototype scaffolding, not design. It switches phone/desktop
+  width and shows the state each variant is in.
+
+  DATA IS REAL. 44 recurring templates with their real names, real min/max and real last
+  execution dates, extracted from the frozen archive at ~/portal-archive/2026-08-04/
+  (#35). "Today" is pinned to 2026-08-08, the day this was built, so dueness is real too.
+  The four `todo` tasks marked INVENTED below are the only made-up rows — portal's todo
+  data is a mongodump and was not worth unpacking for four strings.
+
+  Everything below the shell is ADR-0006's overview, reproduced only as much as is needed
+  to judge navigation. It is NOT under test here: bands, the cap, the panel and the swipe
+  are already decided.
+
+  AMENDED after the answer (author): neither the ✓ on a template row nor the omnibox's
+  "I already did this" fires silently. Both open the same one-field confirm — a date,
+  defaulting to today — because the whole point of this action is that you did the thing
+  away from the app. Portal's form had a REQUIRED datepicker for exactly this reason
+  (ADR-0011). The tap counts below are taps to reach that confirm, not to complete.
+
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — navigation shell</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --complete: #2e7d32; --cancel: #c62828; --overdue: #c62828;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #dcdce2; color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 90px;
+  }
+
+  /* ---------- prototype scaffolding — deliberately ugly ---------- */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--line);
+    padding: 8px 20px; font-size: 12px; color: var(--muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 40;
+  }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  #state { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: #444; }
+
+  /* the device frame the variant renders inside */
+  #frame {
+    margin: 18px auto; background: var(--bg); overflow: hidden;
+    box-shadow: 0 6px 30px rgba(0,0,0,.18); position: relative;
+  }
+  body.phone #frame { width: 390px; border-radius: 26px; height: 800px; }
+  body.desktop #frame { width: min(1180px, calc(100vw - 36px)); border-radius: 10px; height: 780px; }
+  #frame .scroll { height: 100%; overflow-y: auto; overflow-x: hidden; position: relative; }
+
+  /* ---------- shared app furniture ---------- */
+  .appbar {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .appbar h1 { font-size: 17px; margin: 0; font-weight: 600; flex: 1; }
+  .appbar .icon {
+    border: none; background: none; font-size: 19px; cursor: pointer;
+    color: var(--muted); padding: 4px 8px; border-radius: 8px; line-height: 1;
+  }
+  .appbar .icon:hover { background: #f1f1f5; }
+
+  main { padding: 16px; }
+  body.desktop main { padding: 20px 26px; }
+
+  h2.band {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 20px 0 9px; font-weight: 600;
+  }
+  h2.band:first-child { margin-top: 4px; }
+  h2.band .why { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .folded {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 14px; font-size: 14px; color: var(--muted); cursor: pointer;
+    margin-bottom: 8px;
+  }
+  .folded:hover { border-color: #c9c8d2; }
+
+  .tasks { display: grid; gap: 8px; }
+  body.desktop .tasks { grid-template-columns: repeat(3, 1fr); }
+  .task {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px 10px 0; display: flex; align-items: flex-start; gap: 10px;
+    overflow: hidden; position: relative;
+  }
+  .task .stripe { width: 10px; align-self: stretch; border-radius: 10px 0 0 10px; flex: none; }
+  .task .body { flex: 1; min-width: 0; }
+  .task .name { font-size: 14px; font-weight: 500; }
+  .task .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .task .meta .od { color: var(--overdue); font-weight: 600; }
+  .task .ctx {
+    font-size: 11px; color: var(--muted); border: 1px solid var(--line);
+    border-radius: 999px; padding: 1px 7px; flex: none; margin-top: 1px;
+  }
+
+  /* context cards (ADR-0006) */
+  .cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); margin-bottom: 6px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; cursor: pointer;
+  }
+  .card:hover { border-color: #c9c8d2; }
+  .card .top { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+  .card .top b { font-size: 14px; font-weight: 600; }
+  .card .top .n { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .card .badge {
+    font-size: 11px; background: #fdecea; color: var(--overdue);
+    border-radius: 999px; padding: 1px 7px; font-weight: 600;
+  }
+  .card .bar { display: flex; gap: 2px; margin: 7px 0 5px; }
+  .card .bar i { height: 4px; flex: 1; border-radius: 2px; }
+  .card .next { font-size: 11px; color: var(--muted); }
+
+  /* chores list — shared by B, C and D */
+  .chores { display: grid; gap: 6px; }
+  body.desktop .chores { grid-template-columns: repeat(2, 1fr); }
+  .chore {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px; display: flex; align-items: center; gap: 10px;
+  }
+  .chore .body { flex: 1; min-width: 0; }
+  .chore .name { font-size: 14px; }
+  .chore .meta { font-size: 12px; color: var(--muted); }
+  .chore .meta .od { color: var(--overdue); font-weight: 600; }
+  .chore .meta .due { color: var(--fit-in); font-weight: 600; }
+  .chore .tick {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px;
+    width: 34px; height: 32px; font-size: 15px; cursor: pointer; color: var(--complete);
+    flex: none;
+  }
+  .chore .tick:hover { background: #edf7ee; border-color: var(--complete); }
+  .chore .pen {
+    border: none; background: none; color: var(--muted); cursor: pointer;
+    font-size: 14px; padding: 4px 6px; flex: none;
+  }
+  .chore.done { opacity: .45; }
+
+  /* B: bottom bar / rail */
+  .bottombar {
+    position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface);
+    border-top: 1px solid var(--line); display: flex; z-index: 6;
+  }
+  .bottombar button {
+    flex: 1; border: none; background: none; padding: 9px 0 11px; cursor: pointer;
+    font-size: 11px; color: var(--muted); display: flex; flex-direction: column;
+    align-items: center; gap: 3px;
+  }
+  .bottombar button .g { font-size: 19px; line-height: 1; }
+  .bottombar button.on { color: var(--accent); font-weight: 600; }
+  .rail {
+    width: 84px; background: var(--surface); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; padding-top: 12px; flex: none;
+  }
+  .rail button {
+    border: none; background: none; padding: 12px 0; cursor: pointer; font-size: 11px;
+    color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .rail button .g { font-size: 21px; line-height: 1; }
+  .rail button.on { color: var(--accent); font-weight: 600; background: #eef0fb; }
+  .withrail { display: flex; height: 100%; }
+  .withrail > .pane { flex: 1; overflow-y: auto; }
+
+  /* C: tabs + omnibox */
+  .tabs { display: flex; gap: 4px; }
+  .tabs button {
+    border: none; background: none; padding: 7px 13px; border-radius: 999px;
+    font-size: 13px; cursor: pointer; color: var(--muted);
+  }
+  .tabs button.on { background: #eef0fb; color: var(--accent); font-weight: 600; }
+  .omni {
+    flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px;
+    font-size: 14px; background: #f6f6f8; min-width: 90px;
+  }
+  .omni:focus { outline: 2px solid var(--accent); outline-offset: -1px; background: #fff; }
+  .omnires {
+    position: absolute; left: 0; right: 0; top: 100%; background: #fff;
+    border: 1px solid var(--line); border-top: none; border-radius: 0 0 12px 12px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.14); z-index: 20; max-height: 340px; overflow-y: auto;
+  }
+  .omnires .grouphd {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+    padding: 8px 14px 4px; font-weight: 600;
+  }
+  .omnires .row {
+    padding: 9px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    font-size: 14px;
+  }
+  .omnires .row:hover { background: #f1f3fb; }
+  .omnires .row .sub { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+  /* FAB + sheet (A) */
+  .fab {
+    position: absolute; right: 18px; bottom: 18px; width: 56px; height: 56px;
+    border-radius: 18px; border: none; background: var(--accent); color: #fff;
+    font-size: 27px; cursor: pointer; box-shadow: 0 5px 16px rgba(63,81,181,.42); z-index: 8;
+  }
+  .scrim {
+    position: absolute; inset: 0; background: rgba(0,0,0,.34); z-index: 9;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  body.desktop .scrim { align-items: center; }
+  .sheet {
+    background: #fff; width: 100%; max-height: 82%; overflow-y: auto;
+    border-radius: 18px 18px 0 0; padding: 16px 18px 22px;
+  }
+  body.desktop .sheet { width: 520px; border-radius: 16px; max-height: 74%; }
+  .sheet h3 { margin: 2px 0 12px; font-size: 16px; }
+  .sheet .choice {
+    border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; margin-bottom: 9px;
+    cursor: pointer; display: flex; gap: 12px; align-items: center;
+  }
+  .sheet .choice:hover { border-color: var(--accent); background: #f6f7fd; }
+  .sheet .choice .g { font-size: 21px; }
+  .sheet .choice .sub { font-size: 12px; color: var(--muted); }
+  .sheet label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px; }
+  .sheet select, .sheet input[type=date], .sheet input[type=text] {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
+    font-size: 14px; font-family: inherit; background: #fff;
+  }
+  .sheet .go {
+    margin-top: 16px; width: 100%; padding: 11px; border: none; border-radius: 10px;
+    background: var(--accent); color: #fff; font-size: 15px; cursor: pointer;
+  }
+  .sheet .back { border: none; background: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0; }
+
+  /* status / technical surface */
+  .tech { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .tech h3 { margin: 0 0 8px; font-size: 14px; }
+  .tech .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: var(--muted); }
+  .tech .kv b { color: var(--ink); font-weight: 500; }
+  .banner {
+    border-radius: 10px; padding: 10px 13px; font-size: 13px; margin-bottom: 10px;
+    background: #fdecea; color: #8c1d18; border: 1px solid #f5c6c2;
+  }
+  .footline {
+    text-align: center; font-size: 11px; color: var(--muted); padding: 18px 0 6px;
+  }
+  .footline a { color: var(--muted); }
+
+  .menu {
+    position: absolute; right: 12px; top: 50px; background: #fff; border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: 0 10px 26px rgba(0,0,0,.16); z-index: 15; min-width: 210px;
+    overflow: hidden;
+  }
+  .menu button {
+    display: block; width: 100%; text-align: left; border: none; background: none;
+    padding: 11px 15px; font-size: 14px; cursor: pointer;
+  }
+  .menu button:hover { background: #f3f3f7; }
+  .menu .sep { height: 1px; background: var(--line); }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 2px; }
+  .toast {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 84px;
+    background: #262626; color: #fff; padding: 9px 16px; border-radius: 999px;
+    font-size: 13px; z-index: 30;
+  }
+
+  /* floating variant switcher */
+  #switch {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px;
+    background: #1c1b1f; color: #fff; border-radius: 999px; padding: 7px 9px;
+    display: flex; align-items: center; gap: 10px; z-index: 100;
+    box-shadow: 0 6px 22px rgba(0,0,0,.35); font-size: 13px;
+  }
+  #switch button {
+    border: none; background: #383741; color: #fff; width: 28px; height: 28px;
+    border-radius: 50%; cursor: pointer; font-size: 14px;
+  }
+  #switch .lbl { min-width: 230px; text-align: center; }
+</style>
+</head>
+<body class="phone">
+
+<div id="rig">
+  <span class="grp"><b>#37 navigation</b> — where does “I already did this” live?</span>
+  <span class="grp">width:
+    <button data-w="phone" class="on">phone</button>
+    <button data-w="desktop">desktop</button>
+  </span>
+  <span class="grp">today: <b>2026-08-08</b> · real archive data</span>
+  <span id="state"></span>
+</div>
+
+<div id="frame"><div class="scroll" id="app"></div></div>
+
+<div id="switch">
+  <button id="prev">←</button>
+  <span class="lbl" id="lbl"></span>
+  <button id="next">→</button>
+</div>
+
+<script>
+const TODAY = new Date('2026-08-08T00:00:00');
+const d = s => new Date(s + 'T00:00:00');
+const days = (a, b) => Math.round((a - b) / 86400000);
+const addD = (dt, n) => new Date(dt.getTime() + n * 86400000);
+const fmt = dt => dt.toISOString().slice(0, 10);
+
+/* ---- REAL data: 44 templates, names/min/max/last from ~/portal-archive/2026-08-04 ---- */
+const T = [
+  ['house','Wasmachine uitkuisen',210,240,'2026-06-07'],
+  ['house','Date night',21,30,'2026-08-16'],
+  ['house','Ventilatie filters uitwassen',100,180,'2026-06-21'],
+  ['house','Gitaar schoonmaken',180,200,'2026-01-20'],
+  ['house','Beleggingen nakijken',60,90,'2026-06-07'],
+  ['house','Vegen voor deur',14,30,'2026-07-26'],
+  ["house","Shaary foto's backuppen",30,60,'2026-07-11'],
+  ['house','Warmteketels laten keuren',720,720,null],
+  ['house','Gsm Stijn backuppen',14,31,'2026-07-26'],
+  ['house','Doucheputje uitkuisen',21,31,'2026-07-26'],
+  ['house','Afwasmachine uitkuisen',21,30,'2026-07-31'],
+  ['house','Pensioensparen plafond verhogen',365,365,'2026-01-29'],
+  ['house','Visa afrekening',30,30,'2026-08-04'],
+  ['house','Beddengoed wassen en bed stofzuigen',10,21,'2026-07-31'],
+  ['house','Onderhoud ketels',720,730,'2024-06-07'],
+  ['house','Backup Medisch Huis',30,60,'2026-07-25'],
+  ['house','De Goede Gasten (alle oneven weken)',120,150,'2026-03-11'],
+  ['house','Onedrive en Google Drive backuppen',90,120,'2026-06-20'],
+  ['house','Onkruid wieden',150,180,'2026-02-24'],
+  ['house','Tandenborstels vervangen',180,210,'2026-03-01'],
+  ['house','Kussens wassen',90,120,'2026-07-05'],
+  ['house','Koffiezet ontkalken',340,364,'2025-08-09'],
+  ['house','Gas- en energieleverancier vergelijken',364,400,'2026-03-11'],
+  ['house','Server backuppen',14,30,'2026-07-25'],
+  ['house','Filters regenwater vervangen',300,365,'2025-11-11'],
+  ['health','Insmeren',8,8,'2026-07-29'],
+  ['health','Tandarts',361,361,'2025-09-23'],
+  ['health','Benen',5,5,'2026-08-02'],
+  ['health','Buik',5,5,'2026-07-31'],
+  ['health','Armen',5,5,'2026-08-03'],
+  ['health','Yoga',6,6,'2026-07-31'],
+  ['setlist','Amelie Poulain',14,21,'2026-07-29'],
+  ['setlist','Gitaarles',3,3,'2026-07-29'],
+  ["setlist","Mia en Sebastian's theme",14,21,'2026-07-29'],
+  ['setlist','The National',21,30,'2026-07-29'],
+  ['social','Papa',21,30,'2026-07-22'],
+  ['social','Lien',21,30,'2026-07-31'],
+  ['social','Glenn',14,21,'2026-07-31'],
+  ['social','Laurens',14,21,'2026-07-25'],
+  ['social','Thomas',14,21,'2026-07-26'],
+  ['social','Mama',14,30,'2026-07-22'],
+  ['social','Tim',21,30,'2026-07-22'],
+  ['social','Peter',60,75,'2026-07-09'],
+  ['social','Cleo',60,90,'2026-07-26'],
+].map(([ctx, name, min, max, last], i) => {
+  const l = last ? d(last) : null;
+  const fires = l ? addD(l, min) : TODAY;      // ADR-0013: created at min
+  const due   = l ? addD(l, max) : TODAY;      // ...due at max
+  return { id: 'T' + i, ctx, name, min, max, last: l, fires, due,
+           open: fires <= TODAY, overdue: due < TODAY, done: false };
+});
+
+/* INVENTED — the only made-up rows in this file. portal's todo data is a mongodump. */
+const TODO = [
+  { id:'X1', ctx:'personal', name:'Boeken tandarts voor Elise', due:d('2026-08-06'), bucket:'focus' },
+  { id:'X2', ctx:'personal', name:'Offerte dakwerken opvolgen', due:d('2026-08-08'), bucket:'focus' },
+  { id:'X3', ctx:'personal', name:'Fietsverzekering hernieuwen', due:d('2026-08-17'), bucket:'fit-in' },
+  { id:'X4', ctx:'personal', name:'Cadeau zoeken voor Tim', due:d('2026-08-23'), bucket:'long-game' },
+];
+
+const CTXNAME = { house:'house', health:'health', setlist:'setlist', social:'social', personal:'personal' };
+const BUCKETS = ['focus','long-game','fit-in','back-burner'];
+const bucketOf = t => t.overdue ? 'focus' : (t.due <= addD(TODAY,3) ? 'fit-in' : 'long-game');
+
+function openTasks() {
+  const fromT = T.filter(t => t.open && !t.done).map(t => ({
+    id:t.id, ctx:t.ctx, name:t.name, due:t.due, overdue:t.overdue, bucket:bucketOf(t), tmpl:true
+  }));
+  const fromX = TODO.map(x => ({ ...x, overdue: x.due < TODAY, tmpl:false }));
+  return [...fromT, ...fromX].sort((a,b) => a.due - b.due);
+}
+const rel = dt => {
+  const n = days(dt, TODAY);
+  if (n === 0) return 'today';
+  if (n === 1) return 'tomorrow';
+  if (n < 0) return Math.abs(n) + ' days overdue';
+  return 'in ' + n + ' days';
+};
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const on = dt => `${dt.getDate()} ${MON[dt.getMonth()]}${dt.getFullYear() !== 2026 ? " '" + String(dt.getFullYear()).slice(2) : ''}`;
+const ago = (dt, withDate) => !dt ? 'never done'
+  : (days(TODAY, dt) <= 0 ? 'today' : days(TODAY, dt) + ' days ago') + (withDate ? ` · ${on(dt)}` : '');
+
+/* ---------------- shared bits ---------------- */
+function bandsHtml(scope) {
+  const all = openTasks().filter(t => !scope || t.ctx === scope);
+  const dueNow = all.filter(t => t.due <= TODAY);
+  const rest = all.filter(t => t.due > TODAY);
+  const capped = dueNow.length > 5;
+  let h = '';
+  h += `<h2 class="band">Due today${capped ? ` <span class="why">— all ${dueNow.length}, the cap does not apply</span>` : ''}</h2>`;
+  h += `<div class="tasks">${dueNow.map(taskHtml).join('')}</div>`;
+  const top = rest.slice(0, Math.max(0, 5 - dueNow.length));
+  if (top.length) h += `<h2 class="band">Next up</h2><div class="tasks">${top.map(taskHtml).join('')}</div>`;
+  const more = rest.length - top.length;
+  if (more > 0) h += `<h2 class="band">Also…</h2><div class="folded">${more} more open ${more === 1 ? 'task' : 'tasks'} — tap to expand</div>`;
+  return h;
+}
+const COL = { 'focus':'var(--focus)', 'long-game':'var(--long-game)', 'fit-in':'var(--fit-in)', 'back-burner':'var(--back-burner)' };
+function taskHtml(t) {
+  return `<div class="task">
+    <span class="stripe" style="background:${COL[t.bucket]}"></span>
+    <span class="body">
+      <div class="name">${t.name}</div>
+      <div class="meta">${t.overdue ? `<span class="od">${rel(t.due)}</span>` : rel(t.due)}</div>
+    </span>
+    <span class="ctx">${CTXNAME[t.ctx]}</span>
+  </div>`;
+}
+function cardsHtml() {
+  const all = openTasks();
+  const ctxs = ['house','health','setlist','social','personal'];
+  return `<div class="cards">${ctxs.map(c => {
+    const mine = all.filter(t => t.ctx === c);
+    const od = mine.filter(t => t.due <= TODAY).length;
+    const next = mine.filter(t => t.due > TODAY).sort((a,b)=>a.due-b.due)[0];
+    const segs = Array.from({length:6}, (_,i) => mine[i] ? COL[mine[i].bucket] : 'var(--line)');
+    return `<div class="card" data-enter="${c}">
+      <div class="top"><b>${c}</b>${od ? `<span class="badge">${od} due</span>` : ''}<span class="n">${mine.length} open</span></div>
+      <div class="bar">${segs.map(s=>`<i style="background:${s}"></i>`).join('')}</div>
+      <div class="next">${next ? `next: ${next.name.slice(0,22)}${next.name.length>22?'…':''} · ${rel(next.due)}` : 'nothing after this'}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+function choresHtml(opts = {}) {
+  const list = [...T].sort((a, b) => a.fires - b.fires);
+  const shown = opts.dueOnly ? list.filter(t => t.open)
+              : opts.notYet ? list.filter(t => !t.open)
+              : list;
+  return `<div class="chores">${shown.map(t => `
+    <div class="chore${t.done ? ' done' : ''}">
+      <span class="body">
+        <div class="name">${t.name}</div>
+        <div class="meta">${t.done ? 'done just now' :
+            t.overdue ? `<span class="od">${rel(t.due)}</span> · last ${ago(t.last, true)}` :
+            t.open ? `<span class="due">due ${rel(t.due)}</span> · last ${ago(t.last, true)}` :
+            `every ${t.min}–${t.max} d · last ${ago(t.last, true)}`}</div>
+      </span>
+      ${opts.edit ? `<button class="pen" data-edit="${t.id}">✎</button>` : ''}
+      <button class="tick" data-tick="${t.id}" title="I did this">✓</button>
+    </div>`).join('')}</div>`;
+}
+function techHtml() {
+  return `<div class="banner">Online, but nothing has synced for 4 days. 3 changes are waiting.</div>
+  <div class="tech"><h3>Sync</h3>
+    <div class="kv"><span>Last synced</span><b>4 days ago</b></div>
+    <div class="kv"><span>Waiting to send</span><b>3 changes</b></div>
+    <div class="kv"><span>Failed to sync</span><b>1 change</b></div></div>
+  <div class="tech"><h3>Failed to sync</h3>
+    <div class="kv"><span>Beddengoed wassen — completed</span><b>rejected</b></div>
+    <div class="empty">Rejected changes are dropped from the queue. Retry or discard.</div></div>
+  <div class="tech"><h3>This app</h3>
+    <div class="kv"><span>Back-end built</span><b>2026-08-07</b></div>
+    <div class="kv"><span>This device built</span><b>2026-08-07</b></div></div>
+  <div class="tech"><h3>Notifications</h3>
+    <div class="kv"><span>Daily push at 07:30</span><b>on</b></div>
+    <div class="kv"><span>This device</span><b>subscribed</b></div></div>
+  <div class="tech"><h3>Account</h3>
+    <div class="kv"><span>Signed in</span><b>stijn</b></div>
+    <div class="empty">Log out</div></div>`;
+}
+
+/* ---------------- state ---------------- */
+let V = 'A';
+let S = {};
+const reset = () => { S = { dest:'tasks', sheet:null, menu:false, ctx:null, omni:'', toast:null, chores:'due' }; T.forEach(t => t.done = false); };
+reset();
+
+function toast(msg) { S.toast = msg; render(); setTimeout(() => { S.toast = null; render(); }, 1600); }
+function tick(id) { const t = T.find(x => x.id === id); t.done = true; toast(`“${t.name}” — noted`); }
+
+/* ---------------- variants ---------------- */
+const VARIANTS = {
+
+/* A — one destination. Capture is a FAB sheet. Everything else behind ⋯ */
+A: {
+  name: 'one screen + FAB',
+  render() {
+    let inner;
+    if (S.dest === 'templates') inner = `<main><h2 class="band">Your templates</h2>${choresHtml({ edit: true })}</main>`;
+    else if (S.dest === 'tech') inner = `<main>${techHtml()}</main>`;
+    else inner = `<main>${S.ctx ? `<div class="folded" data-clear="1">← everything</div>` : cardsHtml()}${bandsHtml(S.ctx)}</main>`;
+
+    const title = S.dest === 'templates' ? 'Templates' : S.dest === 'tech' ? 'Status' : (S.ctx || 'Tasks');
+    return `
+      <div class="appbar">
+        ${S.dest !== 'tasks' ? `<button class="icon" data-dest="tasks">←</button>` : ''}
+        <h1>${title}</h1>
+        <button class="icon" data-menu="1">⋯</button>
+      </div>
+      ${S.menu ? `<div class="menu">
+          <button data-dest="templates">Templates</button>
+          <div class="sep"></div>
+          <button data-dest="tech">Status &amp; settings</button>
+        </div>` : ''}
+      ${inner}
+      ${S.dest === 'tasks' ? `<button class="fab" data-sheet="root">+</button>` : ''}
+      ${S.sheet ? sheet(S.sheet) : ''}`;
+  }
+},
+
+/* B — three destinations. Chores is a screen you go to. */
+B: {
+  name: 'three destinations (bar / rail)',
+  render() {
+    const pane =
+      S.dest === 'chores' ? `<main>
+          <div class="tabs" style="margin-bottom:12px">
+            <button data-chores="due" class="${S.chores==='due'?'on':''}">Due now</button>
+            <button data-chores="all" class="${S.chores==='all'?'on':''}">All 44</button>
+          </div>
+          ${choresHtml({ edit: true, dueOnly: S.chores === 'due' })}</main>`
+      : S.dest === 'tech' ? `<main>${techHtml()}</main>`
+      : `<main>${S.ctx ? `<div class="folded" data-clear="1">← everything</div>` : cardsHtml()}${bandsHtml(S.ctx)}</main>`;
+
+    const items = [['tasks','☑','Tasks'],['chores','🔁','Chores'],['tech','◍','Status']];
+    const nav = mode => items.map(([k,g,l]) =>
+      `<button data-dest="${k}" class="${S.dest===k?'on':''}"><span class="g">${g}</span>${l}</button>`).join('');
+
+    const title = S.dest === 'chores' ? 'Chores' : S.dest === 'tech' ? 'Status' : (S.ctx || 'Tasks');
+    if (document.body.classList.contains('desktop')) {
+      return `<div class="withrail">
+          <nav class="rail">${nav()}</nav>
+          <div class="pane"><div class="appbar"><h1>${title}</h1></div>${pane}</div>
+        </div>${S.toast ? '' : ''}`;
+    }
+    return `<div class="appbar"><h1>${title}</h1></div>${pane}
+      <div style="height:64px"></div>
+      <nav class="bottombar">${nav()}</nav>`;
+  }
+},
+
+/* C — two destinations, capture by typing. */
+C: {
+  name: 'omnibox — capture by typing',
+  render() {
+    /* NOTE: this still shows two groups, and a due template appears in both — left as-is
+       deliberately. ADR-0014's amendment collapses them into one list where every row
+       opens the date confirm; the prototype was not re-cut for it. */
+    const q = S.omni.trim().toLowerCase();
+    const hits = q ? T.filter(t => t.name.toLowerCase().includes(q)).slice(0, 6) : [];
+    const openHits = q ? openTasks().filter(t => t.name.toLowerCase().includes(q)).slice(0, 4) : [];
+    const inner = S.dest === 'templates'
+      ? `<main><h2 class="band">Your templates</h2>${choresHtml({ edit: true })}</main>`
+      : `<main>${S.ctx ? `<div class="folded" data-clear="1">← everything</div>` : cardsHtml()}${bandsHtml(S.ctx)}</main>`;
+    return `
+      <div class="appbar" style="position:relative">
+        <input class="omni" id="omni" placeholder="Add, find, or say what you did…" value="${S.omni}">
+        <button class="icon" data-menu="1">⋯</button>
+        ${q ? `<div class="omnires">
+          ${openHits.length ? `<div class="grouphd">Complete an open task</div>${openHits.map(t =>
+            `<div class="row" data-complete="${t.id}">✓ ${t.name}<span class="sub">${rel(t.due)}</span></div>`).join('')}` : ''}
+          ${hits.length ? `<div class="grouphd">I already did this</div>${hits.map(t =>
+            `<div class="row" data-tick="${t.id}">🔁 ${t.name}<span class="sub">last ${ago(t.last, true)}</span></div>`).join('')}` : ''}
+          <div class="grouphd">New</div>
+          <div class="row" data-sheet="task">＋ Create task “${S.omni}”</div>
+        </div>` : ''}
+      </div>
+      ${S.menu ? `<div class="menu">
+          <button data-dest="tasks">Tasks</button>
+          <button data-dest="templates">Templates</button>
+          <div class="sep"></div>
+          <button data-dest="tech">Status &amp; settings</button>
+        </div>` : ''}
+      <div class="tabs" style="padding:10px 16px 0">
+        <button data-dest="tasks" class="${S.dest==='tasks'?'on':''}">Tasks</button>
+        <button data-dest="templates" class="${S.dest==='templates'?'on':''}">Templates</button>
+      </div>
+      ${S.dest === 'tech' ? `<main>${techHtml()}</main>` : inner}
+      ${S.sheet ? sheet(S.sheet) : ''}`;
+  }
+},
+
+/* D — no second destination at all. Chores are a band of the overview. */
+D: {
+  name: 'chores are a band of the overview',
+  render() {
+    const notYet = T.filter(t => !t.open && !t.done);
+    const inner = S.dest === 'tech' ? `<main>${techHtml()}</main>` : `<main>
+        ${S.ctx ? `<div class="folded" data-clear="1">← everything</div>` : cardsHtml()}
+        ${bandsHtml(S.ctx)}
+        <h2 class="band">Not due yet <span class="why">— ${notYet.length} recurring things</span></h2>
+        ${S.chores === 'open'
+          ? `<div class="folded" data-chores="closed">▴ hide</div>${choresHtml({ edit: true, notYet: true })}`
+          : `<div class="folded" data-chores="open">${notYet.length} chores you are not behind on — tap if you did one anyway</div>`}
+        <div class="footline">
+          last synced 4 days ago · built 2026-08-07 · <a href="#" data-dest="tech">status &amp; settings</a>
+        </div>
+      </main>`;
+    return `<div class="appbar">
+        ${S.dest === 'tech' ? `<button class="icon" data-dest="tasks">←</button>` : ''}
+        <h1>${S.dest === 'tech' ? 'Status' : (S.ctx || 'Tasks')}</h1>
+        <button class="icon" data-sheet="task">＋</button>
+      </div>${inner}${S.sheet ? sheet(S.sheet) : ''}`;
+  }
+}};
+
+/* the capture sheet, shared by A, C and D */
+function sheet(kind) {
+  let body;
+  if (kind === 'when') {
+    /* AMENDMENT: neither capture path fires silently — both ask when, defaulting to today. */
+    const t = T.find(x => x.id === S.pending);
+    body = `<h3>${t.name}</h3>
+      <div style="font-size:13px;color:var(--muted)">Last done ${ago(t.last, true)}.</div>
+      <label>When did you do it?</label>
+      <input type="date" value="2026-08-08">
+      <button class="go" data-confirm="1">Done!</button>`;
+  } else if (kind === 'root') {
+    body = `<h3>Add something</h3>
+      <div class="choice" data-sheet="task"><span class="g">＋</span>
+        <span><div>New task</div><div class="sub">Something to do, once</div></span></div>
+      <div class="choice" data-sheet="did"><span class="g">✓</span>
+        <span><div>I already did something</div><div class="sub">Tick off a recurring thing, off-list</div></span></div>`;
+  } else if (kind === 'did') {
+    const sorted = [...T].sort((a,b) => (b.open - a.open) || (a.fires - b.fires));
+    body = `<button class="back" data-sheet="root">← back</button>
+      <h3>What did you do?</h3>
+      <select id="didwhat">${sorted.map(t =>
+        `<option>${t.name}${t.open ? '  ·  due' : '  ·  last ' + ago(t.last)}</option>`).join('')}</select>
+      <label>When did you do it?</label>
+      <input type="date" value="2026-08-08">
+      <button class="go" data-did="1">Done!</button>`;
+  } else {
+    body = `<button class="back" data-sheet="root">← back</button>
+      <h3>New task</h3>
+      <input type="text" placeholder="What needs doing?">
+      <label>Due</label><input type="date" value="2026-08-08">
+      <label>Context</label><select><option>personal</option><option>house</option><option>health</option><option>setlist</option><option>social</option></select>
+      <button class="go" data-close="1">Create</button>`;
+  }
+  return `<div class="scrim" data-close="1"><div class="sheet" data-stop="1">${body}</div></div>`;
+}
+
+/* ---------------- plumbing ---------------- */
+const app = document.getElementById('app');
+function render() {
+  app.innerHTML = VARIANTS[V].render() + (S.toast ? `<div class="toast">${S.toast}</div>` : '');
+  document.getElementById('lbl').textContent = `${V} — ${VARIANTS[V].name}`;
+  const dests = { A: 1, B: 3, C: 2, D: 1 }[V];
+  const taps = { A: 3, B: 2, C: 1, D: 2 }[V];
+  document.getElementById('state').textContent =
+    `variant=${V}  destinations=${dests}  taps-to-the-date-confirm=${taps}  screen=${S.dest}${S.ctx ? '/' + S.ctx : ''}`;
+  const o = document.getElementById('omni');
+  if (o && S.omni) { o.focus(); o.setSelectionRange(o.value.length, o.value.length); }
+}
+app.addEventListener('click', e => {
+  const el = e.target.closest('[data-dest],[data-sheet],[data-tick],[data-confirm],[data-complete],[data-enter],[data-clear],[data-menu],[data-close],[data-chores],[data-edit],[data-did],[data-stop]');
+  if (!el) { if (S.menu) { S.menu = false; render(); } return; }
+  const a = el.dataset;
+  if (a.stop) return;
+  if (a.menu) S.menu = !S.menu;
+  else if (a.dest) { S.dest = a.dest; S.menu = false; S.ctx = null; S.omni = ''; }
+  else if (a.sheet) S.sheet = a.sheet;
+  else if (a.close) S.sheet = null;
+  else if (a.enter) S.ctx = a.enter;
+  else if (a.clear) S.ctx = null;
+  else if (a.chores) S.chores = a.chores;
+  else if (a.edit) { toast('→ template authoring (#36 / ADR-0013)'); return; }
+  else if (a.complete) { toast('completed'); return; }
+  else if (a.did) { S.sheet = null; toast('Noted — task created and completed'); return; }
+  else if (a.confirm) { S.sheet = null; const p = S.pending; S.pending = null; tick(p); return; }
+  else if (a.tick) { S.omni = ''; S.pending = a.tick; S.sheet = 'when'; }
+  render();
+});
+app.addEventListener('input', e => { if (e.target.id === 'omni') { S.omni = e.target.value; render(); } });
+
+document.querySelectorAll('#rig [data-w]').forEach(b => b.addEventListener('click', () => {
+  document.body.className = b.dataset.w;
+  document.querySelectorAll('#rig [data-w]').forEach(x => x.classList.toggle('on', x === b));
+  render();
+}));
+const keys = Object.keys(VARIANTS);
+const go = n => { V = keys[(keys.indexOf(V) + n + keys.length) % keys.length]; reset(); render(); };
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if (e.key === 'ArrowLeft') go(-1);
+  if (e.key === 'ArrowRight') go(1);
+});
+render();
+</script>
+</body>
+</html>

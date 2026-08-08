@@ -1,0 +1,422 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #37, question 2.
+  "Is failed-to-sync diagnostics (under ⋯) or is it work (on the overview)?"
+
+  The shell is FIXED to variant C from PROTOTYPE-navigation-shell.html — omnibox +
+  two destinations (Tasks, Templates) — because that is already chosen. Only the
+  placement of rejected changes varies.
+
+  Variants on the floating bar (or the arrow keys):
+    1 — under ⋯ only       : the merged Status screen. Nothing on the overview.
+    2 — a band             : "Not saved" band above Due today. Status keeps a copy.
+    3 — on the task itself  : the rejected change is marked on the row it belongs to.
+    4 — banner → sheet      : one dismissible banner that opens the list over the app.
+
+  THE HARD CASE, present in every variant: two rejections, and they are not alike.
+    * "Offerte dakwerken — created"    → 400. The task still has a local row (ADR-0004's
+      client renders from local storage, so a locally-created task is always there).
+      Variant 3 attaches to it cleanly.
+    * "Boeken tandarts voor Elise — completed" → 400. There is NO row to attach to: the
+      completion succeeded LOCALLY, so the task is closed and ADR-0006's overview does
+      not show it. Variant 3 has to invent somewhere to put it.
+
+  That asymmetry is the finding, and it was found by building this: the first draft of
+  this file had it backwards. Completions are the most common patch there is, and a
+  completed task has already left the screen — so "mark it on the task" fails for
+  exactly the common case, not the rare one.
+
+  DATA IS REAL — same 44 templates from ~/portal-archive/2026-08-04/ (#35), today
+  pinned to 2026-08-08. The two rejections are invented; nothing in the archive
+  records a sync failure, because portal had no outbox.
+
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — where rejected changes live</title>
+<style>
+  :root {
+    --focus:#e53935; --long-game:#7cb342; --fit-in:#fb8c00; --back-burner:#9e9e9e;
+    --ink:#1c1b1f; --muted:#5f6368; --line:#e3e3e6; --surface:#fff; --bg:#f6f6f8;
+    --accent:#3f51b5; --complete:#2e7d32; --overdue:#c62828; --reject:#8c1d18;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#dcdce2; color:var(--ink);
+    font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding-bottom:90px; }
+
+  #rig { background:#ecebf1; border-bottom:1px solid var(--line); padding:8px 20px;
+    font-size:12px; color:var(--muted); display:flex; gap:18px; align-items:center;
+    flex-wrap:wrap; position:sticky; top:0; z-index:40; }
+  #rig b { color:var(--ink); font-weight:600; }
+  #rig .grp { display:flex; gap:5px; align-items:center; }
+  #rig button { border:1px solid #c9c8d2; background:#fff; border-radius:999px;
+    padding:3px 10px; font-size:12px; cursor:pointer; color:var(--muted); }
+  #rig button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  #state { font-family:ui-monospace,Menlo,monospace; font-size:11px; color:#444; }
+
+  #frame { margin:18px auto; background:var(--bg); overflow:hidden;
+    box-shadow:0 6px 30px rgba(0,0,0,.18); position:relative; }
+  body.phone #frame { width:390px; border-radius:26px; height:800px; }
+  body.desktop #frame { width:min(1180px,calc(100vw - 36px)); border-radius:10px; height:780px; }
+  #frame .scroll { height:100%; overflow-y:auto; overflow-x:hidden; position:relative; }
+
+  .appbar { background:var(--surface); border-bottom:1px solid var(--line); padding:12px 16px;
+    display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:5; }
+  .appbar h1 { font-size:17px; margin:0; font-weight:600; flex:1; }
+  .appbar .icon { border:none; background:none; font-size:19px; cursor:pointer;
+    color:var(--muted); padding:4px 8px; border-radius:8px; line-height:1; position:relative; }
+  .appbar .icon:hover { background:#f1f1f5; }
+  .appbar .icon .dot { position:absolute; top:2px; right:4px; width:8px; height:8px;
+    border-radius:50%; background:var(--reject); }
+  .omni { flex:1; border:1px solid var(--line); border-radius:999px; padding:7px 14px;
+    font-size:14px; background:#f6f6f8; min-width:80px; }
+  .tabs { display:flex; gap:4px; padding:10px 16px 0; }
+  .tabs button { border:none; background:none; padding:7px 13px; border-radius:999px;
+    font-size:13px; cursor:pointer; color:var(--muted); }
+  .tabs button.on { background:#eef0fb; color:var(--accent); font-weight:600; }
+
+  main { padding:16px; }
+  body.desktop main { padding:20px 26px; }
+  h2.band { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+    margin:20px 0 9px; font-weight:600; }
+  h2.band:first-child { margin-top:4px; }
+  h2.band .why { text-transform:none; letter-spacing:0; font-weight:400; }
+  h2.band.bad { color:var(--reject); }
+  .folded { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:11px 14px; font-size:14px; color:var(--muted); cursor:pointer; margin-bottom:8px; }
+
+  .tasks { display:grid; gap:8px; }
+  body.desktop .tasks { grid-template-columns:repeat(3,1fr); }
+  .task { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px 10px 0; display:flex; align-items:flex-start; gap:10px; overflow:hidden; }
+  .task .stripe { width:10px; align-self:stretch; border-radius:10px 0 0 10px; flex:none; }
+  .task .body { flex:1; min-width:0; }
+  .task .name { font-size:14px; font-weight:500; }
+  .task .meta { font-size:12px; color:var(--muted); margin-top:2px; }
+  .task .meta .od { color:var(--overdue); font-weight:600; }
+  .task .ctx { font-size:11px; color:var(--muted); border:1px solid var(--line);
+    border-radius:999px; padding:1px 7px; flex:none; margin-top:1px; }
+
+  /* rejection presentation */
+  .task.rej { border-color:#f0b7b2; background:#fffafa; }
+  .task.rej .stripe { background:var(--reject) !important; }
+  .rejline { font-size:12px; color:var(--reject); margin-top:4px; display:flex;
+    align-items:center; gap:8px; flex-wrap:wrap; }
+  .rejline .mini { border:1px solid #e6a9a3; background:#fff; color:var(--reject);
+    border-radius:7px; padding:2px 9px; font-size:12px; cursor:pointer; }
+  .ghost { border-style:dashed !important; }
+  .ghost .name { color:var(--muted); }
+
+  .rejcard { background:#fff; border:1px solid #f0b7b2; border-radius:10px; padding:11px 13px;
+    margin-bottom:8px; }
+  .rejcard .n { font-size:14px; font-weight:500; }
+  .rejcard .why2 { font-size:12px; color:var(--muted); margin:2px 0 8px; }
+  .rejcard .acts { display:flex; gap:7px; }
+  .rejcard button { border:1px solid var(--line); background:#fff; border-radius:8px;
+    padding:5px 12px; font-size:13px; cursor:pointer; }
+  .rejcard button.pri { border-color:var(--accent); color:var(--accent); }
+
+  .banner { border-radius:10px; padding:10px 13px; font-size:13px; margin-bottom:10px;
+    background:#fdecea; color:var(--reject); border:1px solid #f5c6c2; display:flex;
+    align-items:center; gap:10px; cursor:pointer; }
+  .banner .x { margin-left:auto; border:none; background:none; color:var(--reject);
+    cursor:pointer; font-size:15px; }
+
+  .cards { display:grid; gap:8px; grid-template-columns:repeat(auto-fit,minmax(165px,1fr));
+    margin-bottom:6px; }
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; cursor:pointer; }
+  .card .top { display:flex; align-items:baseline; gap:7px; white-space:nowrap; }
+  .card .top b { font-size:14px; font-weight:600; }
+  .card .top .n { font-size:12px; color:var(--muted); margin-left:auto; }
+  .card .badge { font-size:11px; background:#fdecea; color:var(--overdue); border-radius:999px;
+    padding:1px 7px; font-weight:600; }
+  .card .bar { display:flex; gap:2px; margin:7px 0 5px; }
+  .card .bar i { height:4px; flex:1; border-radius:2px; }
+  .card .next { font-size:11px; color:var(--muted); }
+
+  .tech { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; margin-bottom:10px; }
+  .tech h3 { margin:0 0 8px; font-size:14px; }
+  .tech .kv { display:flex; justify-content:space-between; font-size:13px; padding:4px 0;
+    color:var(--muted); }
+  .tech .kv b { color:var(--ink); font-weight:500; }
+  .tech .empty { font-size:13px; color:var(--muted); padding:4px 0; }
+
+  .menu { position:absolute; right:12px; top:50px; background:#fff; border:1px solid var(--line);
+    border-radius:12px; box-shadow:0 10px 26px rgba(0,0,0,.16); z-index:15; min-width:220px;
+    overflow:hidden; }
+  .menu button { display:block; width:100%; text-align:left; border:none; background:none;
+    padding:11px 15px; font-size:14px; cursor:pointer; }
+  .menu button:hover { background:#f3f3f7; }
+  .menu .pill { float:right; background:#fdecea; color:var(--reject); border-radius:999px;
+    padding:0 7px; font-size:11px; font-weight:600; }
+
+  .scrim { position:absolute; inset:0; background:rgba(0,0,0,.34); z-index:9; display:flex;
+    align-items:flex-end; justify-content:center; }
+  body.desktop .scrim { align-items:center; }
+  .sheet { background:#fff; width:100%; max-height:80%; overflow-y:auto;
+    border-radius:18px 18px 0 0; padding:16px 18px 22px; }
+  body.desktop .sheet { width:520px; border-radius:16px; }
+  .sheet h3 { margin:2px 0 4px; font-size:16px; }
+  .sheet .lede { font-size:13px; color:var(--muted); margin-bottom:12px; }
+
+  .toast { position:absolute; left:50%; transform:translateX(-50%); bottom:84px;
+    background:#262626; color:#fff; padding:9px 16px; border-radius:999px; font-size:13px; z-index:30; }
+
+  #switch { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; background:#1c1b1f;
+    color:#fff; border-radius:999px; padding:7px 9px; display:flex; align-items:center; gap:10px;
+    z-index:100; box-shadow:0 6px 22px rgba(0,0,0,.35); font-size:13px; }
+  #switch button { border:none; background:#383741; color:#fff; width:28px; height:28px;
+    border-radius:50%; cursor:pointer; font-size:14px; }
+  #switch .lbl { min-width:250px; text-align:center; }
+</style>
+</head>
+<body class="phone">
+
+<div id="rig">
+  <span class="grp"><b>#37 q2</b> — is a rejected change diagnostics, or is it work?</span>
+  <span class="grp">width:
+    <button data-w="phone" class="on">phone</button>
+    <button data-w="desktop">desktop</button>
+  </span>
+  <span class="grp">shell fixed to <b>C</b> · today <b>2026-08-08</b></span>
+  <span id="state"></span>
+</div>
+
+<div id="frame"><div class="scroll" id="app"></div></div>
+
+<div id="switch">
+  <button id="prev">←</button><span class="lbl" id="lbl"></span><button id="next">→</button>
+</div>
+
+<script>
+const TODAY = new Date('2026-08-08T00:00:00');
+const d = s => new Date(s + 'T00:00:00');
+const days = (a,b) => Math.round((a-b)/86400000);
+const addD = (dt,n) => new Date(dt.getTime()+n*86400000);
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const on = dt => `${dt.getDate()} ${MON[dt.getMonth()]}${dt.getFullYear()!==2026?" '"+String(dt.getFullYear()).slice(2):''}`;
+
+/* real archive data, trimmed to what the overview needs */
+const T = [
+  ['house','Onderhoud ketels',720,730,'2024-06-07'],['house','Koffiezet ontkalken',340,364,'2025-08-09'],
+  ['house','Gitaar schoonmaken',180,200,'2026-01-20'],['house','De Goede Gasten (alle oneven weken)',120,150,'2026-03-11'],
+  ['house','Onkruid wieden',150,180,'2026-02-24'],['house','Beleggingen nakijken',60,90,'2026-06-07'],
+  ['house','Server backuppen',14,30,'2026-07-25'],['house','Warmteketels laten keuren',720,720,null],
+  ['house','Beddengoed wassen en bed stofzuigen',10,21,'2026-07-31'],['house','Vegen voor deur',14,30,'2026-07-26'],
+  ['health','Insmeren',8,8,'2026-07-29'],['health','Benen',5,5,'2026-08-02'],['health','Buik',5,5,'2026-07-31'],
+  ['health','Armen',5,5,'2026-08-03'],['health','Yoga',6,6,'2026-07-31'],['health','Tandarts',361,361,'2025-09-23'],
+  ['setlist','Gitaarles',3,3,'2026-07-29'],['setlist','Amelie Poulain',14,21,'2026-07-29'],
+  ['social','Laurens',14,21,'2026-07-25'],['social','Mama',14,30,'2026-07-22'],['social','Thomas',14,21,'2026-07-26'],
+].map(([ctx,name,min,max,last],i) => {
+  const l = last ? d(last) : null;
+  return { id:'T'+i, ctx, name, last:l,
+           fires: l?addD(l,min):TODAY, due: l?addD(l,max):TODAY,
+           open: (l?addD(l,min):TODAY) <= TODAY, overdue: (l?addD(l,max):TODAY) < TODAY };
+});
+const TODO = [
+  /* X1 is deliberately absent: you completed it on Tuesday, so locally it is closed and
+     has already left the overview. That is what makes its rejection hard to place. */
+  { id:'X2', ctx:'personal', name:'Offerte dakwerken opvolgen', due:d('2026-08-08') },
+  { id:'X3', ctx:'personal', name:'Fietsverzekering hernieuwen', due:d('2026-08-17') },
+];
+
+/* The two rejections, and they are not alike — see the file header.
+   R2 still has a local row to attach to. R1 does not, because completing it locally
+   closed it and ADR-0006's overview does not show closed tasks. */
+const REJ = [
+  { id:'R1', task:'X1', name:'Boeken tandarts voor Elise', what:'marked complete',
+    when:'Tuesday, offline', why:'Rejected (400). You completed it on this device, so it has already left your list.',
+    orphan:true, ctx:'personal' },
+  { id:'R2', task:'X2', name:'Offerte dakwerken opvolgen', what:'created',
+    when:'Tuesday, offline', why:'Rejected as incomplete (400) — no due date was set.',
+    orphan:false, ctx:'personal' },
+];
+
+const COL = { focus:'var(--focus)', 'long-game':'var(--long-game)', 'fit-in':'var(--fit-in)' };
+const bucketOf = t => t.overdue ? 'focus' : (t.due <= addD(TODAY,3) ? 'fit-in' : 'long-game');
+const rel = dt => { const n = days(dt,TODAY);
+  return n===0 ? 'today' : n===1 ? 'tomorrow' : n<0 ? Math.abs(n)+' days overdue' : 'in '+n+' days'; };
+
+function openTasks() {
+  const a = T.filter(t => t.open).map(t => ({ id:t.id, ctx:t.ctx, name:t.name, due:t.due,
+    overdue:t.overdue, bucket:bucketOf(t) }));
+  const b = TODO.map(x => ({ ...x, overdue:x.due < TODAY, bucket: x.due<TODAY?'focus':x.due<=addD(TODAY,3)?'fit-in':'long-game' }));
+  return [...a,...b].sort((x,y) => x.due - y.due);
+}
+const rejFor = id => S.rej.find(r => r.task === id);
+
+function taskHtml(t) {
+  const r = rejFor(t.id);
+  const mark = r && S.showInline;
+  return `<div class="task${mark?' rej':''}">
+    <span class="stripe" style="background:${COL[t.bucket]}"></span>
+    <span class="body">
+      <div class="name">${t.name}</div>
+      <div class="meta">${t.overdue?`<span class="od">${rel(t.due)}</span>`:rel(t.due)}</div>
+      ${mark?`<div class="rejline">⚠ ${r.what} — not saved
+        <button class="mini" data-open="${r.id}">why?</button></div>`:''}
+    </span>
+    <span class="ctx">${t.ctx}</span>
+  </div>`;
+}
+function bandsHtml() {
+  const all = openTasks();
+  const dueNow = all.filter(t => t.due <= TODAY);
+  const rest = all.filter(t => t.due > TODAY);
+  const capped = dueNow.length > 5;
+  let h = `<h2 class="band">Due today${capped?` <span class="why">— all ${dueNow.length}, the cap does not apply</span>`:''}</h2>`;
+  h += `<div class="tasks">${dueNow.map(taskHtml).join('')}</div>`;
+  const top = rest.slice(0, Math.max(0, 5-dueNow.length));
+  if (top.length) h += `<h2 class="band">Next up</h2><div class="tasks">${top.map(taskHtml).join('')}</div>`;
+  const more = rest.length - top.length;
+  if (more > 0) h += `<h2 class="band">Also…</h2><div class="folded">${more} more open tasks — tap to expand</div>`;
+  return h;
+}
+function cardsHtml() {
+  const all = openTasks();
+  return `<div class="cards">${['house','health','setlist','social','personal'].map(c => {
+    const mine = all.filter(t => t.ctx===c);
+    const od = mine.filter(t => t.due <= TODAY).length;
+    const next = mine.filter(t => t.due > TODAY)[0];
+    const segs = Array.from({length:6},(_,i)=> mine[i]?COL[mine[i].bucket]:'var(--line)');
+    return `<div class="card"><div class="top"><b>${c}</b>${od?`<span class="badge">${od} due</span>`:''}
+      <span class="n">${mine.length} open</span></div>
+      <div class="bar">${segs.map(s=>`<i style="background:${s}"></i>`).join('')}</div>
+      <div class="next">${next?`next: ${next.name.slice(0,20)}${next.name.length>20?'…':''} · ${rel(next.due)}`:'nothing after this'}</div>
+    </div>`; }).join('')}</div>`;
+}
+function rejCard(r) {
+  return `<div class="rejcard">
+    <div class="n">${r.name} — ${r.what}</div>
+    <div class="why2">${r.when}. ${r.why}</div>
+    <div class="acts">
+      <button class="pri" data-fix="${r.id}">Fix and retry</button>
+      <button data-discard="${r.id}">Discard</button>
+    </div></div>`;
+}
+function techHtml(withRej) {
+  return `${withRej ? `<div class="tech"><h3>Not saved</h3>${S.rej.length
+      ? S.rej.map(rejCard).join('') : `<div class="empty">Everything has synced.</div>`}</div>` : ''}
+    <div class="tech"><h3>Sync</h3>
+      <div class="kv"><span>Last synced</span><b>4 days ago</b></div>
+      <div class="kv"><span>Waiting to send</span><b>3 changes</b></div>
+      ${withRej?'':`<div class="kv"><span>Not saved</span><b>${S.rej.length} — shown on your tasks</b></div>`}</div>
+    <div class="tech"><h3>This app</h3>
+      <div class="kv"><span>Back-end built</span><b>2026-08-07</b></div>
+      <div class="kv"><span>This device built</span><b>2026-08-07</b></div></div>
+    <div class="tech"><h3>Settings</h3>
+      <div class="kv"><span>Daily push at 07:30</span><b>on</b></div>
+      <div class="kv"><span>This device</span><b>subscribed</b></div>
+      <div class="kv"><span>Signed in as stijn</span><b>Log out</b></div></div>`;
+}
+
+/* ---------------- variants ---------------- */
+const VARIANTS = {
+ 1: { name:'under ⋯ only', inline:false, render(){
+    return shell(`<main>${cardsHtml()}${bandsHtml()}</main>`, { dot:true });
+ }},
+ 2: { name:'a band on the overview', inline:false, render(){
+    const b = S.rej.length ? `<h2 class="band bad">Not saved <span class="why">— ${S.rej.length} ${S.rej.length===1?'change':'changes'} the server refused</span></h2>
+      ${S.rej.map(rejCard).join('')}` : '';
+    return shell(`<main>${cardsHtml()}${b}${bandsHtml()}</main>`, { dot:false });
+ }},
+ 3: { name:'on the task itself', inline:true, render(){
+    const orphans = S.rej.filter(r => r.orphan);
+    const ghost = orphans.map(r => `<div class="task rej ghost">
+        <span class="stripe"></span>
+        <span class="body"><div class="name">${r.name}</div>
+          <div class="meta">completed on this device — no longer on your list</div>
+          <div class="rejline">⚠ ${r.what} — not saved
+            <button class="mini" data-open="${r.id}">why?</button></div></span>
+        <span class="ctx">${r.ctx}</span></div>`).join('');
+    return shell(`<main>${cardsHtml()}${bandsHtml()}
+      ${ghost ? `<h2 class="band bad">Not saved <span class="why">— already closed, so ${orphans.length===1?'it has':'they have'} no row of ${orphans.length===1?'its':'their'} own</span></h2><div class="tasks">${ghost}</div>` : ''}
+      </main>`, { dot:false });
+ }},
+ 4: { name:'banner → sheet', inline:false, render(){
+    const ban = (S.rej.length && !S.dismissed) ? `<div class="banner" data-sheet="1">⚠
+        ${S.rej.length} ${S.rej.length===1?'change was':'changes were'} refused by the server
+        <button class="x" data-dismiss="1">✕</button></div>` : '';
+    return shell(`<main>${ban}${cardsHtml()}${bandsHtml()}</main>`, { dot:S.dismissed });
+ }}
+};
+
+function shell(inner, o) {
+  const withRej = V !== '3' && V !== '2';
+  return `<div class="appbar">
+      <input class="omni" placeholder="Add, find, or say what you did…">
+      <button class="icon" data-menu="1">⋯${o.dot && S.rej.length?'<span class="dot"></span>':''}</button>
+    </div>
+    ${S.menu?`<div class="menu">
+      <button data-dest="tech">Status &amp; settings${o.dot && S.rej.length?`<span class="pill">${S.rej.length}</span>`:''}</button>
+    </div>`:''}
+    <div class="tabs">
+      <button class="${S.dest==='tasks'?'on':''}" data-dest="tasks">Tasks</button>
+      <button class="${S.dest==='templates'?'on':''}" data-dest="templates">Templates</button>
+    </div>
+    ${S.dest==='tech'
+      ? `<main>${techHtml(V==='1'||V==='4')}</main>`
+      : S.dest==='templates' ? `<main><div class="folded">(templates list — settled, not under test here)</div></main>`
+      : inner}
+    ${S.sheet?`<div class="scrim" data-close="1"><div class="sheet" data-stop="1">
+        <h3>Not saved</h3>
+        <div class="lede">The server refused ${S.rej.length===1?'this change':'these changes'}. They are still on this device.</div>
+        ${S.rej.length?S.rej.map(rejCard).join(''):'<div class="tech"><div class="empty">Everything has synced.</div></div>'}
+      </div></div>`:''}`;
+}
+
+let V = '1';
+let S = {};
+const reset = () => { S = { dest:'tasks', menu:false, sheet:false, dismissed:false,
+  rej: REJ.map(r => ({...r})), showInline: VARIANTS[V].inline }; };
+reset();
+function toast(m){ const t=document.createElement('div'); t.className='toast'; t.textContent=m;
+  document.getElementById('app').appendChild(t); setTimeout(()=>t.remove(),1500); }
+
+const app = document.getElementById('app');
+function render() {
+  S.showInline = VARIANTS[V].inline;
+  app.innerHTML = VARIANTS[V].render();
+  document.getElementById('lbl').textContent = `${V} — ${VARIANTS[V].name}`;
+  document.getElementById('state').textContent =
+    `variant=${V}  rejected=${S.rej.length}  visible-without-navigating=${
+      V==='1' ? 0 : V==='3' ? S.rej.length : S.rej.length}${V==='1'?'  (behind ⋯)':''}  screen=${S.dest}`;
+}
+app.addEventListener('click', e => {
+  const el = e.target.closest('[data-dest],[data-menu],[data-open],[data-fix],[data-discard],[data-sheet],[data-dismiss],[data-close],[data-stop]');
+  if (!el) { if (S.menu) { S.menu=false; render(); } return; }
+  const a = el.dataset;
+  if (a.stop) return;
+  if (a.menu) S.menu = !S.menu;
+  else if (a.dest) { S.dest = a.dest; S.menu = false; }
+  else if (a.sheet) S.sheet = true;
+  else if (a.close) S.sheet = false;
+  else if (a.dismiss) { S.dismissed = true; e.stopPropagation(); }
+  else if (a.open) { S.sheet = true; }
+  else if (a.fix) { S.rej = S.rej.filter(r => r.id !== a.fix); S.sheet = false; toast('retried'); }
+  else if (a.discard) { S.rej = S.rej.filter(r => r.id !== a.discard); S.sheet = false; toast('discarded'); }
+  render();
+});
+document.querySelectorAll('#rig [data-w]').forEach(b => b.addEventListener('click', () => {
+  document.body.className = b.dataset.w;
+  document.querySelectorAll('#rig [data-w]').forEach(x => x.classList.toggle('on', x===b));
+  render();
+}));
+const keys = Object.keys(VARIANTS);
+const go = n => { V = keys[(keys.indexOf(V)+n+keys.length)%keys.length]; reset(); render(); };
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if (e.key==='ArrowLeft') go(-1);
+  if (e.key==='ArrowRight') go(1);
+});
+render();
+</script>
+</body>
+</html>

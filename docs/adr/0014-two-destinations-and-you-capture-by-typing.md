@@ -1,0 +1,218 @@
+# 14. Two destinations, and you capture by typing
+
+Date: 2026-08-08
+
+## Status
+
+Accepted. Resolves [#37](https://github.com/stainii/task/issues/37).
+
+Amends [ADR-0004](0004-one-write-verb-two-clocks-offline-sync.md): the failed-to-sync list is
+placed on the overview as a band, not on a settings screen.
+
+Discharges the three ledger rows [#14](https://github.com/stainii/task/issues/14) left open —
+FE-025 (app shell), FE-026 (module menu, dropped) and FE-031 (routing; lazy loading dropped) — and
+answers the presentation question [ADR-0013](0013-one-anchor-and-a-trigger-that-shapes-the-form.md)
+handed over.
+
+## Context
+
+[#13](https://github.com/stainii/task/issues/13) turned four apps into four labels and
+[#14](https://github.com/stainii/task/issues/14) dropped the module menu outright, which left the
+shell unstaffed: `app.html` is a bare `<router-outlet/>` after
+[#30](https://github.com/stainii/task/issues/30), and the overview prototype's entire chrome was
+`<header><h1>Tasks</h1></header>`.
+
+[ADR-0006](0006-one-overview-grouped-by-a-swappable-axis.md) had already answered more of the
+ticket than its body assumed — clicking a context card *enters* that context, so context is neither
+a filter nor a screen switch. What it did not say is whether entering is a route or in-page state.
+
+The author named the destinations directly: the tasks; the task templates **plus "what did I do
+without it being a task already"**; and the technical surfaces, with an open question about whether
+those split.
+
+Two rounds of prototypes were built and driven with **real archive data** — the 44 recurring
+templates with their real names, min/max and last-execution dates from
+`~/portal-archive/2026-08-04/` ([#35](https://github.com/stainii/task/issues/35)), with "today"
+pinned so dueness was real. Four navigation shells
+(`task-front-end/prototypes/PROTOTYPE-navigation-shell.html`), then four placements for rejected
+changes (`PROTOTYPE-failed-to-sync.html`). **Both rounds changed the answer, and the second refuted
+the premise it was built on.**
+
+## Decision
+
+### Two destinations, and a third you are sent to
+
+- **Tasks** — ADR-0006's overview, including entered-context state.
+- **Templates** — the list, and authoring behind it (ADR-0013).
+- **Status & settings** — behind `⋯`, and deliberately not a peer of the other two.
+
+The third is not a destination you visit on purpose. [ADR-0009](0009-the-app-is-its-own-monitor.md)
+already ruled that health must **come to you** as banners on the overview, on the argument that a
+passive readout *"reports but can never alarm."* A status screen you must remember to open is the
+failure mode that ADR was written against — so what is left behind `⋯` is what remains **after** a
+banner has already spoken: two build dates, the 07:30 push toggle for this device, and log out.
+
+**No profile surface.** FE-030 shrinks to a single *log out*: [ADR-0010](0010-a-tunnel-an-allowlist-and-a-role.md)
+makes this single-user with nothing to edit, and [#14](https://github.com/stainii/task/issues/14)'s
+*authenticate to sync, not to see* makes login a prompt the outbox raises, not a page.
+
+### You capture by typing
+
+The appbar carries an **omnibox**, not a menu: *Add, find, or say what you did…*. Typing offers,
+in order — complete a matching open task, **I already did this** for a matching template, and create
+a task with what you typed.
+
+This was chosen over a FAB-and-sheet (3 taps) and over a chores destination (2 taps) because it
+puts capture **one keystroke from wherever you are**, and because it is what portal actually did:
+`housagotchi-add-execution` was never a list you browsed and ticked, it was
+`<mat-select>` + a datepicker + *Done!*. The browse-and-edit list was a separate route behind its
+own menu bar. Portal had already split daily capture from administration; the memory of "two
+screens" was the creature plus a dropdown.
+
+**The omnibox is not a route.** It is a control on the appbar, so typing never changes the URL and
+Escape returns you to where you were.
+
+### The templates list is the reminding surface
+
+Typing assumes you know what you did. The author does not always: *"I like that you can go to the
+templates, see when it's last done and hit a button."* So the same list serves both moods —
+every row carries **when it was last done, as an elapsed count and a date**, and a **✓**.
+
+The date is not decoration. On real data the top row reads *Onderhoud ketels — 62 days overdue ·
+last 792 days ago · 7 Jun '24*. "792 days ago" is arithmetic; "7 Jun '24" is a memory.
+
+### "I already did this" is only ever a chore that is **not yet due**
+
+Building the shells forced a distinction that shrinks the feature. If a template is due, ADR-0013
+has already fired a task and it is on the overview — you complete it there. ADR-0011's second shape
+(*mint a task created and completed in one breath*) applies **only** when no task exists yet.
+
+Portal blurred this because its dropdown listed all 44 templates undifferentiated. On the author's
+real data that is **16 due** against **28 not due**, so more than half of portal's dropdown was
+offering things reachable more directly one screen away. The omnibox and the templates list both
+rank not-yet-due templates first for the ✓, and prefer the open task when there is one.
+
+### Both capture paths ask when, defaulting to today
+
+*Amended by the author after the first draft, which let the ✓ fire silently.*
+
+Neither the templates list's ✓ nor the omnibox's *I already did this* completes on the spot. Both
+open the same one-field confirm — **a date, defaulting to today** — and both write ADR-0011's
+`completedOn`.
+
+The first draft treated the ✓ as a single tap and counted that as its advantage. That was the wrong
+saving to chase: **the whole reason this action exists is that you did something away from the app**,
+and the gap between doing it and recording it is exactly what makes it out-of-band. A capture path
+that can only mean *today* would force the same lie ADR-0011 was written to prevent — and would
+throw away the min/max anchor's accuracy in the process, since `lastCompletionOf` reads that date.
+
+The evidence was already on the table and this ADR walked past it: ADR-0011 records that portal's
+form carried a **required** `mat-datepicker` labelled *"When did you do it?"* — required, not
+optional, in the one screen that had lived with this for years.
+
+**This includes completing an existing task from the omnibox dropdown** — and that corrects the
+boundary this ADR first drew. The line is not *out-of-band versus on the overview*. It is:
+
+- **You chose it by name** — typed it into the omnibox, or found it in the templates list. You are
+  recording something that already happened, so the app asks **when**.
+- **You acted on it in place** — swipe right, or *Complete* in the expanded panel, on a task row in
+  front of you. The gesture is the point, and it means *now*.
+
+Splitting on where the row was clicked would have broken ADR-0011's *one button, two shapes* in
+half: typing a chore's name means the same thing whether or not a task happens to exist for it, and
+the two shapes (complete the open task, or mint one created-and-completed) are an implementation
+detail chosen by the data, not by the user.
+
+**So the dropdown's two groups collapse into one list.** Once every row opens the same confirm, the
+`Complete an open task` / `I already did this` split is invisible and misleading — it was also
+listing a due template **twice**, once in each group, against this ADR's own not-yet-due rule. One
+list of things you can mark done, each row's sub-line saying which state it is in (*7 days overdue*
+versus *last done 10 days ago*), plus *create a task* underneath.
+
+Backdating a task completed in place stays where ADR-0011 put it, in the task's own edit surface.
+Extending the prompt to the swipe is a later call if that default proves wrong; nothing here
+forecloses it.
+
+### Rejected changes are a band on the overview, above *Due today*
+
+[ADR-0004](0004-one-write-verb-two-clocks-offline-sync.md) said `4xx` patches drop into "a visible
+failed-to-sync list" and never said where. It goes **on the overview**, above *Due today*, with
+*Fix and retry* / *Discard* per row, and vanishes entirely when there is nothing rejected.
+
+Above the work, not below it, because a rejected change is not diagnostics — **it is something you
+believe you did that did not happen**, and it outranks today's work.
+
+Putting it behind `⋯` was rejected for ADR-0009's reason: you would go on believing those tasks were
+done, indefinitely, and the only thing that could tell you is a screen you have no reason to open.
+
+**Marking the rejection on the task row was rejected on a finding that inverted the prototype's own
+premise.** The file was built expecting the hard case to be a task the server never heard of — which
+turns out not to be hard at all, because ADR-0004's client renders from local storage, so a
+locally-created task always has a row. The hard case is the opposite, and it is the **common** one:
+
+> A rejected **completion** has no row to attach to, because the completion succeeded *locally* —
+> the fold closed the task and ADR-0006's overview does not show closed tasks. The thing the
+> rejection belongs to has already left the screen.
+
+Completions are the most common patch in the system, so "mark it on the task" fails precisely where
+it matters. The variant needed an inline mark *and* a band, degenerating into this decision plus
+extra machinery.
+
+### Everything is a route, and the route does not name the axis
+
+```
+/                    overview, everything
+/in/:value           entered context — ADR-0006's scoped bands
+/templates           the list
+/templates/:id       authoring (ADR-0013)
+/status              the boring screen
+```
+
+Routes rather than screen state, because three decided things depend on it: ADR-0012's 07:30 push
+must land somewhere when tapped; FE-014's last-used context restore becomes a stored URL rather than
+bespoke state; and this is an installed PWA on Android, so hardware back must leave the *context*,
+not the app.
+
+`/in/:value` rather than `/c/:context` **keeps [#4](https://github.com/stainii/task/issues/4)'s
+promise in the one place it would otherwise leak.** ADR-0006 made the grouping axis a property of
+the card row alone; a route naming `context` would hard-code it into every stored URL and
+notification deep link, so swapping to goals later would invalidate them all.
+
+*Recorded as decided-by-recommendation:* the author accepted "everything is a route" without ruling
+on the axis-neutral form. Reverting to `/c/:context` is a one-line change while nothing is built.
+
+**Lazy module loading stays dropped** (FE-031) — it existed because there were seven apps behind a
+menu, and there are now two destinations.
+
+## Consequences
+
+- The shell is an appbar with an omnibox and a `⋯`, plus two tabs. There is no sidenav, no bottom
+  bar and no rail — the phone and desktop shells differ only in density, which is ADR-0006's
+  one-continuum rule holding at the navigation layer too.
+- **Templates stop being setup furniture.** ADR-0013's named risk was "a screen you open when you
+  set something up and then do not touch for months"; the ✓ makes it a screen touched weekly. Its
+  authoring form is unaffected, but its *list* now has a daily job.
+- The overview gains one conditional band. It needs no endpoint — rejected patches are already in
+  the client's outbox.
+- **The list size ADR-0013 handed over is survivable, because of its own deactivation rule.**
+  [#35](https://github.com/stainii/task/issues/35) found 115 referenced templates against 43 alive,
+  so the migrated list is ~115 entries — but ADR-0013 drops deactivated templates from the list by
+  default, leaving the 44 the author actually keeps. The omnibox is the escape hatch if that is ever
+  wrong: typing beats scrolling at any length.
+- A push notification, a shared link and a restored session are the same mechanism: a URL.
+- **Two capture paths exist for one action** (type it, or ✓ a row). That is deliberate — they serve
+  different states of knowing — but it is two implementations of ADR-0011's one button, and they
+  must mint identical patches. The shared date confirm is what makes that cheap: the two paths
+  differ only in how the template is chosen, and converge before anything is written.
+
+## Found on the way
+
+- **Housagotchi's "due tasks" half needs nothing built.** `HousagotchiReportService` scored
+  templates past `min` as *late* and past `max` as *very late*, and that is what drove the
+  creature's mood. Under ADR-0013 *late* means a task exists and *very late* means it is overdue —
+  both already on ADR-0006's overview. The report is fully derivable from the tasks screen, which is
+  why [#13](https://github.com/stainii/task/issues/13) could drop the gamification layer without
+  losing information. Only the capture half needed a home.
+- **`CONTEXT.md` still needs `omnibox` adding**, and was deliberately not edited here: a concurrent
+  session resolving [#36](https://github.com/stainii/task/issues/36) has uncommitted changes to that
+  file, and editing it from this session risked silently clobbering them.
