@@ -80,17 +80,48 @@ reconnect; a stale epoch is answered with a **resync** rather than a stream.
 
 ### Task template
 
-**A generator of tasks.** Holds everything a firing needs: a name, a context, an importance, a
-description, variable names, one or more **task definitions**, and exactly one **trigger**.
+**A generator of tasks.** Holds a name, a **context**, one or more **task definitions**, and exactly
+one **trigger**. Manual templates also name their **anchor**.
 
 One template can produce several tasks per firing — that is what the task definitions are for.
-This is available to every trigger, not only to manual runs.
+This is available to every trigger, not only to manual runs, which is what lets a scheduled template
+say "wash the bedding *and* hoover the bed" as two tasks rather than one name with "en" in it.
+
+A template is never deleted once it has tasks; it is **deactivated**, which stops it firing and
+hides it from the list. Its tasks keep pointing at something real.
 
 ### Task definition
 
-The description of one task a template will produce. Carries the name, context, importance and
-description of the task-to-be (any of which may contain `${variable}` placeholders), plus the
-day offsets that position its start and due dates relative to the firing.
+The description of one task a template will produce. Carries the name, **importance** and
+description of the task-to-be (the name and description may contain `${variable}` placeholders),
+plus the two day offsets that position its start and due dates relative to the **anchor**.
+
+Importance and description live here rather than on the template because they genuinely vary
+between the tasks of one firing. **Context** lives on the template, because it never does.
+
+### Anchor
+
+**The one date a firing hangs off.** Every task definition positions its start and due dates as a
+number of days from it — `-14` and `-7` mean "two weeks before, due one week before".
+
+Each trigger supplies its own: **manual** anchors are typed when you run the template, **min/max**
+anchors on the firing date, **calendar** on the date the rule produced.
+
+A manual template **names its anchor** — *"When is the workshop?"*, *"When do you leave?"* — so
+running it asks a question instead of presenting a date picker.
+
+There is exactly one anchor per firing. Offsets are never measured from anything else; the old pair
+of `START_DATE`/`DUE_DATE` bases did no work in ten of eleven real definitions and was silently
+wrong in the eleventh.
+
+### Variable
+
+**A `${placeholder}` in a task definition's name or description**, filled in when a manual template
+is run.
+
+Variables are **inferred from the text** — there is no declared list to keep in step, so a variable
+cannot be declared and never used. They are manual-only: a scheduled template containing `${…}` is
+rejected when saved, because nothing is present to fill it when it fires.
 
 ### Completed on
 
@@ -112,15 +143,19 @@ what "when did I last actually do this" means.
 
 - **Manual** — fires when you ask it to. No clock.
 - **Min/max** — fires at *last closure + min days*; the task it produces is due at
-  *last closure + max days*. **Drifts on purpose**: if you forget, the whole rhythm moves with
+  *last closure + max days*. Authored as an **interval plus a window** — *"comes round every 10
+  days, and I have 11 days to do it"* — with a window of **0** meaning due immediately, which is
+  what ten of portal's 44 recurring templates wanted. **Drifts on purpose**: if you forget, the whole rhythm moves with
   you. Use it for "no need to do this again within a week of actually doing it".
   **Cancelling counts as a closure**, so declining a round buys a full interval of quiet rather than
   the same task returning tomorrow — while *"when did I last do this"* still reads **completions
   only** and honestly reports that you did not. Forgetting is the task sitting open, which suppresses
   refiring on its own; that is where the drift comes from.
-- **Calendar** — fires on absolute dates from a fixed rule vocabulary (every N days, every N weeks
-  on given weekdays, every N months on a day of the month, yearly on a date). **Never drifts.**
-  Use it when the date is the date, whether or not you did the last one.
+- **Calendar** — fires on absolute dates from a fixed rule vocabulary of four: `Days(n)`,
+  `Weeks(n, weekdays)` (several weekdays in one rule), `Months(n, day)` (clamping 31 to the end of
+  short months), and `NthWeekday(n, ordinal, weekday)` — *the first Saturday*, *the last Friday*.
+  **Never drifts.** Use it when the date is the date, whether or not you did the last one.
+  *Yearly* is offered in the UI and stored as `Months(n × 12)`; it is not a rule of its own.
 
 The drift difference is the whole reason both scheduled triggers exist.
 
@@ -233,3 +268,9 @@ Resolved in [#4](https://github.com/stainii/task/issues/4), slot kept by
   the server has already sent you.
 - **`goals`** (as an importance bucket) — renamed **`long-game`**; the term is reserved for a
   standing theme.
+- **Deviation base** (`START_DATE` / `DUE_DATE` per offset) — dropped; there is one **anchor** per
+  firing and offsets are always measured from it.
+- **Variable names** (as a declared list on the template) — dropped; a **variable** is inferred from
+  the `${…}` in the text, so it cannot be declared and never used.
+- **Deleting a template** — a template with tasks is **deactivated**; deletion survives only for one
+  that has never fired.

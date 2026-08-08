@@ -1,0 +1,326 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #36, question 6.
+  "What is the small fixed calendar vocabulary, concretely?"
+
+  Not a variant switcher — a coverage test. Build a rule, see the dates it produces.
+  The "Can it say this?" list at the bottom is the real content: every shape found in
+  the portal data, plus the ticket's own motivating example, each with a verdict.
+
+  ADR-0001 named four rules: every N days / every N weeks on weekdays /
+  every N months on a day of the month / yearly on a date.
+  This prototype tests the claim that the 4th is redundant and that
+  "the Nth weekday of the month" is the case genuinely missing.
+
+  Seeded from ~/portal-archive/2026-08-04/ — the ten min==max templates that were
+  fixed intervals faked with a min/max window.
+
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — calendar rules</title>
+<style>
+  :root {
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6;
+    --surface: #fff; --bg: #f6f6f8; --accent: #3f51b5;
+    --ok: #2e7d32; --no: #c62828; --warn: #b26a00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; position: sticky; top: 0; z-index: 5;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header.app p { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px; margin-bottom: 16px;
+  }
+  h2.sec {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 14px; font-weight: 600;
+  }
+  select, input[type=number], input[type=date] {
+    padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; background: #fff; color: var(--ink);
+  }
+  .builder { font-size: 17px; line-height: 2.4; }
+  .builder select, .builder input {
+    border: 0; border-bottom: 2px solid var(--accent); border-radius: 0;
+    color: var(--accent); font: inherit; font-weight: 600; padding: 0 3px; cursor: pointer;
+  }
+  .builder input[type=number] { width: 56px; text-align: center; }
+  .seeds { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .seed {
+    font-size: 12px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); color: var(--muted); background: #fafafa;
+  }
+  .seed:hover { border-color: var(--accent); color: var(--accent); }
+  .seed.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .seed i { font-style: normal; opacity: .65; }
+
+  .dates { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .dt {
+    font-size: 13px; padding: 6px 11px; border-radius: 8px;
+    background: #f2f4fd; color: #2b3480; border: 1px solid #dfe3f7;
+  }
+  .dt.wk { background: #fafafa; color: var(--muted); border-color: var(--line); }
+  .model {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    color: var(--muted); background: #fafafa; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 11px; margin-top: 14px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  td.v { white-space: nowrap; font-weight: 600; }
+  .yes { color: var(--ok); } .no { color: var(--no); } .hm { color: var(--warn); }
+  td small { color: var(--muted); font-weight: 400; display: block; font-size: 12px; }
+  code { background: #f2f2f4; padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Calendar rules — what can the vocabulary say?</h1>
+  <p>Build a rule, see the dates. The table below is the coverage test.</p>
+</header>
+
+<main>
+  <div class="card">
+    <h2 class="sec">Real templates that are fixed intervals faked with min/max</h2>
+    <div class="seeds" id="seeds"></div>
+    <div class="builder" id="builder"></div>
+    <h2 class="sec" style="margin:20px 0 8px">The next ten firings</h2>
+    <div class="dates" id="out"></div>
+    <div class="model" id="model"></div>
+  </div>
+
+  <div class="card">
+    <h2 class="sec">Can the vocabulary say this?</h2>
+    <table id="cov"></table>
+  </div>
+</main>
+
+<script>
+// ---------------------------------------------------------------- vocabulary
+// Three stored rule kinds + one proposed. "years" is a UI unit over `months`.
+const WD = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const ORD = [[1, "first"], [2, "second"], [3, "third"], [4, "fourth"], [-1, "last"]];
+const MONTHS = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"];
+
+const SEEDS = {
+  visa:    { label: "Visa afrekening", was: "30/30",
+             r: { kind: "months", n: 1, day: 14 }, start: "2026-08-14" },
+  pension: { label: "Pensioensparen plafond verhogen", was: "365/365",
+             r: { kind: "months", n: 12, day: 2 }, start: "2027-01-02" },
+  boiler:  { label: "Warmteketels laten keuren", was: "720/720",
+             r: { kind: "months", n: 24, day: 3 }, start: "2026-10-03" },
+  dentist: { label: "Tandarts", was: "361/361",
+             r: { kind: "months", n: 12, day: 12 }, start: "2027-03-12" },
+  gasten:  { label: "De Goede Gasten (alle oneven weken)", was: "120/150",
+             r: { kind: "weeks", n: 2, weekdays: [6] }, start: "2026-08-08" },
+  guitar:  { label: "Gitaarles", was: "3/3",
+             r: { kind: "days", n: 3 }, start: "2026-08-10" },
+  cream:   { label: "Insmeren", was: "8/8",
+             r: { kind: "days", n: 8 }, start: "2026-08-15" },
+  yoga:    { label: "Yoga", was: "6/6",
+             r: { kind: "weeks", n: 1, weekdays: [0] }, start: "2026-08-09" },
+  firstsat:{ label: "“every first Saturday” — the ticket's own example", was: "new",
+             r: { kind: "nthweekday", n: 1, ord: 1, wd: 6 }, start: "2026-08-01" }
+};
+
+let key = "visa";
+let R = clone(SEEDS[key].r), START = SEEDS[key].start;
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+// ---------------------------------------------------------------- enumeration
+function enumerate(rule, startIso, count) {
+  const out = [];
+  let d = new Date(startIso + "T00:00:00");
+  if (rule.kind === "days") {
+    for (let i = 0; i < count; i++) { out.push(new Date(d)); d = add(d, +rule.n); }
+  } else if (rule.kind === "weeks") {
+    // every N weeks, on the chosen weekdays, counted from the week of the start date
+    const wds = (rule.weekdays || []).slice().sort();
+    let weekStart = add(d, -d.getDay());
+    for (let w = 0; out.length < count && w < 400; w++) {
+      for (const wd of wds) {
+        const x = add(weekStart, wd);
+        if (x >= d && out.length < count) out.push(x);
+      }
+      weekStart = add(weekStart, 7 * (+rule.n || 1));
+    }
+  } else if (rule.kind === "months") {
+    const base = new Date(d);
+    for (let i = 0; i < count; i++) {
+      const x = new Date(base.getFullYear(), base.getMonth() + i * (+rule.n || 1), 1);
+      const last = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+      x.setDate(Math.min(+rule.day || 1, last));      // clamp: 31 → 28/30
+      out.push(x);
+    }
+  } else if (rule.kind === "nthweekday") {
+    const base = new Date(d);
+    for (let i = 0; i < count; i++) {
+      const m = new Date(base.getFullYear(), base.getMonth() + i * (+rule.n || 1), 1);
+      out.push(nth(m, +rule.ord, +rule.wd));
+    }
+  }
+  return out.slice(0, count);
+}
+function nth(monthStart, ord, wd) {
+  if (ord === -1) {
+    const last = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+    return add(last, -((last.getDay() - wd + 7) % 7));
+  }
+  const first = add(monthStart, (wd - monthStart.getDay() + 7) % 7);
+  return add(first, 7 * (ord - 1));
+}
+function add(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function fmt(d) { return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }); }
+
+// ---------------------------------------------------------------- builder UI
+// The UI unit is days / weeks / months / years. "years" writes the months rule ×12.
+function uiUnit() {
+  if (R.kind === "months" && (+R.n) % 12 === 0 && (+R.n) >= 12) return "years";
+  return R.kind === "nthweekday" ? "nth" : R.kind;
+}
+function uiN() { return uiUnit() === "years" ? (+R.n) / 12 : (+R.n || 1); }
+
+function renderBuilder() {
+  const u = uiUnit();
+  const unitSel = `every <input type="number" id="n" value="${uiN()}" min="1">
+    <select id="unit">
+      ${["days", "weeks", "months", "years", "nth"].map(x =>
+        `<option value="${x}" ${x === u ? "selected" : ""}>${
+          x === "nth" ? "months, on the…" : x}</option>`).join("")}
+    </select>`;
+  let tail = "";
+  if (u === "weeks") {
+    tail = `, on ${WD.map((w, i) =>
+      `<label style="font-size:14px;font-weight:${(R.weekdays || []).includes(i) ? 600 : 400};
+        color:${(R.weekdays || []).includes(i) ? "var(--accent)" : "var(--muted)"};cursor:pointer;margin-right:8px">
+        <input type="checkbox" data-wd="${i}" ${(R.weekdays || []).includes(i) ? "checked" : ""}
+          style="vertical-align:-1px">${w.slice(0, 3)}</label>`).join("")}`;
+  } else if (u === "months") {
+    tail = `, on day <input type="number" id="day" value="${R.day || 1}" min="1" max="31">`;
+  } else if (u === "years") {
+    const d = new Date(START + "T00:00:00");
+    tail = `, on <select id="mon">${MONTHS.map((m, i) =>
+      `<option value="${i}" ${i === d.getMonth() ? "selected" : ""}>${m}</option>`).join("")}</select>
+      <input type="number" id="day" value="${R.day || 1}" min="1" max="31">`;
+  } else if (u === "nth") {
+    tail = `, on the <select id="ord">${ORD.map(([v, t]) =>
+      `<option value="${v}" ${v === +R.ord ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <select id="wd">${WD.map((w, i) =>
+      `<option value="${i}" ${i === +R.wd ? "selected" : ""}>${w}</option>`).join("")}</select>`;
+  }
+  document.getElementById("builder").innerHTML =
+    `${unitSel}${tail}, starting <input type="date" id="start" value="${START}">.`;
+}
+
+function renderOut() {
+  const ds = enumerate(R, START, 10);
+  document.getElementById("out").innerHTML = ds.map((d, i) =>
+    `<span class="dt ${i > 4 ? "wk" : ""}">${fmt(d)}</span>`).join("");
+  const stored = R.kind === "nthweekday"
+    ? `Calendar(NthWeekday(every=${R.n} months, ordinal=${R.ord}, weekday=${WD[R.wd]}))`
+    : R.kind === "months"
+      ? `Calendar(Months(every=${R.n}, day=${R.day}))`
+      : R.kind === "weeks"
+        ? `Calendar(Weeks(every=${R.n}, weekdays=[${(R.weekdays || []).map(i => WD[i].slice(0, 3))}]))`
+        : `Calendar(Days(every=${R.n}))`;
+  document.getElementById("model").textContent =
+    `stored as  ${stored}   ·   anchor ${START}` +
+    (uiUnit() === "years" ? "   ← “years” is a UI unit, not a stored rule" : "");
+}
+
+// ---------------------------------------------------------------- coverage table
+const COVERAGE = [
+  ["Every 3 days", "yes", "<code>Days(3)</code>", "Gitaarles, faked as 3/3."],
+  ["Every 8 days", "yes", "<code>Days(8)</code>", "Insmeren, faked as 8/8."],
+  ["Every other Saturday", "yes", "<code>Weeks(2, [Sat])</code>",
+   "De Goede Gasten — “alle oneven weken” has been in the template <i>name</i> for years."],
+  ["Weekly on Sunday", "yes", "<code>Weeks(1, [Sun])</code>", "Yoga, faked as 6/6."],
+  ["Twice a week, Tue and Thu", "yes", "<code>Weeks(1, [Tue,Thu])</code>",
+   "Multiple weekdays in one rule — nothing in portal could say this."],
+  ["Monthly on the 14th", "yes", "<code>Months(1, day 14)</code>", "Visa afrekening, faked as 30/30."],
+  ["Every two years on 3 October", "yes", "<code>Months(24, day 3)</code>",
+   "Warmteketels, faked as 720/720. The month comes from the start date."],
+  ["Yearly on 12 March", "yes", "<code>Months(12, day 12)</code>",
+   "Tandarts. <b>No fourth rule needed</b> — “years” is a UI unit over Months."],
+  ["The 31st of every month", "hm", "<code>Months(1, day 31)</code>",
+   "Clamps to the last day — 28 Feb, 30 Apr. Drive it and decide if clamping is what you want."],
+  ["Every first Saturday", "no", "needs <code>NthWeekday</code>",
+   "<b>The ticket's own example.</b> <code>Weeks(4,[Sat])</code> drifts off the month: 1 Aug, 29 Aug, 26 Sep. Not expressible today."],
+  ["Last Friday of the month", "no", "needs <code>NthWeekday</code>", "Same hole."],
+  ["Every weekday", "hm", "<code>Weeks(1, [Mon…Fri])</code>",
+   "Works, but five checkboxes. Fine if it stays rare."],
+  ["Every 6 weeks from when I last did it", "no", "not calendar — that's <b>min/max</b>",
+   "Correctly out of scope: it drifts, and drift is min/max's whole job."]
+];
+function renderCoverage() {
+  document.getElementById("cov").innerHTML =
+    `<tr><th>Can it say…</th><th>Verdict</th><th>Rule</th><th></th></tr>` +
+    COVERAGE.map(([q, v, r, n]) =>
+      `<tr><td>${q}</td>
+        <td class="v ${v === "yes" ? "yes" : v === "no" ? "no" : "hm"}">${
+          v === "yes" ? "yes" : v === "no" ? "NO" : "sort of"}</td>
+        <td>${r}</td><td><small>${n}</small></td></tr>`).join("");
+}
+
+// ---------------------------------------------------------------- wiring
+function renderSeeds() {
+  document.getElementById("seeds").innerHTML = Object.entries(SEEDS).map(([k, s]) =>
+    `<button class="seed ${k === key ? "on" : ""}" data-seed="${k}">${s.label} <i>${s.was}</i></button>`).join("");
+}
+document.body.addEventListener("click", e => {
+  const b = e.target.closest("[data-seed]");
+  if (b) { key = b.dataset.seed; R = clone(SEEDS[key].r); START = SEEDS[key].start; paint(); return; }
+  const wd = e.target.closest("[data-wd]");
+  if (wd) {
+    const i = +wd.dataset.wd, w = R.weekdays || [];
+    R.weekdays = w.includes(i) ? w.filter(x => x !== i) : [...w, i].sort();
+    if (!R.weekdays.length) R.weekdays = [i];
+    paint();
+  }
+});
+document.body.addEventListener("change", e => {
+  const t = e.target;
+  if (t.id === "unit") {
+    const v = t.value;
+    if (v === "years") R = { kind: "months", n: 12, day: R.day || 1 };
+    else if (v === "months") R = { kind: "months", n: 1, day: R.day || 1 };
+    else if (v === "weeks") R = { kind: "weeks", n: 1, weekdays: R.weekdays || [1] };
+    else if (v === "days") R = { kind: "days", n: 1 };
+    else R = { kind: "nthweekday", n: 1, ord: 1, wd: 6 };
+    paint();
+  } else if (t.id === "mon") {
+    const d = new Date(START + "T00:00:00"); d.setMonth(+t.value);
+    START = d.toISOString().slice(0, 10); paint();
+  }
+});
+document.body.addEventListener("input", e => {
+  const t = e.target;
+  if (t.id === "n") R.n = uiUnit() === "years" ? (+t.value || 1) * 12 : (+t.value || 1);
+  else if (t.id === "day") R.day = +t.value || 1;
+  else if (t.id === "ord") R.ord = +t.value;
+  else if (t.id === "wd") R.wd = +t.value;
+  else if (t.id === "start") START = t.value;
+  else return;
+  renderOut();
+});
+function paint() { renderSeeds(); renderBuilder(); renderOut(); renderCoverage(); }
+paint();
+</script>
+</body>
+</html>

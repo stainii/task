@@ -1,0 +1,378 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #36, question 8.
+  "Are template variables declared in a list, or inferred from the text?"
+
+    A  declared  — portal's model: a variableNames list AND ${...} in the text
+    B  inferred  — no list; the variables ARE whatever ${...} the text contains
+
+  Switch via ?variant=A|B, the floating bar, or arrow keys.
+
+  Both variants edit the same definitions and both show the SAME two panels:
+  what the run-it dialog would ask you for, and what tasks come out. That is where
+  the difference bites, so it is on screen at all times.
+
+  Seeded from ~/portal-archive/2026-08-04/. The first seed is the real defect:
+  "Nagaan of workshop mogelijk is" declares four variables and uses three —
+  ${lector} is in variableNames and in neither definition, so portal has been asking
+  for a value and throwing it away for years.
+
+  Things worth doing:
+    - In A, load "Nagaan" and look at the run-it panel: a field that goes nowhere.
+    - In either, break a name to "${scool}" and watch WHERE the mistake surfaces.
+    - Switch the trigger to "Every so often" and see what happens to the variables.
+
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — template variables</title>
+<style>
+  :root {
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6;
+    --surface: #fff; --bg: #f6f6f8; --accent: #3f51b5;
+    --ok: #2e7d32; --no: #c62828; --warn: #b26a00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 90px;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 14px;
+    position: sticky; top: 0; z-index: 5; flex-wrap: wrap;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header.app .seeds { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .seed {
+    font-size: 12px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); color: var(--muted); background: #fafafa;
+  }
+  .seed:hover { border-color: var(--accent); color: var(--accent); }
+  .seed.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .seed.bad { border-style: dashed; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 20px;
+         display: grid; gap: 18px; grid-template-columns: minmax(0,1fr) 360px; align-items: start; }
+  @media (max-width: 940px) { main { grid-template-columns: minmax(0,1fr); } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+  }
+  aside .card:first-child { position: sticky; top: 74px; }
+  h2.sec {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+  input[type=text], textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; background: #fff; color: var(--ink);
+  }
+  textarea { min-height: 46px; resize: vertical; font-size: 13.5px; }
+  .def { border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px;
+         margin-bottom: 9px; background: #fcfcfd; }
+  .def .idx { font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+
+  .triggers { display: flex; gap: 8px; margin-bottom: 4px; }
+  .trig {
+    padding: 7px 13px; border: 1px solid var(--line); border-radius: 9px;
+    background: #fafafa; cursor: pointer; font: inherit; font-size: 13.5px; color: var(--ink);
+  }
+  .trig[aria-pressed="true"] { background: #eef0fb; border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+  .vars { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .var {
+    font-size: 12.5px; padding: 4px 9px; border-radius: 999px;
+    background: #eef0fb; color: var(--accent); border: 1px solid #dfe3f7;
+    display: inline-flex; align-items: center; gap: 6px; font-family: ui-monospace, monospace;
+  }
+  .var.dead { background: #fdf3e3; color: var(--warn); border-color: #f2e0bf; }
+  .var.ghost { background: #fdecec; color: var(--no); border-color: #f5d2d2; }
+  .var button { border: 0; background: none; cursor: pointer; color: inherit; font-size: 14px; padding: 0; }
+  button.add {
+    border: 1px dashed var(--line); background: #fff; color: var(--accent);
+    padding: 6px 11px; border-radius: 9px; cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .flag { font-size: 12.5px; margin: 10px 0 0; padding: 9px 11px; border-radius: 9px; }
+  .flag.warn { background: #fdf3e3; color: #7a4a00; border: 1px solid #f2e0bf; }
+  .flag.err  { background: #fdecec; color: #8c1d1d; border: 1px solid #f5d2d2; }
+  .flag.ok   { background: #eef7ee; color: #1f5c23; border: 1px solid #d5e8d6; }
+  .flag b { font-weight: 600; }
+
+  .ask label { display: block; margin-bottom: 9px; }
+  .ask label > span {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px;
+    font-family: ui-monospace, monospace;
+  }
+  .ask label.dead > span::after {
+    content: " — goes nowhere"; color: var(--warn); font-family: inherit; font-weight: 600;
+  }
+  .out .task {
+    border-left: 4px solid var(--accent); padding: 6px 0 6px 10px; margin-bottom: 8px; font-size: 13.5px;
+  }
+  .out .task.lit { border-left-color: var(--no); }
+  .out .task small { color: var(--muted); font-size: 12px; display: block; white-space: pre-wrap; }
+  .lit-mark { background: #fdecec; color: var(--no); border-radius: 4px; padding: 0 3px; font-family: ui-monospace, monospace; }
+  .sub-mark { background: #eef7ee; color: #1f5c23; border-radius: 4px; padding: 0 3px; }
+
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: rgba(28,27,32,.94); color: #fff; padding: 10px 18px;
+    display: flex; align-items: center; gap: 14px; font-size: 13px;
+  }
+  #bar button { background: #3b3a42; color: #fff; border: 0; border-radius: 7px;
+                padding: 6px 13px; cursor: pointer; font: inherit; }
+  #bar #label { flex: 1; }
+  #bar #label b { color: #b9c0ff; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Template variables</h1>
+  <div class="seeds" id="seeds"></div>
+</header>
+
+<main>
+  <div>
+    <div class="card">
+      <h2 class="sec">Trigger</h2>
+      <div class="triggers" id="triggers"></div>
+      <div id="trigflag"></div>
+    </div>
+    <div class="card">
+      <h2 class="sec">Variables</h2>
+      <div id="varsbox"></div>
+    </div>
+    <div class="card">
+      <h2 class="sec">Tasks it creates</h2>
+      <div id="defs"></div>
+    </div>
+  </div>
+  <aside>
+    <div class="card">
+      <h2 class="sec">When you run it, you are asked for</h2>
+      <div class="ask" id="ask"></div>
+      <h2 class="sec" style="margin-top:18px">and you get</h2>
+      <div class="out" id="out"></div>
+    </div>
+  </aside>
+</main>
+
+<div id="bar">
+  <button id="prev">←</button>
+  <button id="next">→</button>
+  <span id="label"></span>
+</div>
+
+<script>
+// ---------------------------------------------------------------- real data
+const SEEDS = {
+  nagaan: {
+    label: "Nagaan of workshop mogelijk is", bad: true,
+    t: {
+      trigger: "MANUAL",
+      declared: ["lector", "onderwerpen", "sprekers", "school"],   // real: 4 declared
+      defs: [
+        { name: "${sprekers} vragen om sessie over ${onderwerpen} te geven voor ${school}", desc: "" },
+        { name: "Heeft ${sprekers} gereageerd voor ${school}?", desc: "" }
+      ]                                                            // real: 3 used
+    }
+  },
+  workshop: {
+    label: "Opvolgen workshop scholencoordinatie",
+    t: {
+      trigger: "MANUAL",
+      declared: ["lector", "onderwerpen", "sprekers", "school"],
+      defs: [
+        { name: "${sprekers} voorbereidingsmail voor workshop op ${school} sturen", desc: "" },
+        { name: "${sprekers} feedback vragen over ${onderwerpen} voor ${school}", desc: "" },
+        { name: "Lector ${lector} review vragen over sessie ${onderwerpen}",
+          desc: "- review\n- feedback: welke onderwerpen zouden we nog kunnen aanbieden?" },
+        { name: "Is er feedback binnen gekomen voor ${sprekers} over de sessie over ${onderwerpen}?",
+          desc: "Feedback doorsturen naar ${sprekers}!" }
+      ]
+    }
+  },
+  bedding: {
+    label: "Beddengoed wassen (scheduled)",
+    t: {
+      trigger: "MINMAX", declared: [],
+      defs: [ { name: "Beddengoed wassen", desc: "" }, { name: "Bed stofzuigen", desc: "" } ]
+    }
+  }
+};
+
+let key = "nagaan";
+let T = clone(SEEDS[key].t);
+let VALUES = {};
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+// ---------------------------------------------------------------- the two models
+const RE = /\$\{(\w+)\}/g;
+function usedInText() {
+  const set = new Set();
+  for (const d of T.defs) {
+    for (const s of [d.name, d.desc]) {
+      let m; RE.lastIndex = 0;
+      while ((m = RE.exec(s))) set.add(m[1]);
+    }
+  }
+  return [...set];
+}
+// A: the run-it dialog asks for the DECLARED list. B: it asks for what the text uses.
+function asked() { return current() === "A" ? T.declared.slice() : usedInText(); }
+// A substitutes only declared names — anything else stays literal in the task.
+function substitutable() { return current() === "A" ? T.declared.slice() : usedInText(); }
+
+function subst(s) {
+  const ok = substitutable();
+  return s.replace(RE, (m, v) => ok.includes(v)
+    ? `<span class="sub-mark">${esc(VALUES[v] || "…")}</span>`
+    : `<span class="lit-mark">${esc(m)}</span>`);
+}
+function hasLiteral(s) {
+  const ok = substitutable();
+  let m, out = false; RE.lastIndex = 0;
+  while ((m = RE.exec(s))) if (!ok.includes(m[1])) out = true;
+  return out;
+}
+function esc(s) { return String(s).replace(/[<>&"]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c])); }
+
+// ---------------------------------------------------------------- render
+function renderTriggers() {
+  const t = (k, l) => `<button class="trig" data-trig="${k}" aria-pressed="${T.trigger === k}">${l}</button>`;
+  document.getElementById("triggers").innerHTML =
+    t("MANUAL", "Run by hand") + t("MINMAX", "Every so often") + t("CALENDAR", "On the calendar");
+
+  const used = usedInText();
+  const box = document.getElementById("trigflag");
+  if (T.trigger === "MANUAL") { box.innerHTML = ""; return; }
+  const offenders = current() === "A" ? T.declared : used;
+  box.innerHTML = offenders.length
+    ? `<p class="flag err"><b>Cannot save.</b> A scheduled template fires on its own, with nobody
+       there to fill in ${offenders.map(v => "<code>${" + v + "}</code>").join(", ")}.
+       ${current() === "B"
+         ? "Remove them from the task text, or switch back to <i>Run by hand</i>."
+         : "Empty the variables list, or switch back to <i>Run by hand</i>."}</p>`
+    : `<p class="flag ok">No variables — fine to schedule.</p>`;
+}
+
+function renderVars() {
+  const used = usedInText(), box = document.getElementById("varsbox");
+  if (current() === "B") {
+    box.innerHTML = used.length
+      ? `<div class="vars">${used.map(v => `<span class="var">\${${v}}</span>`).join("")}</div>
+         <p class="flag ok">Read-only. These <b>are</b> the <code>\${…}</code> in the task text —
+            there is no list to keep in step, so a variable cannot be declared and never used.</p>`
+      : `<p class="flag ok">No <code>\${…}</code> in the task text, so no variables.
+            Write one into a task name to create it.</p>`;
+    return;
+  }
+  const dead  = T.declared.filter(v => !used.includes(v));
+  const ghost = used.filter(v => !T.declared.includes(v));
+  box.innerHTML =
+    `<div class="vars">
+      ${T.declared.map(v => `<span class="var ${dead.includes(v) ? "dead" : ""}">\${${v}}
+        <button data-delvar="${v}">×</button></span>`).join("")}
+      <button class="add" data-addvar>+ variable</button>
+     </div>
+     ${dead.length ? `<p class="flag warn"><b>Declared, never used:</b>
+        ${dead.map(v => "<code>${" + v + "}</code>").join(", ")} —
+        the run-it dialog asks for ${dead.length > 1 ? "these" : "this"} and throws the answer away.
+        Nothing in portal could tell you.</p>` : ""}
+     ${ghost.length ? `<p class="flag err"><b>Used, never declared:</b>
+        ${ghost.map(v => "<code>${" + v + "}</code>").join(", ")} —
+        will not be substituted. The task is created with the text left in it, and you find out
+        when you see the task.</p>` : ""}`;
+}
+
+function renderDefs() {
+  document.getElementById("defs").innerHTML = T.defs.map((d, i) => `
+    <div class="def" data-i="${i}">
+      <div class="idx">task ${i + 1}</div>
+      <input type="text" data-d="name" value="${esc(d.name)}" placeholder="Task name">
+      <textarea data-d="desc" placeholder="Description (optional)" style="margin-top:7px">${esc(d.desc)}</textarea>
+    </div>`).join("");
+}
+
+function renderAsk() {
+  const a = asked(), used = usedInText();
+  document.getElementById("ask").innerHTML = T.trigger !== "MANUAL"
+    ? `<p class="flag warn">Nothing — it fires on its own.</p>`
+    : (a.length
+      ? a.map(v => `<label class="${used.includes(v) ? "" : "dead"}"><span>\${${v}}</span>
+          <input type="text" data-val="${v}" value="${esc(VALUES[v] || "")}"
+            placeholder="…"></label>`).join("")
+      : `<p class="flag ok">Just the anchor date.</p>`);
+
+  document.getElementById("out").innerHTML = T.defs.map(d => `
+    <div class="task ${hasLiteral(d.name) || hasLiteral(d.desc) ? "lit" : ""}">
+      ${subst(d.name) || "<i style='color:#aaa'>(unnamed)</i>"}
+      ${d.desc ? `<small>${subst(d.desc)}</small>` : ""}
+    </div>`).join("");
+}
+
+function render() { renderTriggers(); renderVars(); renderDefs(); renderAsk(); renderSeeds(); }
+
+// ---------------------------------------------------------------- wiring
+document.body.addEventListener("input", e => {
+  const t = e.target, defEl = t.closest(".def");
+  if (t.dataset.val !== undefined) { VALUES[t.dataset.val] = t.value; renderAsk(); return; }
+  if (defEl && t.dataset.d) {
+    T.defs[+defEl.dataset.i][t.dataset.d] = t.value;
+    const a = document.activeElement, pos = a.selectionStart;
+    renderVars(); renderTriggers(); renderAsk();
+    const el = document.querySelector(`.def[data-i="${defEl.dataset.i}"] [data-d="${t.dataset.d}"]`);
+    if (el && el !== a) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (_) {} }
+  }
+});
+document.body.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.seed) { key = b.dataset.seed; T = clone(SEEDS[key].t); VALUES = {}; render(); }
+  else if (b.dataset.trig) { T.trigger = b.dataset.trig; render(); }
+  else if (b.dataset.delvar) { T.declared = T.declared.filter(v => v !== b.dataset.delvar); render(); }
+  else if (b.dataset.addvar !== undefined) {
+    const n = prompt("Variable name (letters only, no ${}):");
+    if (n && /^\w+$/.test(n) && !T.declared.includes(n)) { T.declared.push(n); render(); }
+  }
+});
+
+function renderSeeds() {
+  document.getElementById("seeds").innerHTML = Object.entries(SEEDS).map(([k, s]) =>
+    `<button class="seed ${k === key ? "on" : ""} ${s.bad ? "bad" : ""}" data-seed="${k}"
+      ${s.bad ? 'title="the real defect: declares 4, uses 3"' : ""}>${s.label}</button>`).join("");
+}
+
+const VARIANTS = {
+  A: "Declared — a variableNames list, kept in step with the text by hand (portal's model)",
+  B: "Inferred — the variables ARE the ${…} in the text; no list at all"
+};
+const keys = Object.keys(VARIANTS);
+function current() {
+  const v = new URLSearchParams(location.search).get("variant");
+  return keys.includes(v) ? v : "A";
+}
+function go(v) {
+  const u = new URL(location); u.searchParams.set("variant", v);
+  history.replaceState({}, "", u); paint();
+}
+function paint() {
+  document.getElementById("label").innerHTML = `<b>${current()}</b> — ${VARIANTS[current()]}`;
+  render();
+}
+document.getElementById("prev").onclick = () => go(keys[(keys.indexOf(current()) + 1) % 2]);
+document.getElementById("next").onclick = () => go(keys[(keys.indexOf(current()) + 1) % 2]);
+document.addEventListener("keydown", e => {
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") go(keys[(keys.indexOf(current()) + 1) % 2]);
+});
+paint();
+</script>
+</body>
+</html>

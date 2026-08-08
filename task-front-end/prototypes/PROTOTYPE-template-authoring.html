@@ -1,0 +1,654 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #36, question 3.
+  "With the trigger picked first, how much does the form below it change?"
+
+  Three radically different shapes for the one template-authoring screen:
+    A  adaptive form, definitions progressively disclosed  (the recommendation)
+    B  three separate forms behind a chooser                (the author's instinct)
+    C  editable sentence, details on demand                 (the anti-control-panel foil)
+
+  Switch via ?variant=A|B|C, the floating bar, or arrow keys.
+
+  Seeded with the REAL portal templates from ~/portal-archive/2026-08-04/ — including
+  the two workarounds, so you can see whether each shape lets you delete them:
+    - "Beddengoed wassen EN bed stofzuigen"  — two chores in one name, because a
+      recurring task could only ever be one task.
+    - "Vissen eten geven (5 dagen)"          — five hardcoded definitions at offsets
+      0..4, because a manual template could not repeat.
+
+  The "What this produces" panel is live in every variant: it is the only way to judge
+  whether the offset knobs are comprehensible.
+
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — template authoring</title>
+<style>
+  :root {
+    --focus: #e53935;
+    --long-game: #7cb342;
+    --fit-in: #fb8c00;
+    --back-burner: #9e9e9e;
+    --ink: #1c1b1f;
+    --muted: #5f6368;
+    --line: #e3e3e6;
+    --surface: #fff;
+    --bg: #f6f6f8;
+    --accent: #3f51b5;
+    --warn: #b26a00;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 90px;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 14px;
+    position: sticky; top: 0; z-index: 5; flex-wrap: wrap;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header.app .seeds { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .seed {
+    font-size: 12px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); color: var(--muted); background: #fafafa;
+  }
+  .seed:hover { border-color: var(--accent); color: var(--accent); }
+  .seed.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .seed.hack { border-style: dashed; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 20px; display: grid; gap: 20px;
+         grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .card + .card { margin-top: 16px; }
+  h2.sec {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+  label.f { display: block; margin-bottom: 14px; }
+  label.f > span {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 500;
+  }
+  input[type=text], input[type=number], input[type=date], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; background: #fff; color: var(--ink);
+  }
+  textarea { min-height: 54px; resize: vertical; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 130px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: -8px; margin-bottom: 12px; }
+  .warn { font-size: 12px; color: var(--warn); margin: 8px 0 0; }
+
+  /* ---------- trigger picker ---------- */
+  .triggers { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .trig {
+    flex: 1 1 150px; text-align: left; cursor: pointer; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 10px; background: #fafafa;
+    font: inherit; color: var(--ink);
+  }
+  .trig b { display: block; font-size: 14px; }
+  .trig small { color: var(--muted); font-size: 11.5px; line-height: 1.3; display: block; margin-top: 2px; }
+  .trig[aria-pressed="true"] { background: #eef0fb; border-color: var(--accent); }
+  .trig[aria-pressed="true"] b { color: var(--accent); }
+
+  /* ---------- definitions ---------- */
+  .def {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    margin-bottom: 10px; background: #fcfcfd;
+  }
+  .def .head { display: flex; gap: 10px; align-items: center; }
+  .def .head input { flex: 1; }
+  .def .head .idx {
+    font-size: 11px; color: var(--muted); width: 18px; text-align: right; flex: none;
+  }
+  .def .more { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+  .def.closed .more { display: none; }
+  .icon {
+    flex: none; border: 1px solid var(--line); background: #fff; border-radius: 7px;
+    width: 30px; height: 30px; cursor: pointer; color: var(--muted); font: inherit;
+  }
+  .icon:hover { border-color: var(--accent); color: var(--accent); }
+  button.add {
+    border: 1px dashed var(--line); background: #fff; color: var(--accent);
+    padding: 9px 14px; border-radius: 9px; cursor: pointer; font: inherit; font-weight: 500;
+  }
+  button.add:hover { border-color: var(--accent); background: #f7f8ff; }
+
+  /* ---------- variables ---------- */
+  .vars { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .var {
+    font-size: 12.5px; padding: 4px 8px 4px 10px; border-radius: 999px;
+    background: #eef0fb; color: var(--accent); border: 1px solid #dfe3f7;
+    display: inline-flex; align-items: center; gap: 6px; font-family: ui-monospace, monospace;
+  }
+  .var button { border: 0; background: none; cursor: pointer; color: inherit; font-size: 14px; padding: 0; }
+  .disabled-note {
+    font-size: 12.5px; color: var(--muted); background: #fafafa;
+    border: 1px dashed var(--line); border-radius: 9px; padding: 10px 12px;
+  }
+
+  /* ---------- produces panel ---------- */
+  aside .card { position: sticky; top: 74px; }
+  .out { font-size: 13.5px; }
+  .out .task {
+    border-left: 4px solid var(--back-burner); padding: 7px 0 7px 10px; margin-bottom: 9px;
+  }
+  .out .task[data-imp="IMPORTANT"] { border-left-color: var(--focus); }
+  .out .task[data-imp="NORMAL"] { border-left-color: var(--fit-in); }
+  .out .task[data-imp="NOT_SO_IMPORTANT"] { border-left-color: var(--back-burner); }
+  .out .task b { display: block; font-weight: 500; }
+  .out .task small { color: var(--muted); font-size: 12px; }
+  .out .when { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+
+  /* ---------- variant B chooser ---------- */
+  .chooser { display: grid; gap: 12px; }
+  .chooser button {
+    text-align: left; padding: 18px 20px; border: 1px solid var(--line);
+    border-radius: 12px; background: var(--surface); cursor: pointer; font: inherit;
+  }
+  .chooser button:hover { border-color: var(--accent); }
+  .chooser b { display: block; font-size: 16px; margin-bottom: 3px; }
+  .chooser small { color: var(--muted); }
+  .back {
+    border: 0; background: none; color: var(--accent); cursor: pointer;
+    font: inherit; padding: 0; margin-bottom: 14px;
+  }
+
+  /* ---------- variant C sentence ---------- */
+  .sentence { font-size: 20px; line-height: 1.9; }
+  .sentence .slot {
+    border: 0; border-bottom: 2px dashed var(--accent); background: none;
+    color: var(--accent); font: inherit; cursor: pointer; padding: 0 3px; font-weight: 600;
+  }
+  .sentence .slot:hover { background: #eef0fb; }
+  .sentence input.slot, .sentence select.slot {
+    border-bottom: 2px solid var(--accent); border-radius: 0; width: auto; display: inline-block;
+    padding: 0 3px; font: inherit; font-weight: 600;
+  }
+  .drawer {
+    margin-top: 18px; border-top: 1px solid var(--line); padding-top: 16px;
+  }
+  .drawer summary { cursor: pointer; font-size: 13px; color: var(--accent); font-weight: 500; }
+  .drawer[open] summary { margin-bottom: 14px; }
+
+  /* ---------- switcher ---------- */
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: rgba(28,27,32,.94); color: #fff; padding: 10px 18px;
+    display: flex; align-items: center; gap: 14px; font-size: 13px;
+  }
+  #bar button {
+    background: #3b3a42; color: #fff; border: 0; border-radius: 7px;
+    padding: 6px 13px; cursor: pointer; font: inherit;
+  }
+  #bar #label { flex: 1; }
+  #bar #label b { color: #b9c0ff; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Template authoring</h1>
+  <div class="seeds" id="seeds"></div>
+</header>
+
+<main>
+  <div id="form"></div>
+  <aside>
+    <div class="card">
+      <h2 class="sec">What this produces</h2>
+      <div class="out" id="out"></div>
+    </div>
+  </aside>
+</main>
+
+<div id="bar">
+  <button id="prev">←</button>
+  <button id="next">→</button>
+  <span id="label"></span>
+</div>
+
+<script>
+// ---------------------------------------------------------------- real data
+const CONTEXTS = ["Personal", "house", "Scholencoordinatie", "health", "setlist", "social"];
+const IMPORTANCE = ["IMPORTANT", "NORMAL", "NOT_SO_IMPORTANT"];
+
+const SEEDS = {
+  blank: {
+    label: "new template",
+    t: { name: "", context: "Personal", trigger: "MANUAL",
+         min: 14, max: 21, rule: { kind: "weeks", n: 1, weekdays: [6] },
+         startDate: today(), vars: [],
+         defs: [ def("") ] }
+  },
+  bedding: {
+    label: "Beddengoed wassen EN bed stofzuigen",
+    hack: true,
+    t: { name: "Beddengoed wassen en bed stofzuigen", context: "house", trigger: "MINMAX",
+         min: 10, max: 21, rule: { kind: "weeks", n: 1, weekdays: [6] },
+         startDate: today(), vars: [],
+         defs: [ def("Beddengoed wassen en bed stofzuigen") ] }
+  },
+  fish: {
+    label: "Vissen eten geven (5 dagen)",
+    hack: true,
+    t: { name: "Vissen eten geven (5 dagen)", context: "Personal", trigger: "MANUAL",
+         min: 14, max: 21, rule: { kind: "days", n: 1 },
+         startDate: today(), vars: [],
+         defs: [0,1,2,3,4].map(i => def("Vissen eten geven", { so: i, dd: i,
+                                     sb: i === 1 ? "START" : "DUE", db: "DUE" })) }
+  },
+  workshop: {
+    label: "Opvolgen workshop scholencoordinatie",
+    t: { name: "Opvolgen workshop scholencoordinatie", context: "Scholencoordinatie",
+         trigger: "MANUAL", min: 14, max: 21, rule: { kind: "weeks", n: 1, weekdays: [6] },
+         startDate: today(), vars: ["lector", "onderwerpen", "sprekers", "school"],
+         defs: [
+           def("${sprekers} voorbereidingsmail voor workshop op ${school} sturen",
+               { so: -14, dd: -7, sb: "DUE", db: "DUE" }),
+           def("${sprekers} feedback vragen over ${onderwerpen} voor ${school}",
+               { so: 1, dd: 7, sb: "DUE", db: "DUE" }),
+           def("Lector ${lector} review vragen over sessie ${onderwerpen}",
+               { so: 1, dd: 7, sb: "DUE", db: "DUE",
+                 desc: "- review\n- feedback: welke onderwerpen zouden we nog kunnen aanbieden?" }),
+           def("Is er feedback binnen gekomen voor ${sprekers} over de sessie over ${onderwerpen}?",
+               { so: 7, dd: 14, sb: "DUE", db: "DUE", imp: "NOT_SO_IMPORTANT",
+                 desc: "Feedback doorsturen naar ${sprekers}!" })
+         ] }
+  },
+  tandarts: {
+    label: "Tandarts (yearly)",
+    t: { name: "Tandarts", context: "health", trigger: "CALENDAR",
+         min: 361, max: 361, rule: { kind: "months", n: 12, day: 14 },
+         startDate: today(), vars: [],
+         defs: [ def("Tandarts") ] }
+  }
+};
+
+function def(name, o = {}) {
+  return {
+    name, desc: o.desc || "", imp: o.imp || "IMPORTANT",
+    so: o.so ?? 0, sb: o.sb || "START", dd: o.dd ?? 0, db: o.db || "DUE",
+    open: false
+  };
+}
+function today() { const d = new Date(); return d.toISOString().slice(0, 10); }
+
+let seedKey = "bedding";
+let T = clone(SEEDS[seedKey].t);
+let bStep = null;   // variant B: null = chooser, else the chosen trigger
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+// ---------------------------------------------------------------- preview
+const TRIG_LABEL = {
+  MANUAL: "Run by hand",
+  MINMAX: "Every so often",
+  CALENDAR: "On the calendar"
+};
+
+function anchors() {
+  // What the two offset bases resolve to, per trigger.
+  const d = new Date(T.startDate + "T00:00:00");
+  if (T.trigger === "MINMAX") {
+    // #13: one task, created at min, due at max.
+    return { start: addDays(d, +T.min), due: addDays(d, +T.max),
+             note: `fires ${T.min} days after the last one was closed, due ${T.max - T.min} days later` };
+  }
+  if (T.trigger === "CALENDAR") {
+    const n = nextCalendarDate(d);
+    return { start: n, due: n, note: `next firing ${fmt(n)} — never drifts` };
+  }
+  return { start: d, due: addDays(d, 7),
+           note: "you pick the two dates when you run it" };
+}
+
+function nextCalendarDate(from) {
+  const r = T.rule;
+  if (r.kind === "days") return addDays(from, +r.n);
+  if (r.kind === "weeks") {
+    let d = addDays(from, 1);
+    for (let i = 0; i < 400; i++) { if (r.weekdays.includes(d.getDay())) return d; d = addDays(d, 1); }
+    return d;
+  }
+  if (r.kind === "months") {
+    const d = new Date(from); d.setMonth(d.getMonth() + (+r.n || 1)); d.setDate(+r.day || 1); return d;
+  }
+  return from;
+}
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function fmt(d) { return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }); }
+
+function substitute(s) {
+  return s.replace(/\$\{(\w+)\}/g, (m, v) => T.vars.includes(v) ? `«${v}»` : m);
+}
+
+function renderOut() {
+  const a = anchors();
+  const rows = T.defs.map(d => {
+    const s = addDays(d.sb === "START" ? a.start : a.due, +d.so);
+    const u = addDays(d.db === "START" ? a.start : a.due, +d.dd);
+    const bad = u < s;
+    return `<div class="task" data-imp="${d.imp}">
+      <b>${esc(substitute(d.name)) || "<i style='color:#aaa'>(unnamed)</i>"}</b>
+      <small>${fmt(s)} &rarr; ${fmt(u)}${bad ? ' <span style="color:#c62828">· due before start</span>' : ""}</small>
+      ${d.desc ? `<small style="display:block;white-space:pre-wrap;margin-top:3px">${esc(substitute(d.desc))}</small>` : ""}
+    </div>`;
+  }).join("");
+  const unfilled = T.trigger !== "MANUAL" && T.defs.some(d => /\$\{\w+\}/.test(d.name + d.desc));
+  document.getElementById("out").innerHTML =
+    `<p class="when"><b>${TRIG_LABEL[T.trigger]}</b> · ${esc(a.note)}<br>
+      ${T.defs.length} task${T.defs.length === 1 ? "" : "s"} per firing · context <b>${esc(T.context)}</b></p>
+     ${rows}
+     ${unfilled ? `<p class="warn">Variables left unfilled — nobody is present when this fires.</p>` : ""}`;
+}
+function esc(s) { return String(s).replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c])); }
+
+// ---------------------------------------------------------------- shared field builders
+function fName(big) {
+  return `<label class="f"><span>Template name</span>
+    <input type="text" data-b="name" value="${esc(T.name)}" placeholder="What is this template called?"
+      ${big ? 'style="font-size:17px;padding:11px 12px"' : ""}></label>`;
+}
+function fContext() {
+  return `<label class="f"><span>Context</span><select data-b="context">
+    ${CONTEXTS.map(c => `<option ${c === T.context ? "selected" : ""}>${c}</option>`).join("")}
+  </select></label>`;
+}
+function fTriggerPicker() {
+  const t = (k, title, sub) =>
+    `<button class="trig" data-trig="${k}" aria-pressed="${T.trigger === k}">
+       <b>${title}</b><small>${sub}</small></button>`;
+  return `<div class="triggers">
+    ${t("MANUAL", "Run by hand", "You start it. Can use variables.")}
+    ${t("MINMAX", "Every so often", "Clock runs from the last time you did it. Drifts.")}
+    ${t("CALENDAR", "On the calendar", "Fixed dates. Never drifts.")}
+  </div>`;
+}
+function fTriggerFields() {
+  if (T.trigger === "MINMAX") {
+    return `<div class="row">
+      <label class="f"><span>Not before (days)</span><input type="number" data-b="min" value="${T.min}"></label>
+      <label class="f"><span>By at the latest (days)</span><input type="number" data-b="max" value="${T.max}"></label>
+    </div>
+    <p class="hint">Appears after ${T.min} days, overdue after ${T.max}. Both counted from the last time it was closed.</p>
+    ${fStartDate("First one due from")}`;
+  }
+  if (T.trigger === "CALENDAR") {
+    const r = T.rule;
+    const kinds = { days: "Every N days", weeks: "Every N weeks, on…", months: "Every N months, on day…" };
+    let extra = "";
+    if (r.kind === "weeks") {
+      const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      extra = `<label class="f"><span>On</span><div class="vars">${names.map((n, i) =>
+        `<button type="button" class="var" data-wd="${i}"
+           style="${r.weekdays.includes(i) ? "" : "background:#fafafa;color:#5f6368;border-color:#e3e3e6"}">${n}</button>`).join("")}</div></label>`;
+    }
+    if (r.kind === "months")
+      extra = `<label class="f"><span>Day of month</span><input type="number" data-r="day" value="${r.day || 1}"></label>`;
+    return `<div class="row">
+      <label class="f"><span>Repeats</span><select data-r="kind">
+        ${Object.entries(kinds).map(([k, v]) => `<option value="${k}" ${r.kind === k ? "selected" : ""}>${v}</option>`).join("")}
+      </select></label>
+      <label class="f"><span>N</span><input type="number" data-r="n" value="${r.n}"></label>
+    </div>${extra}${fStartDate("Starting from")}`;
+  }
+  return "";
+}
+function fStartDate(label) {
+  return `<label class="f"><span>${label}</span><input type="date" data-b="startDate" value="${T.startDate}"></label>`;
+}
+function fVariables() {
+  if (T.trigger !== "MANUAL") {
+    return `<div class="disabled-note">
+      <b>No variables.</b> Variables are typed in by a human when the template runs — and a
+      ${T.trigger === "MINMAX" ? "min/max" : "calendar"} template fires on its own, with nobody there.
+      Switch to <i>Run by hand</i> to use them.
+    </div>`;
+  }
+  return `<div class="vars">
+    ${T.vars.map(v => `<span class="var">\${${v}}<button data-delvar="${v}">×</button></span>`).join("")}
+    <button class="add" data-addvar>+ variable</button>
+  </div>
+  <p class="hint" style="margin-top:10px">Write <code>\${name}</code> in any task name or description.
+    You fill them in each time you run the template.</p>`;
+}
+function fDefinitions(mode) {
+  // mode: "full" (offsets always shown) | "disclosed" (offsets behind a toggle)
+  const a = anchors();
+  const baseOpts = (sel) => `
+    <option value="START" ${sel === "START" ? "selected" : ""}>${T.trigger === "MANUAL" ? "start date" : "firing date"}</option>
+    <option value="DUE" ${sel === "DUE" ? "selected" : ""}>${T.trigger === "MANUAL" ? "due date" : "due date"}</option>`;
+
+  return T.defs.map((d, i) => `
+    <div class="def ${mode === "disclosed" && !d.open ? "closed" : ""}" data-i="${i}">
+      <div class="head">
+        <span class="idx">${i + 1}</span>
+        <input type="text" data-d="name" value="${esc(d.name)}" placeholder="Task name">
+        ${mode === "disclosed"
+          ? `<button class="icon" data-toggle title="Dates, importance, description">${d.open ? "▴" : "▾"}</button>` : ""}
+        ${T.defs.length > 1 ? `<button class="icon" data-del title="Remove">×</button>` : ""}
+      </div>
+      <div class="more">
+        <div class="row">
+          <label class="f"><span>Starts</span><div class="row" style="gap:6px">
+            <input type="number" data-d="so" value="${d.so}" style="flex:0 0 70px">
+            <select data-d="sb">${baseOpts(d.sb)}</select></div></label>
+          <label class="f"><span>Due</span><div class="row" style="gap:6px">
+            <input type="number" data-d="dd" value="${d.dd}" style="flex:0 0 70px">
+            <select data-d="db">${baseOpts(d.db)}</select></div></label>
+        </div>
+        <label class="f"><span>Importance</span><select data-d="imp">
+          ${IMPORTANCE.map(x => `<option ${x === d.imp ? "selected" : ""}>${x}</option>`).join("")}
+        </select></label>
+        <label class="f" style="margin-bottom:0"><span>Description</span>
+          <textarea data-d="desc">${esc(d.desc)}</textarea></label>
+      </div>
+    </div>`).join("") +
+    `<button class="add" data-adddef>+ add another task</button>`;
+}
+
+// ---------------------------------------------------------------- variants
+const VARIANTS = {
+  A: "Adaptive form — one screen, trigger first, definitions progressively disclosed",
+  B: "Three forms — a chooser routes to a screen shaped for that trigger",
+  C: "Editable sentence — the template reads as prose, details on demand"
+};
+
+function renderA() {
+  return `<div class="card">
+    ${fName(true)}
+    ${fContext()}
+    <h2 class="sec" style="margin-top:20px">When does it fire?</h2>
+    ${fTriggerPicker()}
+    ${fTriggerFields()}
+  </div>
+  <div class="card">
+    <h2 class="sec">Tasks it creates</h2>
+    ${fDefinitions("disclosed")}
+  </div>
+  <div class="card">
+    <h2 class="sec">Variables</h2>
+    ${fVariables()}
+  </div>`;
+}
+
+function renderB() {
+  if (!bStep) {
+    return `<div class="card"><h2 class="sec">What are you setting up?</h2>
+      <div class="chooser">
+        <button data-bstep="MANUAL"><b>A template for an event</b>
+          <small>Several tasks around one date — prepare, do, follow up. You run it by hand and fill in the details.</small></button>
+        <button data-bstep="MINMAX"><b>Something that comes round again</b>
+          <small>Every so often, counted from the last time you did it.</small></button>
+        <button data-bstep="CALENDAR"><b>Something on the calendar</b>
+          <small>Fixed dates that never drift.</small></button>
+      </div></div>`;
+  }
+  T.trigger = bStep;
+  if (bStep === "MINMAX" || bStep === "CALENDAR") {
+    // Deliberately minimal: this is what all 44 of your recurring templates need.
+    return `<div class="card">
+      <button class="back" data-bstep="">← something else</button>
+      <h2 class="sec">${bStep === "MINMAX" ? "Comes round again" : "On the calendar"}</h2>
+      ${fName(true)}
+      ${fContext()}
+      ${fTriggerFields()}
+      <p class="hint" style="margin-top:14px">One task per firing, named after the template.</p>
+    </div>`;
+  }
+  return `<div class="card">
+      <button class="back" data-bstep="">← something else</button>
+      <h2 class="sec">Template for an event</h2>
+      ${fName(true)}
+      ${fContext()}
+    </div>
+    <div class="card"><h2 class="sec">Variables</h2>${fVariables()}</div>
+    <div class="card"><h2 class="sec">Tasks it creates</h2>${fDefinitions("full")}</div>`;
+}
+
+function renderC() {
+  const r = T.rule;
+  const when =
+    T.trigger === "MANUAL"
+      ? `<button class="slot" data-trigcycle>when I run it</button>`
+      : T.trigger === "MINMAX"
+        ? `<button class="slot" data-trigcycle>every</button>
+           <input class="slot" type="number" data-b="min" value="${T.min}" style="width:56px">–<input
+             class="slot" type="number" data-b="max" value="${T.max}" style="width:56px"> days`
+        : `<button class="slot" data-trigcycle>every</button>
+           <input class="slot" type="number" data-r="n" value="${r.n}" style="width:52px">
+           <select class="slot" data-r="kind">
+             <option value="days" ${r.kind === "days" ? "selected" : ""}>days</option>
+             <option value="weeks" ${r.kind === "weeks" ? "selected" : ""}>weeks</option>
+             <option value="months" ${r.kind === "months" ? "selected" : ""}>months</option>
+           </select>`;
+  return `<div class="card">
+    <p class="sentence">
+      <input class="slot" type="text" data-b="name" value="${esc(T.name)}" placeholder="Template name" style="width:auto;min-width:200px">,
+      in <select class="slot" data-b="context">${CONTEXTS.map(c => `<option ${c === T.context ? "selected" : ""}>${c}</option>`).join("")}</select>,
+      creates <b>${T.defs.length}</b> task${T.defs.length === 1 ? "" : "s"}
+      ${when}.
+    </p>
+    <p class="hint" style="margin-top:14px">Click any underlined word to change it. Cycle the trigger by clicking it.</p>
+    <details class="drawer" open>
+      <summary>The ${T.defs.length} task${T.defs.length === 1 ? "" : "s"} it creates</summary>
+      ${fDefinitions("disclosed")}
+    </details>
+    <details class="drawer">
+      <summary>Variables</summary>
+      ${fVariables()}
+    </details>
+    ${T.trigger !== "MANUAL" ? `<details class="drawer"><summary>Start date</summary>${fStartDate("Starting from")}</details>` : ""}
+  </div>`;
+}
+
+// ---------------------------------------------------------------- wiring
+function render(v) {
+  const host = document.getElementById("form");
+  host.innerHTML = v === "A" ? renderA() : v === "B" ? renderB() : renderC();
+  renderOut();
+  renderSeeds();
+
+  host.oninput = e => {
+    const t = e.target;
+    const defEl = t.closest(".def");
+    if (t.dataset.b) { T[t.dataset.b] = t.value; repaint(v); }
+    else if (t.dataset.r) { T.rule[t.dataset.r] = t.dataset.r === "kind" ? t.value : t.value; repaint(v); }
+    else if (defEl && t.dataset.d) {
+      T.defs[+defEl.dataset.i][t.dataset.d] = t.value;
+      if (t.dataset.d === "name" || t.dataset.d === "desc") renderOut(); else repaint(v);
+    }
+  };
+
+  host.onclick = e => {
+    const t = e.target.closest("button");
+    if (!t) return;
+    const defEl = t.closest(".def");
+    if (t.dataset.trig) { T.trigger = t.dataset.trig; repaint(v); }
+    else if (t.dataset.trigcycle !== undefined) {
+      const order = ["MANUAL", "MINMAX", "CALENDAR"];
+      T.trigger = order[(order.indexOf(T.trigger) + 1) % 3]; repaint(v);
+    }
+    else if (t.dataset.bstep !== undefined) { bStep = t.dataset.bstep || null; repaint(v); }
+    else if (t.dataset.adddef !== undefined) { T.defs.push(def("", { open: true })); T.defs.at(-1).open = true; repaint(v); }
+    else if (t.dataset.del !== undefined) { T.defs.splice(+defEl.dataset.i, 1); repaint(v); }
+    else if (t.dataset.toggle !== undefined) { const d = T.defs[+defEl.dataset.i]; d.open = !d.open; repaint(v); }
+    else if (t.dataset.addvar !== undefined) {
+      const n = prompt("Variable name (letters only, no ${}):");
+      if (n && /^\w+$/.test(n)) { T.vars.push(n); repaint(v); }
+    }
+    else if (t.dataset.delvar) { T.vars = T.vars.filter(x => x !== t.dataset.delvar); repaint(v); }
+    else if (t.dataset.wd !== undefined) {
+      const i = +t.dataset.wd, w = T.rule.weekdays;
+      T.rule.weekdays = w.includes(i) ? w.filter(x => x !== i) : [...w, i].sort();
+      repaint(v);
+    }
+  };
+}
+function repaint(v) {
+  const a = document.activeElement;
+  const key = a && (a.dataset.b || a.dataset.d || a.dataset.r);
+  const di = a && a.closest(".def") ? a.closest(".def").dataset.i : null;
+  const pos = a && a.setSelectionRange ? a.selectionStart : null;
+  render(v);
+  if (key) {
+    const sel = di !== null ? `.def[data-i="${di}"] [data-d="${key}"]`
+      : (a.dataset.b ? `[data-b="${key}"]` : `[data-r="${key}"]`);
+    const el = document.querySelector(sel);
+    if (el) { el.focus(); if (pos !== null && el.setSelectionRange) try { el.setSelectionRange(pos, pos); } catch (_) {} }
+  }
+}
+
+function renderSeeds() {
+  document.getElementById("seeds").innerHTML = Object.entries(SEEDS).map(([k, s]) =>
+    `<button class="seed ${k === seedKey ? "on" : ""} ${s.hack ? "hack" : ""}" data-seed="${k}"
+      ${s.hack ? 'title="a workaround: the model could not say this"' : ""}>${s.label}</button>`).join("");
+}
+document.getElementById("seeds").onclick = e => {
+  const b = e.target.closest("[data-seed]");
+  if (!b) return;
+  seedKey = b.dataset.seed;
+  T = clone(SEEDS[seedKey].t);
+  bStep = current() === "B" ? T.trigger : null;
+  paint();
+};
+
+// ---------------------------------------------------------------- switcher
+const keys = Object.keys(VARIANTS);
+function current() {
+  const v = new URLSearchParams(location.search).get("variant");
+  return keys.includes(v) ? v : "A";
+}
+function go(v) {
+  const u = new URL(location);
+  u.searchParams.set("variant", v);
+  history.replaceState({}, "", u);
+  bStep = v === "B" ? T.trigger : null;
+  paint();
+}
+function paint() {
+  const v = current();
+  document.getElementById("label").innerHTML = `<b>${v}</b> — ${VARIANTS[v]}`;
+  render(v);
+}
+document.getElementById("prev").onclick = () => go(keys[(keys.indexOf(current()) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => go(keys[(keys.indexOf(current()) + 1) % keys.length]);
+document.addEventListener("keydown", e => {
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+paint();
+</script>
+</body>
+</html>

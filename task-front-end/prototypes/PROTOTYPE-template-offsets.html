@@ -1,0 +1,516 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #36, question 4.
+  "One anchor with two offsets per definition — how do you make that user friendly?"
+
+  Three radically different ways to express the same two numbers:
+    A  timeline      — drag the bars around the anchor line (direct manipulation)
+    B  phrasing      — "starts 2 weeks before, due a week before" (language, no arithmetic)
+    C  numbers       — two spinners with the resolved dates echoed loudly (the honest baseline)
+
+  Switch via ?variant=A|B|C, the floating bar, or arrow keys.
+  Switch template with the chips at the top.
+
+  Every variant edits the SAME model and shows the SAME resolved dates, so the only
+  thing that differs is how you say it.
+
+  Also being tested here, one row up: the anchor itself is NAMED by the template author
+  ("When is the workshop?", "When do you leave?") instead of being a generic "start date".
+  Scheduled triggers name it themselves and the field is read-only.
+
+  Seeded from ~/portal-archive/2026-08-04/ — offsets are the real ones.
+
+  DELETE ME once the question is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — anchor and offsets</title>
+<style>
+  :root {
+    --focus: #e53935; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6;
+    --surface: #fff; --bg: #f6f6f8; --accent: #3f51b5; --anchor: #c62828;
+    --bar: #6f7bd6; --bar-soft: #eef0fb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 90px;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 14px;
+    position: sticky; top: 0; z-index: 5; flex-wrap: wrap;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header.app .seeds { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .seed {
+    font-size: 12px; padding: 4px 11px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line); color: var(--muted); background: #fafafa;
+  }
+  .seed:hover { border-color: var(--accent); color: var(--accent); }
+  .seed.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px; margin-bottom: 16px;
+  }
+  h2.sec {
+    font-size: 12px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+  input[type=text], input[type=number], input[type=date], select {
+    padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+    font: inherit; background: #fff; color: var(--ink);
+  }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+  /* ---------- anchor row ---------- */
+  .anchor-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .anchor-row label { display: block; }
+  .anchor-row label > span {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 500;
+  }
+  .anchor-name { width: 260px; font-weight: 600; color: var(--anchor); }
+  .anchor-ro {
+    padding: 7px 10px; border: 1px dashed var(--line); border-radius: 8px;
+    color: var(--muted); background: #fafafa; font-size: 14px;
+  }
+
+  /* ---------- shared definition row ---------- */
+  .def {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    margin-bottom: 10px; background: #fcfcfd;
+  }
+  .def .nm { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .def .nm .idx { font-size: 11px; color: var(--muted); width: 16px; text-align: right; }
+  .def .nm input { flex: 1; }
+  .dates {
+    font-size: 12.5px; color: var(--muted); margin-top: 8px;
+  }
+  .dates b { color: var(--ink); font-weight: 600; }
+  .dates .bad { color: var(--anchor); font-weight: 600; }
+
+  /* ---------- A: timeline ---------- */
+  .tl-wrap { position: relative; padding: 0 0 4px; overflow-x: auto; }
+  .tl-ruler {
+    position: relative; height: 26px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
+  }
+  .tl-ruler .tick {
+    position: absolute; top: 0; bottom: 0; border-left: 1px solid #ececed;
+    font-size: 10.5px; color: var(--muted); padding-left: 4px; white-space: nowrap;
+  }
+  .tl-anchor {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: var(--anchor); z-index: 3;
+  }
+  .tl-anchor span {
+    position: absolute; top: -1px; left: 5px; font-size: 11px; color: var(--anchor);
+    font-weight: 600; white-space: nowrap; background: var(--surface); padding: 0 3px;
+  }
+  .tl-row {
+    position: relative; height: 44px; border-bottom: 1px dashed #f0f0f2;
+  }
+  .tl-bar {
+    position: absolute; top: 8px; height: 28px; background: var(--bar-soft);
+    border: 1.5px solid var(--bar); border-radius: 7px; cursor: grab;
+    display: flex; align-items: center; padding: 0 12px; overflow: hidden;
+    font-size: 12.5px; color: #2b3480; white-space: nowrap; user-select: none;
+    touch-action: none; min-width: 22px;
+  }
+  .tl-bar.dragging { cursor: grabbing; box-shadow: 0 2px 8px rgba(63,81,181,.28); }
+  .tl-bar.bad { border-color: var(--anchor); background: #fdecec; color: var(--anchor); }
+  .tl-h {
+    position: absolute; top: 0; bottom: 0; width: 10px; cursor: ew-resize; z-index: 2;
+  }
+  .tl-h.l { left: 0; } .tl-h.r { right: 0; }
+  .tl-h::after {
+    content: ""; position: absolute; top: 8px; bottom: 8px; left: 4px;
+    width: 2px; background: var(--bar); border-radius: 2px;
+  }
+  .tl-legend { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+
+  /* ---------- B: phrasing ---------- */
+  .phrase { font-size: 15px; line-height: 2.1; }
+  .phrase select, .phrase input[type=number] {
+    border: 0; border-bottom: 2px dashed var(--accent); border-radius: 0;
+    background: none; color: var(--accent); font: inherit; font-weight: 600;
+    padding: 0 2px; cursor: pointer;
+  }
+  .phrase input[type=number] { width: 58px; border-bottom-style: solid; }
+  .phrase select:hover { background: var(--bar-soft); }
+
+  /* ---------- C: numbers ---------- */
+  .nums { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; }
+  .nums label > span {
+    display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 500;
+  }
+  .nums input { width: 92px; text-align: center; font-size: 16px; }
+  .echo {
+    margin-left: auto; text-align: right; font-size: 14px; line-height: 1.35;
+  }
+  .echo b { display: block; font-size: 15px; }
+  .echo small { color: var(--muted); font-size: 12px; }
+
+  button.add {
+    border: 1px dashed var(--line); background: #fff; color: var(--accent);
+    padding: 9px 14px; border-radius: 9px; cursor: pointer; font: inherit; font-weight: 500;
+  }
+  button.add:hover { border-color: var(--accent); background: #f7f8ff; }
+  .icon {
+    flex: none; border: 1px solid var(--line); background: #fff; border-radius: 7px;
+    width: 30px; height: 30px; cursor: pointer; color: var(--muted); font: inherit;
+  }
+  .icon:hover { border-color: var(--anchor); color: var(--anchor); }
+
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: rgba(28,27,32,.94); color: #fff; padding: 10px 18px;
+    display: flex; align-items: center; gap: 14px; font-size: 13px;
+  }
+  #bar button {
+    background: #3b3a42; color: #fff; border: 0; border-radius: 7px;
+    padding: 6px 13px; cursor: pointer; font: inherit;
+  }
+  #bar #label { flex: 1; }
+  #bar #label b { color: #b9c0ff; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Anchor &amp; offsets</h1>
+  <div class="seeds" id="seeds"></div>
+</header>
+
+<main>
+  <div class="card">
+    <h2 class="sec">The anchor</h2>
+    <div class="anchor-row" id="anchor"></div>
+    <p class="hint" id="anchorHint"></p>
+  </div>
+  <div class="card">
+    <h2 class="sec">Tasks it creates</h2>
+    <div id="defs"></div>
+  </div>
+</main>
+
+<div id="bar">
+  <button id="prev">←</button>
+  <button id="next">→</button>
+  <span id="label"></span>
+</div>
+
+<script>
+// ---------------------------------------------------------------- real data
+const SEEDS = {
+  workshop: {
+    label: "Opvolgen workshop",
+    t: {
+      trigger: "MANUAL", anchorLabel: "When is the workshop?", anchorDate: iso(0),
+      defs: [
+        d("${sprekers} voorbereidingsmail voor workshop op ${school} sturen", -14, -7),
+        d("${sprekers} feedback vragen over ${onderwerpen} voor ${school}", 1, 7),
+        d("Lector ${lector} review vragen over sessie ${onderwerpen}", 1, 7),
+        d("Is er feedback binnen gekomen voor ${sprekers}?", 7, 14)
+      ]
+    }
+  },
+  fish: {
+    label: "Vissen eten geven (5 dagen)",
+    t: {
+      trigger: "MANUAL", anchorLabel: "When do you leave?", anchorDate: iso(0),
+      defs: [0, 1, 2, 3, 4].map(i => d("Vissen eten geven", i, i))
+    }
+  },
+  bedding: {
+    label: "Beddengoed wassen / bed stofzuigen",
+    t: {
+      trigger: "MINMAX", min: 10, max: 21, anchorLabel: "", anchorDate: iso(0),
+      defs: [ d("Beddengoed wassen", 0, 11), d("Bed stofzuigen", 0, 11) ]
+    }
+  },
+  tandarts: {
+    label: "Tandarts (yearly)",
+    t: {
+      trigger: "CALENDAR", anchorLabel: "", anchorDate: iso(0),
+      defs: [ d("Tandarts", 0, 14) ]
+    }
+  }
+};
+function d(name, so, dd) { return { name, so, dd }; }
+function iso(plus) { const x = new Date(); x.setDate(x.getDate() + plus); return x.toISOString().slice(0, 10); }
+
+let seedKey = "workshop";
+let T = clone(SEEDS[seedKey].t);
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+// ---------------------------------------------------------------- anchor semantics
+function anchorInfo() {
+  if (T.trigger === "MINMAX")
+    return { label: "The day it comes round", ro: true,
+             hint: `Fires ${T.min} days after the last one was closed. Nothing to type — the trigger knows.` };
+  if (T.trigger === "CALENDAR")
+    return { label: "The day the rule lands on", ro: true,
+             hint: "Fires on the date the calendar rule produces. Nothing to type." };
+  return { label: T.anchorLabel || "The date it is about", ro: false,
+           hint: "You name this question, and answer it each time you run the template." };
+}
+function anchorDate() { return new Date(T.anchorDate + "T00:00:00"); }
+function addDays(dt, n) { const x = new Date(dt); x.setDate(x.getDate() + n); return x; }
+function fmt(dt) { return dt.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }); }
+function esc(s) { return String(s).replace(/[<>&"]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c])); }
+
+function resolved(def) {
+  const a = anchorDate();
+  return { s: addDays(a, +def.so), u: addDays(a, +def.dd), bad: (+def.dd) < (+def.so) };
+}
+
+// ---------------------------------------------------------------- variant A: timeline
+function renderTimeline() {
+  const los = T.defs.map(x => +x.so).concat(0), his = T.defs.map(x => +x.dd).concat(0);
+  let lo = Math.min(...los), hi = Math.max(...his);
+  const pad = Math.max(2, Math.round((hi - lo) * 0.12));
+  lo -= pad; hi += pad;
+  const span = Math.max(1, hi - lo);
+  const W = 100;                                   // percent
+  const x = n => ((n - lo) / span) * W;
+  const step = span <= 12 ? 1 : span <= 40 ? 7 : span <= 120 ? 30 : 90;
+
+  let ticks = "";
+  for (let n = Math.ceil(lo / step) * step; n <= hi; n += step) {
+    ticks += `<div class="tick" style="left:${x(n)}%">${n > 0 ? "+" : ""}${n}d</div>`;
+  }
+  const rows = T.defs.map((def, i) => {
+    const r = resolved(def);
+    const left = x(Math.min(+def.so, +def.dd)), right = x(Math.max(+def.so, +def.dd));
+    return `<div class="tl-row">
+      <div class="tl-bar ${r.bad ? "bad" : ""}" data-i="${i}"
+           style="left:${left}%; width:${Math.max(right - left, 0)}%">
+        <div class="tl-h l" data-h="l"></div>
+        <span>${esc(def.name).slice(0, 40)}</span>
+        <div class="tl-h r" data-h="r"></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  const list = T.defs.map((def, i) => {
+    const r = resolved(def);
+    return `<div class="dates" style="margin-top:6px">
+      <b>${esc(def.name)}</b> — ${fmt(r.s)} &rarr; ${fmt(r.u)}
+      <span style="color:#9e9e9e">(${signed(def.so)} &rarr; ${signed(def.dd)})</span>
+      ${r.bad ? '<span class="bad">· due before start</span>' : ""}</div>`;
+  }).join("");
+
+  return `<div class="tl-wrap" id="tl">
+      <div class="tl-ruler">${ticks}
+        <div class="tl-anchor" style="left:${x(0)}%"><span>${esc(anchorInfo().label)}</span></div>
+      </div>
+      <div style="position:relative">
+        <div class="tl-anchor" style="left:${x(0)}%; opacity:.35"></div>
+        ${rows}
+      </div>
+    </div>
+    <div class="tl-legend">Drag a bar to move it · drag its edges to change start or due</div>
+    <div style="margin-top:14px">${list}</div>
+    <button class="add" data-adddef style="margin-top:12px">+ add another task</button>`;
+}
+function signed(n) { return (+n > 0 ? "+" : "") + n + "d"; }
+
+// ---------------------------------------------------------------- variant B: phrasing
+const VOCAB = [
+  [-21, "3 weeks before"], [-14, "2 weeks before"], [-7, "a week before"],
+  [-3, "3 days before"], [-2, "2 days before"], [-1, "the day before"],
+  [0, "on the day"], [1, "the day after"], [2, "2 days later"], [3, "3 days later"],
+  [4, "4 days later"], [7, "a week later"], [14, "2 weeks later"], [21, "3 weeks later"]
+];
+function phraseSelect(field, val) {
+  const known = VOCAB.some(([n]) => n === +val);
+  const opts = VOCAB.map(([n, t]) => `<option value="${n}" ${n === +val ? "selected" : ""}>${t}</option>`).join("");
+  return `<select data-p="${field}">${opts}
+      <option value="custom" ${known ? "" : "selected"}>${known ? "something else…" : "exactly…"}</option>
+    </select>${known ? "" : ` <input type="number" data-d="${field}" value="${val}"> days`}`;
+}
+function renderPhrasing() {
+  const a = anchorInfo();
+  const noun = a.ro ? "it fires" : "the day";
+  return T.defs.map((def, i) => {
+    const r = resolved(def);
+    return `<div class="def" data-i="${i}">
+      <div class="nm"><span class="idx">${i + 1}</span>
+        <input type="text" data-d="name" value="${esc(def.name)}" placeholder="Task name">
+        ${T.defs.length > 1 ? '<button class="icon" data-del>×</button>' : ""}</div>
+      <div class="phrase">
+        Appears ${phraseSelect("so", def.so)}, and is due ${phraseSelect("dd", def.dd)}.
+      </div>
+      <div class="dates">Relative to <b>${esc(a.label.replace(/\?$/, ""))}</b> —
+        this time that means <b>${fmt(r.s)}</b> &rarr; <b>${fmt(r.u)}</b>
+        ${r.bad ? '<span class="bad">· due before it appears</span>' : ""}</div>
+    </div>`;
+  }).join("") + `<button class="add" data-adddef>+ add another task</button>`;
+}
+
+// ---------------------------------------------------------------- variant C: numbers
+function renderNumbers() {
+  const a = anchorInfo();
+  return T.defs.map((def, i) => {
+    const r = resolved(def);
+    return `<div class="def" data-i="${i}">
+      <div class="nm"><span class="idx">${i + 1}</span>
+        <input type="text" data-d="name" value="${esc(def.name)}" placeholder="Task name">
+        ${T.defs.length > 1 ? '<button class="icon" data-del>×</button>' : ""}</div>
+      <div class="nums">
+        <label><span>Starts (days from anchor)</span>
+          <input type="number" data-d="so" value="${def.so}"></label>
+        <label><span>Due (days from anchor)</span>
+          <input type="number" data-d="dd" value="${def.dd}"></label>
+        <div class="echo">
+          <b class="${r.bad ? "bad" : ""}">${fmt(r.s)} &rarr; ${fmt(r.u)}</b>
+          <small>if ${esc(a.label.replace(/\?$/, "").toLowerCase())} is ${fmt(anchorDate())}</small>
+        </div>
+      </div>
+    </div>`;
+  }).join("") + `<button class="add" data-adddef>+ add another task</button>`;
+}
+
+// ---------------------------------------------------------------- anchor row
+function renderAnchor() {
+  const a = anchorInfo();
+  const el = document.getElementById("anchor");
+  el.innerHTML = a.ro
+    ? `<label><span>Anchor</span><div class="anchor-ro">${esc(a.label)}</div></label>
+       <label><span>Preview it as</span><input type="date" data-a="anchorDate" value="${T.anchorDate}"></label>`
+    : `<label><span>What do you call this date?</span>
+         <input type="text" class="anchor-name" data-a="anchorLabel"
+           value="${esc(T.anchorLabel)}" placeholder="When is the workshop?"></label>
+       <label><span>Preview it as</span><input type="date" data-a="anchorDate" value="${T.anchorDate}"></label>`;
+  document.getElementById("anchorHint").textContent = a.hint;
+}
+
+// ---------------------------------------------------------------- wiring
+const VARIANTS = {
+  A: "Timeline — drag the bars around the anchor",
+  B: "Phrasing — “2 weeks before”, no arithmetic",
+  C: "Numbers — two spinners, dates echoed loudly"
+};
+
+function render(v) {
+  renderAnchor();
+  const host = document.getElementById("defs");
+  host.innerHTML = v === "A" ? renderTimeline() : v === "B" ? renderPhrasing() : renderNumbers();
+  renderSeeds();
+  if (v === "A") wireDrag();
+}
+
+document.body.addEventListener("input", e => {
+  const t = e.target, defEl = t.closest(".def");
+  if (t.dataset.a) { T[t.dataset.a] = t.value; repaint(); }
+  else if (defEl && t.dataset.d) {
+    T.defs[+defEl.dataset.i][t.dataset.d] = t.value;
+    if (t.dataset.d === "name") { renderOutOnly(); } else repaint();
+  }
+});
+document.body.addEventListener("change", e => {
+  const t = e.target, defEl = t.closest(".def");
+  if (t.dataset.p && defEl) {
+    if (t.value === "custom") T.defs[+defEl.dataset.i][t.dataset.p] = 0;
+    else T.defs[+defEl.dataset.i][t.dataset.p] = +t.value;
+    repaint();
+  }
+});
+document.body.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const defEl = b.closest(".def");
+  if (b.dataset.adddef !== undefined) { T.defs.push(d("", 0, 7)); repaint(); }
+  else if (b.dataset.del !== undefined && defEl) { T.defs.splice(+defEl.dataset.i, 1); repaint(); }
+});
+
+function renderOutOnly() { /* names are echoed on next full paint; cheap enough to skip */ }
+function repaint() {
+  const a = document.activeElement;
+  const key = a && (a.dataset.d || a.dataset.a || a.dataset.p);
+  const di = a && a.closest(".def") ? a.closest(".def").dataset.i : null;
+  const pos = a && a.setSelectionRange ? a.selectionStart : null;
+  render(current());
+  if (key) {
+    const attr = a.dataset.d ? "d" : a.dataset.a ? "a" : "p";
+    const sel = di !== null ? `.def[data-i="${di}"] [data-${attr}="${key}"]` : `[data-${attr}="${key}"]`;
+    const el = document.querySelector(sel);
+    if (el) { el.focus(); if (pos !== null && el.setSelectionRange) try { el.setSelectionRange(pos, pos); } catch (_) {} }
+  }
+}
+
+// ---------------------------------------------------------------- timeline drag
+function wireDrag() {
+  const wrap = document.getElementById("tl");
+  if (!wrap) return;
+  const los = T.defs.map(x => +x.so).concat(0), his = T.defs.map(x => +x.dd).concat(0);
+  let lo = Math.min(...los), hi = Math.max(...his);
+  const pad = Math.max(2, Math.round((hi - lo) * 0.12));
+  lo -= pad; hi += pad;
+  const span = Math.max(1, hi - lo);
+
+  wrap.querySelectorAll(".tl-bar").forEach(bar => {
+    let mode = null, startX = 0, so0 = 0, dd0 = 0, pxPerDay = 1;
+    const i = +bar.dataset.i;
+    bar.addEventListener("pointerdown", ev => {
+      mode = ev.target.dataset.h || "move";
+      startX = ev.clientX;
+      so0 = +T.defs[i].so; dd0 = +T.defs[i].dd;
+      pxPerDay = wrap.clientWidth / span;
+      bar.classList.add("dragging");
+      bar.setPointerCapture(ev.pointerId);
+      ev.preventDefault();
+    });
+    bar.addEventListener("pointermove", ev => {
+      if (!mode) return;
+      const days = Math.round((ev.clientX - startX) / pxPerDay);
+      if (mode === "move") { T.defs[i].so = so0 + days; T.defs[i].dd = dd0 + days; }
+      else if (mode === "l") { T.defs[i].so = Math.min(so0 + days, dd0); }
+      else { T.defs[i].dd = Math.max(dd0 + days, so0); }
+      render("A");
+    });
+    const end = ev => { if (!mode) return; mode = null; bar.classList.remove("dragging"); render("A"); };
+    bar.addEventListener("pointerup", end);
+    bar.addEventListener("pointercancel", end);
+  });
+}
+
+// ---------------------------------------------------------------- seeds + switcher
+function renderSeeds() {
+  document.getElementById("seeds").innerHTML = Object.entries(SEEDS).map(([k, s]) =>
+    `<button class="seed ${k === seedKey ? "on" : ""}" data-seed="${k}">${s.label}</button>`).join("");
+}
+document.getElementById("seeds").onclick = e => {
+  const b = e.target.closest("[data-seed]"); if (!b) return;
+  seedKey = b.dataset.seed; T = clone(SEEDS[seedKey].t); paint();
+};
+
+const keys = Object.keys(VARIANTS);
+function current() {
+  const v = new URLSearchParams(location.search).get("variant");
+  return keys.includes(v) ? v : "A";
+}
+function go(v) {
+  const u = new URL(location); u.searchParams.set("variant", v);
+  history.replaceState({}, "", u); paint();
+}
+function paint() {
+  const v = current();
+  document.getElementById("label").innerHTML = `<b>${v}</b> — ${VARIANTS[v]}`;
+  render(v);
+}
+document.getElementById("prev").onclick = () => go(keys[(keys.indexOf(current()) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => go(keys[(keys.indexOf(current()) + 1) % keys.length]);
+document.addEventListener("keydown", e => {
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+paint();
+</script>
+</body>
+</html>

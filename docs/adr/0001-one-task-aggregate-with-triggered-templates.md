@@ -145,6 +145,57 @@ The anchor therefore reads tasks directly — the latest `completedOn` among the
 tasks — and a partly-completed, partly-cancelled firing needs no rule, because there is no round to
 judge. Suppression is unaffected and was always task-level.
 
+### The calendar vocabulary swaps *yearly* for *the Nth weekday of the month*
+
+Amended by [Rethink the template UI](https://github.com/stainii/task/issues/36), 2026-08-08.
+See [ADR-0013](0013-one-anchor-and-a-trigger-that-shapes-the-form.md).
+
+This ADR names four calendar rules, the fourth being *yearly on a date*. That one is redundant:
+"every 12 months on day 14" plus an anchor in March **is** "yearly on 14 March", so the model needs
+no fourth case. It survives as a UI unit only.
+
+The slot is spent on `NthWeekday(n, ordinal, weekday)` instead, because
+[#36](https://github.com/stainii/task/issues/36)'s own motivating example — *"every first
+Saturday"* — could not be expressed by the other three. `Months(1, day)` gives a fixed date, not a
+weekday, and `Weeks(4, [Sat])` drifts off the month (1 Aug, 29 Aug, 26 Sep). The same hole
+swallowed "last Friday of the month".
+
+The count is unchanged at four rules.
+
+### Templates are deactivated, not deleted
+
+Amended by the same ticket.
+
+This ADR states that "there is no delete endpoint for tasks, only for templates". The asymmetry was
+reasoned from tasks being where history lives — but a template is the **group key** for that
+history, and [#35](https://github.com/stainii/task/issues/35) measured what cutting it costs:
+**tasks reference 115 distinct templates, 43 survive, and 3,954 of 8,086 recurring tasks (49%)
+point at a template that no longer exists.**
+
+Cheap in portal, where `flowId` was decoration. Not cheap now that `taskTemplateId` is load-bearing
+for the min/max anchor and [ADR-0011](0011-completion-is-a-task-fact-the-template-reads.md) has the
+template *read* its tasks.
+
+Templates are therefore **deactivated**, which stops them firing and hides them from the list.
+Real deletion survives only while a template has no tasks at all.
+
+### `context` and `importance` move back to the definition (partly)
+
+Amended by the same ticket.
+
+This ADR gives the template "name, context, importance, description, variables, one or more
+`TaskDefinition`s". Portal had context, importance and description on the **definition**, and the
+move happened silently while merging the two aggregates. The real data splits the difference:
+
+- **`context` stays on the template** — it never varies inside one (11 definitions, 3 templates,
+  zero variation), and [ADR-0006](0006-one-overview-grouped-by-a-swappable-axis.md) made it the
+  overview's grouping axis.
+- **`importance` and `description` go back to the definition**, because importance does vary
+  meaningfully (`Opvolgen workshop` has one `NOT_SO_IMPORTANT` chase-up among three `IMPORTANT`
+  tasks) and a description is task instructions, not a description of the template.
+- **`variableNames` is deleted outright** — variables are inferred from the `${…}` in the text.
+  Portal's list had already drifted: `Nagaan of workshop mogelijk is` declares four and uses three.
+
 ### Backdating gets its field
 
 Amended by the same ticket. This ADR noted that reproducing portal's explicit "I did it last Tuesday"
