@@ -206,3 +206,24 @@ it breaks the context.
   a later design ticket rather than by new evidence (REC-005 was the first, in
   [#8](https://github.com/stainii/task/issues/8)) — worth #16 knowing that the ledger's verdicts are
   a moving target and the ADRs outrank them.
+
+## Amendments
+
+### The same-date rule is subsumed by ADR-0017's firing predicate
+
+Amended by [Do missed calendar firings need catching up?](https://github.com/stainii/task/issues/41),
+2026-08-09. See [ADR-0017](0017-a-calendar-template-fires-for-its-latest-unclosed-date.md).
+
+This ADR added *"a `Calendar` trigger fires for date D only if no task from that template already
+carries firing date D"*, and deferred **missed** dates to #41. Answering that question replaced the
+rule rather than extending it.
+
+ADR-0017's predicate fires for `D`, the rule's latest occurrence on or before today, when the
+template has no open task and `D` is both at or after `active_since` and strictly after the firing
+date of the most recent **closed** task. A task already carrying today's date is then either open,
+and the open-task rule stops it, or closed with firing date `D`, and the last clause stops it.
+
+So the same-date rule is **deleted, not kept alongside**. #11 implements one predicate. Two rules
+covering one condition is how two implementations come to disagree at an edge — and here the edge is
+a date boundary, which is where [#10](https://github.com/stainii/task/issues/10)'s convention says
+the bugs are.

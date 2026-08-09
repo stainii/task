@@ -90,6 +90,23 @@ say "wash the bedding *and* hoover the bed" as two tasks rather than one name wi
 A template is never deleted once it has tasks; it is **deactivated**, which stops it firing and
 hides it from the list. Its tasks keep pointing at something real.
 
+### Active since
+
+**The date a task template began firing under its current rule.**
+
+Written on creation, on reactivation, and whenever the **trigger** changes — editing a task
+definition's name or description does not touch it. Those three cases are not three rules; they are
+what that one sentence means.
+
+It does two jobs. It is the floor for a **calendar** trigger, which never looks for missed dates
+before it — so a template made today with a backdated **anchor**, or switched back on after months
+away, does not fire for a date it had no business firing on. And it seeds a **min/max** trigger that
+has no closed task yet, so a new template first fires at *active since + min* rather than the moment
+you save it.
+
+Resolved in [#41](https://github.com/stainii/task/issues/41),
+[ADR-0017](docs/adr/0017-a-calendar-template-fires-for-its-latest-unclosed-date.md).
+
 ### Task definition
 
 The description of one task a template will produce. Carries the name, **importance** and
@@ -156,8 +173,16 @@ what "when did I last actually do this" means.
   short months), and `NthWeekday(n, ordinal, weekday)` — *the first Saturday*, *the last Friday*.
   **Never drifts.** Use it when the date is the date, whether or not you did the last one.
   *Yearly* is offered in the UI and stored as `Months(n × 12)`; it is not a rule of its own.
+  A date the app was off across is **not lost**: the template fires for the most recent date it
+  missed, anchored on that date, so it arrives already overdue. However long the outage, **one**
+  task comes back — the point is that you still owe the thing, not how many times you didn't do it.
+  Dates that passed while one of its tasks was **open** are satisfied by closing that task; you were
+  already being asked. Dates older than that, or before **active since**, are gone and nothing
+  reports them.
 
-The drift difference is the whole reason both scheduled triggers exist.
+The drift difference is the whole reason both scheduled triggers exist. Neither loses a firing to
+downtime — min/max because it compares state, calendar because it looks back — so an outage costs
+each of them exactly one task on return, and they differ only in phase.
 
 ### Occurrence
 

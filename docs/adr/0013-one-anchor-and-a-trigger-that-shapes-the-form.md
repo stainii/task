@@ -317,3 +317,20 @@ One preview component, one rule:
 - **Edit-before-create when running a template.** Rejected: a second editing surface for tasks that
   are editable one screen later. The honest cost — a typo in `${school}` means fixing four task
   names by hand — was put to the author and accepted.
+
+## Amendments
+
+### Deactivating, reactivating and editing a trigger all write `active_since`
+
+Amended by [Do missed calendar firings need catching up?](https://github.com/stainii/task/issues/41),
+2026-08-09. See [ADR-0017](0017-a-calendar-template-fires-for-its-latest-unclosed-date.md).
+
+This ADR made templates **deactivated rather than deleted**, and left reactivation as the plain
+inverse. It is not, once a calendar template can catch up on dates it missed: a template switched
+back on after three months would fire for a date it slept through.
+
+ADR-0017 adds **`active_since`** — *the date this template began firing under its current rule* —
+written on creation, on reactivation, and whenever the **trigger** changes. The third case is this
+ADR's, and it is the one that is easy to miss: a bin template that has fired every Tuesday since
+January, re-ruled to `Weeks(1, [Thu])`, finds no task on any Thursday and would immediately fire a
+backdated one. Editing a task definition's name or description writes nothing.

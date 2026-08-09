@@ -221,3 +221,26 @@ firing date, with no schema change.
 
 *Missed* dates, as opposed to repeated ones, remain out of scope here and belong to
 [#41](https://github.com/stainii/task/issues/41).
+
+### Missed calendar firings are in scope, and they cost a column
+
+Amended by [Do missed calendar firings need catching up?](https://github.com/stainii/task/issues/41),
+2026-08-09. See [ADR-0017](0017-a-calendar-template-fires-for-its-latest-unclosed-date.md).
+
+This ADR ruled missed calendar firings out of scope, on the grounds that they are "derivable, not
+stored" and cost no schema change. **Both halves need correcting.**
+
+They are in scope: a missed date comes back as **one** task, for the most recent missed date,
+anchored on that date. `MinMax` has had exactly this behaviour since this ADR — firing is a state
+comparison, so an outage costs nothing — and letting `Calendar` silently skip would make the trigger
+that "never drifts" the only one that loses work to downtime.
+
+And the derivation needs a floor the model did not have. The rule enumerates dates back to an anchor
+that can be years old, and ADR-0013 made templates deactivated rather than deleted, so an unbounded
+enumeration back-fills a template's entire life. The floor is **`active_since`**, a new column: *the
+date this template began firing under its current rule*. So the "no schema change" claim above is
+withdrawn.
+
+`active_since` also seeds `MinMax` for a template with no closed task yet, which is the explicit
+start date [#13](https://github.com/stainii/task/issues/13) decided in REC-003 and that this ADR's
+restructure around the anchor silently dropped.
