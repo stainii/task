@@ -203,3 +203,21 @@ date "needs a field on `Task`". It does, and it is **`completedOn`** — set on 
 defaulting to today. Confirmed as a real feature rather than a theoretical one:
 `housagotchi-add-execution.component.html` carries a *required* datepicker labelled "When did you do
 it?".
+
+### A `Calendar` trigger needs explicit same-date suppression
+
+Amended by [Check for due templates on startup, not only at 04:00](https://github.com/stainii/task/issues/40),
+2026-08-09. See [ADR-0016](0016-the-due-check-ticks-hourly-and-starts-with-the-app.md).
+
+This ADR says a scheduled template does not fire while one of its occurrences is open, and leaves it
+there. That is sufficient for `MinMax`, whose clock also moves on closure — but **not for
+`Calendar`**, whose clock is the calendar. Complete a calendar-fired task at 09:00 and the date is
+still today with nothing open, so the template fires again.
+
+A daily cron hid this by cadence. ADR-0016 makes the due check hourly and adds a startup check, so
+it becomes live. The rule: **a `Calendar` trigger fires for date D only if no task from that template
+already carries firing date D** — derived from the creation date this ADR already defines as the
+firing date, with no schema change.
+
+*Missed* dates, as opposed to repeated ones, remain out of scope here and belong to
+[#41](https://github.com/stainii/task/issues/41).

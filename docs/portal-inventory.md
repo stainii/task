@@ -135,7 +135,7 @@ One deployable, deployed **four times** with a different `deployment-name` (`hou
 | REC-015 | **Mapper base class + entity/DTO mappers** | `mappers/Mapper`, `ExecutionMapper`, `RecurringTaskMapper`, `RecurringTaskDtoMapper` | **LANDED** | Replaced by MapStruct `RecurringTaskTemplateMapper`. |
 | REC-016 | **Application bootstrap + Jackson config** | `PortalRecurringTasks`, `ModuleConfiguration` | **PLUMBING** | Subsumed by TODO-042/043. |
 | REC-017 | **Event publisher / listener wiring** | `messaging/EventPublisher`, `messaging/EventListener` (bean) | **OBSOLETE** | See CON-001. |
-| REC-018 | **Cron configuration** `0 0 4 * * *` | `application.yml` | **LANDED** | Same expression in `task`'s `application.yml`. |
+| REC-018 | **Cron configuration** `0 0 4 * * *` | `application.yml` | ~~**LANDED**~~ — **dropped by [#40](https://github.com/stainii/task/issues/40)** | Same expression in `task`'s `application.yml`, and it does not carry over. [ADR-0016](adr/0016-the-due-check-ticks-hourly-and-starts-with-the-app.md) replaces the cron with an hourly `fixedDelay` whose interval is a **constant, not configuration**, so the `recurring-tasks.create-due-tasks.cron` property is deleted with the `@Value` that reads it. **#13's verdict of *keep as landed* is overturned**, moving that ticket's tally from 11 keep / 5 transform / 14 drop to **10 / 5 / 15**. |
 
 ---
 

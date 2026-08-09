@@ -371,3 +371,21 @@ And one row of the `.env` table is wrong: **`KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_P
 deprecated in Keycloak 26** in favour of `KC_BOOTSTRAP_ADMIN_USERNAME` /
 `KC_BOOTSTRAP_ADMIN_PASSWORD`. Setting the old names does nothing and yields a Keycloak with no admin
 account — discovered on the first deploy, on the box, with no admin console to fix it from.
+
+### The deploy window is no longer "clear of 04:00", and the restart was never guaranteed
+
+Amended by [Check for due templates on startup, not only at 04:00](https://github.com/stainii/task/issues/40),
+2026-08-09. See [ADR-0016](0016-the-due-check-ticks-hourly-and-starts-with-the-app.md).
+
+Two things in *Every green push to `main` deploys, at night* change.
+
+**The constraint goes.** "Clear of 04:00" existed only to stop a container restart eating the single
+daily firing. ADR-0016 replaces that firing with an hourly state comparison, so a restart landing on
+a tick loses nothing — the next tick re-derives the same state. The window stays **at night**, for
+the reason that was always load-bearing: a PWA should not swap out mid-use.
+
+**And the argument this ADR handed to #40 was wrong.** This ADR reasoned that the box is now
+guaranteed to *restart* at night, so a restart could simply *be* the due check. `compose up -d`
+recreates a container only when the image or its configuration changed, so on any night with no push
+to `main`, nothing restarts. Startup-only due-checking would have gone silent for as long as `main`
+sat still. Recorded because the claim reads plausibly and is repeated in #40's body.
