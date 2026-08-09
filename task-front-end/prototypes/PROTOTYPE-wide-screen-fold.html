@@ -1,0 +1,384 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #38, questions Q9 / Q10 / Q11.
+  "What fills the width, and does the fold survive on a wide screen?"
+
+  Settled before this file was cut, and NOT up for grabs here:
+    Q9  (b) — one grid that reflows by width: 1 col phone, 2 tablet, 3 desktop.
+    Q10 (a) — the cap stays 5 at every width. It is a day's feasible work,
+              not a function of screen estate. Ragged rows are accepted.
+    Q11     — the fold survives at every width, for the same reason as Q10.
+
+  The one question left open, and the reason for the VARIANT switch — the author asked for
+  the options built rather than recommended, so there are four and no favourite:
+      count only     — "Also… (9)"
+      count+stripes  — plus a colour stripe per hidden task
+      count+words    — plus "nothing urgent · soonest in 11 days"
+      stripes+words  — both, as the deliberate too-much control case
+
+  The cap rule, restated by the author in round 3 and implemented in split():
+      every due-or-overdue task is shown, however many there are;
+      normal tasks then top the band up to 5 — i.e. max(0, 5 - dueCount) of them.
+
+  Data is the #9 prototype's set, unchanged, so the two files compare directly.
+  The grey rig bar is scaffolding, not design. DELETE ME once #38 is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — wide-screen grid & the fold</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --overdue: #c62828;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 14px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header.app .omnibox {
+    flex: 1; max-width: 520px; border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; color: #9aa0a6; font-size: 14px; background: #fafafa;
+  }
+
+  /* ---- prototype scaffolding, deliberately ugly ---- */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--line);
+    padding: 8px 20px; font-size: 12px; color: var(--muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    position: sticky; top: 49px; z-index: 4;
+  }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  #rigreport { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  /* the width simulator: main is pinned to a width, the grid derives columns from it */
+  main {
+    margin: 0 auto; padding: 20px; transition: width .18s ease;
+    outline: 1px dashed #cfcede; outline-offset: 10px;
+  }
+
+  h2.band {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 22px 0 10px; font-weight: 600;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  h2.band:first-child { margin-top: 0; }
+  h2.band .why { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; color: #8a8d91; }
+
+  /* ---- THE GRID (Q9b) ----
+     Capped at THREE columns, not auto-filled. Found while building this file: with
+     `repeat(auto-fill, minmax(270px, 1fr))` a 1500px viewport yields FIVE columns and
+     truncates almost every name — "Vacuum the l…", "Replace the kitch…" — which is the
+     exact failure ADR-0006 rejected always-visible buttons to avoid. Past three columns
+     the width has to go into the columns, not into more of them. */
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); align-items: start; }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    border-left: 10px solid var(--back-burner); overflow: hidden; cursor: pointer;
+  }
+  .panel[data-bucket="focus"]       { border-left-color: var(--focus); }
+  .panel[data-bucket="long-game"]   { border-left-color: var(--long-game); }
+  .panel[data-bucket="fit-in"]      { border-left-color: var(--fit-in); }
+  .panel[data-bucket="back-burner"] { border-left-color: var(--back-burner); }
+  .panel .row { padding: 11px 13px; display: flex; align-items: center; gap: 10px; }
+  .panel .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel .meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ctxlabel { font-size: 11px; color: var(--muted); background: #f1f1f4; border-radius: 999px; padding: 1px 8px; }
+  .time { font-size: 12px; color: var(--muted); }
+  .time.today   { color: var(--accent); font-weight: 600; }
+  .time.overdue { color: var(--overdue); font-weight: 600; }
+  .caret { color: #b9bcc0; font-size: 11px; }
+  .panel .body { padding: 0 13px 12px; border-top: 1px solid var(--line); }
+  .panel .body p { margin: 10px 0; color: var(--muted); font-size: 14px; }
+  .panel .acts { display: flex; gap: 6px; }
+  .panel .acts button {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px;
+    padding: 5px 11px; font-size: 13px; cursor: pointer; color: var(--ink);
+  }
+
+  /* ---- the collapsed band ---- */
+  .foldbar {
+    background: var(--surface); border: 1px dashed var(--line); border-radius: 10px;
+    padding: 11px 14px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+    color: var(--muted); font-size: 14px;
+  }
+  .foldbar:hover { border-color: #c9c8d2; }
+  .foldbar .n { color: var(--ink); font-weight: 600; }
+  .shape { display: flex; gap: 3px; margin-left: auto; }
+  .shape i { width: 13px; height: 15px; border-radius: 3px; display: block; background: var(--back-burner); }
+  .shape i[data-b="focus"]       { background: var(--focus); }
+  .shape i[data-b="long-game"]   { background: var(--long-game); }
+  .shape i[data-b="fit-in"]      { background: var(--fit-in); }
+  .shape i[data-b="back-burner"] { background: var(--back-burner); }
+  .shape .more { font-size: 11px; color: #9aa0a6; align-self: center; margin-left: 2px; }
+  .words { margin-left: auto; font-size: 13px; color: #8a8d91; }
+  .words + .shape { margin-left: 12px; }
+
+  .ragged { border: 1px dashed #dcdbe3; border-radius: 10px; color: #b9bcc0;
+            font-size: 12px; display: flex; align-items: center; justify-content: center;
+            min-height: 44px; }
+
+  .obs { max-width: 900px; margin: 34px auto 60px; padding: 0 20px; color: var(--muted); font-size: 13px; }
+  .obs h3 { color: var(--ink); font-size: 14px; margin: 0 0 8px; }
+  .obs li { margin-bottom: 7px; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Tasks</h1>
+  <div class="omnibox">Add, find, or say what you did…</div>
+  <span style="color:#b9bcc0">⋯</span>
+</header>
+
+<div id="rig">
+  <span class="grp"><b>width:</b>
+    <button data-w="380">380 phone</button>
+    <button data-w="760">760 tablet</button>
+    <button data-w="1180">1180 laptop</button>
+    <button data-w="1500">1500 desktop</button>
+  </span>
+  <span class="grp"><b>scenario:</b>
+    <button data-sc="0">1 due today</button>
+    <button data-sc="1">3 due today</button>
+    <button data-sc="2">7 due today</button>
+  </span>
+  <span class="grp"><b>collapsed band:</b>
+    <button data-shape="0">count only</button>
+    <button data-shape="1">count + stripes</button>
+    <button data-shape="2">count + words</button>
+    <button data-shape="3">stripes + words</button>
+  </span>
+  <span class="grp"><b>ragged slot:</b>
+    <button data-rag="0">leave empty</button>
+    <button data-rag="1">outline it</button>
+  </span>
+  <span id="rigreport"></span>
+</div>
+
+<main id="app"></main>
+
+<div class="obs">
+  <h3>What to look for</h3>
+  <ul>
+    <li><b>Q10 in the flesh.</b> At 1500 the cap of 5 leaves a hole in the second row. Walk the widths
+        with the same scenario: does the hole read as <i>restraint</i> or as <i>broken layout</i>?
+        Try the ragged-slot toggle — outlining it is the cheapest possible answer if it reads as breakage.</li>
+    <li><b>Q14 — four collapsed bands, no recommendation.</b> Walk them in order.
+        <br><i>count only</i> — honest and silent; you must open the door to learn anything.
+        <br><i>count + stripes</i> — colour tells you nothing in there is red, without words.
+        <br><i>count + words</i> — <b>"nothing urgent · soonest in 11 days"</b>. Says what the stripes
+        only imply, and it is the only variant that can tell you when the next thing arrives.
+        <br><i>stripes + words</i> — everything, and possibly too much for a band whose job is to be shut.
+        <br>The test is not which is prettiest: it is which one you could look at and then <i>not</i> click.</li>
+    <li><b>The cost of any of them.</b> This is a second thing to read on a screen whose whole point is
+        that it shows five things. If a variant makes you feel <i>surveyed</i> rather than <i>reassured</i>,
+        count-only wins.</li>
+    <li><b>Expanding inside a grid.</b> Click any panel at 1500. The cell grows and its row-mates stay
+        top-aligned, so nothing below jumps — but the row does get taller. This is the one genuinely new
+        problem the grid creates; ADR-0006 decided the panel before the grid existed.</li>
+    <li><b>Truncation.</b> ADR-0006 rejected always-visible buttons because names truncated at three
+        columns. Check the names still fit <i>without</i> those buttons: "Learn 'Wish You Were Here' intro"
+        is the worst case in this set.</li>
+  </ul>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data (unchanged from the #9 prototype)
+const T = (n, b, c, dueIn, d) => ({ n, b, c, dueIn, d: d || "" });
+const BASE = [
+  T("Vacuum the living room",           "focus",       "house",   -2, "Including under the couch. The robot gave up in 2019."),
+  T("Call mum",                         "focus",       "social",   0, "It has been three weeks."),
+  T("Book dentist appointment",         "focus",       "health",   2, "Six-month check-up, they sent a reminder."),
+  T("Replace the kitchen tap washer",   "fit-in",      "house",    3, "Dripping since spring. Parts are in the drawer."),
+  T("Learn 'Wish You Were Here' intro", "long-game",   "setlist",  5, "Slow it to 60% first."),
+  T("Descale the coffee machine",       "fit-in",      "house",    7, "It is starting to taste like the tap."),
+  T("Coffee with Tom",                  "long-game",   "social",   7, "Last time was March."),
+  T("Renew bike insurance",             "fit-in",      "house",    9, ""),
+  T("Stretch routine",                  "back-burner", "health",  10, "Ten minutes, the one from the physio."),
+  T("Clean the gutters",                "back-burner", "house",   14, "Before the autumn leaves."),
+  T("Write to Anne",                    "long-game",   "social",  14, ""),
+  T("Restring the acoustic",            "back-burner", "setlist", 21, ""),
+  T("Clear the shed",                   "back-burner", "house",   21, ""),
+  T("Sort the sheet music folder",      "back-burner", "setlist", 28, ""),
+  T("Winter tyres on",                  "fit-in",      "house",   42, ""),
+  T("Blood test follow-up",             "focus",       "health",  60, ""),
+];
+const SCENARIOS = [
+  { name: "1 due today", due: ["Call mum"] },
+  { name: "3 due today", due: ["Call mum", "Replace the kitchen tap washer", "Descale the coffee machine"] },
+  { name: "7 due today", due: ["Call mum", "Replace the kitchen tap washer", "Descale the coffee machine",
+                               "Coffee with Tom", "Renew bike insurance", "Stretch routine", "Restring the acoustic"] },
+];
+
+let width = 1500, scenario = 1, shape = 1, ragged = 0;
+let folded = { also: true, future: true };   // remembered for the session (Q7)
+let open = null;
+
+const CAP = 5, FUTURE_FROM = 35;
+
+function tasks() {
+  const due = new Set(SCENARIOS[scenario].due);
+  return BASE.map(t => ({ ...t, dueIn: due.has(t.n) ? 0 : t.dueIn }));
+}
+function label(dueIn) {
+  if (dueIn < 0) return `${-dueIn}d overdue`;
+  if (dueIn === 0) return "today";
+  if (dueIn === 1) return "tomorrow";
+  if (dueIn < 14) return `in ${dueIn} days`;
+  if (dueIn < 60) return `in ${Math.round(dueIn / 7)} weeks`;
+  return `in ${Math.round(dueIn / 30)} months`;
+}
+const timeClass = t => t.dueIn < 0 ? "overdue" : t.dueIn === 0 ? "today" : "";
+
+// THE VISIBLE-WORK RULE (ADR-0006) — unchanged by width, which is the point of Q10
+function split(all) {
+  const future = all.filter(t => t.dueIn > FUTURE_FROM);
+  const live = all.filter(t => t.dueIn <= FUTURE_FROM).sort((a, b) => a.dueIn - b.dueIn);
+  const now = live.filter(t => t.dueIn <= 0);
+  const rest = live.filter(t => t.dueIn > 0);
+  const topUp = Math.max(0, CAP - now.length);
+  return { visible: [...now, ...rest.slice(0, topUp)], also: rest.slice(topUp), future, dueNow: now.length };
+}
+
+function panelHTML(t) {
+  const isOpen = open === t.n;
+  return `
+  <div class="panel" data-bucket="${t.b}" data-n="${t.n}">
+    <div class="row">
+      <span class="name">${t.n}</span>
+      <span class="meta">
+        <span class="ctxlabel">${t.c}</span>
+        <span class="time ${timeClass(t)}">${label(t.dueIn)}</span>
+        <span class="caret">${isOpen ? "▴" : "▾"}</span>
+      </span>
+    </div>
+    ${isOpen ? `<div class="body">
+      <p>${t.d || "<i>No description.</i>"}</p>
+      <div class="acts">
+        <button>Edit</button><button>Complete</button><button>Cancel</button>
+      </div>
+    </div>` : ``}
+  </div>`;
+}
+
+function shapeHTML(list) {
+  const show = list.slice(0, 8);
+  return `<span class="shape">${show.map(t => `<i data-b="${t.b}"></i>`).join("")}` +
+         `${list.length > show.length ? `<span class="more">+${list.length - show.length}</span>` : ``}</span>`;
+}
+
+// The worded variant says what the stripes only imply. It is one sentence built from the
+// two things the fold is hiding that you might actually need: is anything urgent in there,
+// and when does the next thing arrive.
+function wordsHTML(list) {
+  if (!list.length) return ``;
+  const urgent = list.filter(t => t.b === "focus").length;
+  const soonest = Math.min(...list.map(t => t.dueIn));
+  const head = urgent ? `${urgent} needs attention` : `nothing urgent`;
+  return `<span class="words">${head} · soonest ${label(soonest)}</span>`;
+}
+
+function foldbarHTML(key, title, list) {
+  const bits = [
+    ``,                                        // 0 count only
+    shapeHTML(list),                           // 1 stripes
+    wordsHTML(list),                           // 2 words
+    wordsHTML(list) + shapeHTML(list),         // 3 both
+  ][shape];
+  return `<div class="foldbar" data-fold="${key}">
+    <span>${title} <span class="n">(${list.length})</span></span>
+    ${bits}
+  </div>`;
+}
+
+// columns by breakpoint, capped at 3 (see the .grid comment for why auto-fill was dropped)
+function cols() { return width < 700 ? 1 : width < 1080 ? 2 : 3; }
+
+function render() {
+  const all = tasks();
+  const { visible, also, future, dueNow } = split(all);
+  const main = document.getElementById("app");
+  const c = cols();
+  const hole = (c - (visible.length % c)) % c;
+
+  const capped = dueNow > CAP;
+  const title = capped
+    ? `Due today — all ${dueNow} <span class="why">the cap does not apply</span>`
+    : `Due today`;
+
+  let raggedHTML = "";
+  if (hole > 0) {
+    raggedHTML = ragged
+      ? Array.from({ length: hole }, () => `<div class="ragged">nothing else is due</div>`).join("")
+      : "";
+  }
+
+  main.innerHTML = `
+    <h2 class="band">${title}</h2>
+    <div class="grid">${visible.map(panelHTML).join("")}${raggedHTML}</div>
+
+    <h2 class="band">${folded.also ? "" : "Also…"}</h2>
+    ${folded.also
+      ? foldbarHTML("also", "Also…", also)
+      : `<div class="grid">${also.map(panelHTML).join("")}</div>`}
+
+    <h2 class="band">${folded.future ? "" : "Starting in the future…"}</h2>
+    ${folded.future
+      ? foldbarHTML("future", "Starting in the future…", future)
+      : `<div class="grid">${future.map(panelHTML).join("")}</div>`}
+  `;
+  main.style.width = width + "px";
+  main.style.setProperty("--cols", c);
+
+  document.getElementById("rigreport").innerHTML =
+    `<b>${c}</b> col · visible <b>${visible.length}</b> (cap ${CAP}, ${dueNow} due/overdue)` +
+    ` · also <b>${also.length}</b> · future <b>${future.length}</b>` +
+    (hole ? ` · <b>${hole}</b> empty slot${hole > 1 ? "s" : ""}` : ` · row full`);
+
+  // !! matters: classList.toggle(name, undefined) TOGGLES rather than forcing, so a button
+  // matching none of the clauses would flip its own state on every render.
+  document.querySelectorAll("#rig button").forEach(b => {
+    b.classList.toggle("on", !!(
+      (b.dataset.w && +b.dataset.w === width) ||
+      (b.dataset.sc && +b.dataset.sc === scenario) ||
+      (b.dataset.shape && +b.dataset.shape === shape) ||
+      (b.dataset.rag && +b.dataset.rag === ragged)));
+  });
+}
+
+document.addEventListener("click", e => {
+  const rig = e.target.closest("#rig button");
+  if (rig) {
+    if (rig.dataset.w)     width = +rig.dataset.w;
+    if (rig.dataset.sc)    scenario = +rig.dataset.sc;
+    if (rig.dataset.shape) shape = +rig.dataset.shape;
+    if (rig.dataset.rag)   ragged = +rig.dataset.rag;
+    return render();
+  }
+  const fold = e.target.closest("[data-fold]");
+  if (fold) { folded[fold.dataset.fold] = false; return render(); }   // unfolding is remembered
+  const panel = e.target.closest(".panel");
+  if (panel) { open = open === panel.dataset.n ? null : panel.dataset.n; return render(); }
+});
+
+render();
+</script>
+</body>
+</html>

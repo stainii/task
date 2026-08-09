@@ -198,11 +198,51 @@ portal, which squatted on **goal**.
 
 ### Visible work
 
-**What the overview shows before you open anything.** Everything overdue or due today is always
-visible, however many that is; below that the band is topped up to 5 in rank order. Overdue and due
-today are one set, not two rules. Everything else starts folded.
+**What the overview shows before you open anything.** Of the tasks that have **started**, everything
+overdue or due today is always visible, however many that is; normal tasks then top the band up to 5
+in rank order — `max(0, 5 − dueCount)` of them. Overdue and due today are one set, not two rules.
+Everything else starts folded.
+
+Five is **a day's feasible work**, not a function of screen estate: it does not scale with the
+viewport, and neither does the fold.
+
+A task whose start date has not arrived is **not started yet** and is not visible work at all,
+whatever its due date says. That is what makes **postpone** possible.
 
 A front-end rule over data the client already holds, so it works identically offline.
+
+Resolved in [#9](https://github.com/stainii/task/issues/9), scoped to started tasks by
+[#38](https://github.com/stainii/task/issues/38),
+[ADR-0015](docs/adr/0015-postpone-pushes-the-start-date-and-the-fold-speaks.md).
+
+### Postpone
+
+**Saying *not today* by pushing a task's start date forward, measured from today.** The due date is
+never touched, so a postponed task keeps its true overdue count and comes back still late — the app
+stops asking, it does not stop knowing.
+
+Postponing writes an ordinary patch on an ordinary column. It is not a status, not a counter and not
+a record of its own: how often a task has been pushed is deliberately not stored. What keeps it
+honest is that **context cards count sleeping tasks in their overdue badge**.
+
+It cannot move a **task template**'s clock, because the **anchor** is the last *completed* patch.
+
+Resolved in [#38](https://github.com/stainii/task/issues/38),
+[ADR-0015](docs/adr/0015-postpone-pushes-the-start-date-and-the-fold-speaks.md).
+
+### Omnibox
+
+**The appbar's one input: add, find, or say what you did.** Typing offers matching things you can
+mark done — an open task, or a template that is not yet due — and, underneath, creating a task from
+what you typed. Creating happens **on Enter**, from the name alone; marking something done always
+opens the shared date confirm first.
+
+The omnibox is a control, not a route: typing never changes the URL and Escape returns you where you
+were.
+
+Resolved in [#37](https://github.com/stainii/task/issues/37),
+[ADR-0014](docs/adr/0014-two-destinations-and-you-capture-by-typing.md); instant creation settled in
+[#38](https://github.com/stainii/task/issues/38).
 
 ### Grouping axis
 
@@ -274,3 +314,5 @@ Resolved in [#4](https://github.com/stainii/task/issues/4), slot kept by
   the `${…}` in the text, so it cannot be declared and never used.
 - **Deleting a template** — a template with tasks is **deactivated**; deletion survives only for one
   that has never fired.
+- **Postpone count** — considered twice and refused twice; **postpone** keeps no tally of itself. The
+  overdue badge on the context card is what stops deferral becoming a hiding place.

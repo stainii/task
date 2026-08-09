@@ -1,0 +1,432 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #38, question Q5 (+ Q12, Q13).
+  "Should a task have a postpone action, and what does it write?"
+
+  SECOND CUT. The first cut had postpone writing the DUE date. The author replaced it:
+  postpone pushes the START date, and the due date is left alone. That is better on
+  three counts and this file exists to test whether it holds up in the hand:
+
+    1. `start_date DATE NOT NULL` already exists (V1__create_task_and_task_patch.sql:6),
+       and CONTEXT.md already says "a start date, an OPTIONAL due date". No new field,
+       no migration, no new verb on the wire — it is an ordinary patch on an ordinary
+       column, so ADR-0004's offline contract carries it for free.
+    2. It cannot lie. Pushing a due date REWRITES when the thing was needed. Pushing a
+       start date says "not yet, ask me again later" and leaves the due date — so a
+       62-days-overdue boiler service is still 62 days overdue when it comes back.
+    3. It already has a home. ADR-0006's third band IS the start-date band, so a
+       postponed task has somewhere to go without inventing a state.
+
+  CORRECTED HERE: the first cut banded "Starting in the future…" off `dueIn > 35`,
+  inherited from the #9 prototype. That was wrong — portal's band was driven by the
+  START date. Bands are now: start date <= today = live work, start date in the future
+  = not started yet. This is a finding about ADR-0006, not just about this file.
+
+  Still settled and not up for grabs:
+    Q12 — no new field, nothing recorded beyond the dates. The min/max anchor is the
+          last COMPLETED patch (ADR-0001), so the template clock cannot move. The
+          right-hand panel proves it live.
+    Placement — the expanded panel, not a third swipe.
+
+  THE QUESTION THIS FILE NOW ASKS (see the rig):
+    An overdue task that you have postponed is overdue AND not started. ADR-0006 says
+    everything overdue is ALWAYS visible. Those cannot both hold. Which gives?
+
+  DELETE ME once #38 is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — postpone (start date)</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --overdue: #c62828;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header.app { background: var(--surface); border-bottom: 1px solid var(--line);
+               padding: 12px 20px; display: flex; align-items: center; gap: 14px;
+               position: sticky; top: 0; z-index: 9; }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+
+  #rig { background: #ecebf1; border-bottom: 1px solid var(--line); padding: 8px 20px;
+         font-size: 12px; color: var(--muted); display: flex; gap: 18px; align-items: center;
+         flex-wrap: wrap; position: sticky; top: 49px; z-index: 8; }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button { border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+                padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted); }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  #rigreport { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .wrap { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 24px;
+          max-width: 1280px; margin: 0 auto; padding: 20px; align-items: start; }
+  @media (max-width: 960px) { .wrap { grid-template-columns: 1fr; } }
+
+  h2.band { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+            margin: 20px 0 10px; font-weight: 600; display: flex; align-items: baseline; gap: 10px; }
+  h2.band:first-child { margin-top: 0; }
+  h2.band .why { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; color: #8a8d91; }
+
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+           border-left: 10px solid var(--back-burner); cursor: pointer; }
+  .panel[data-bucket="focus"]     { border-left-color: var(--focus); }
+  .panel[data-bucket="long-game"] { border-left-color: var(--long-game); }
+  .panel[data-bucket="fit-in"]    { border-left-color: var(--fit-in); }
+  .panel.asleep { opacity: .72; }
+  .panel .row { padding: 11px 13px; display: flex; align-items: center; gap: 10px; }
+  .panel .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .panel .meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ctxlabel { font-size: 11px; color: var(--muted); background: #f1f1f4; border-radius: 999px; padding: 1px 8px; }
+  .time { font-size: 12px; color: var(--muted); }
+  .time.today { color: var(--accent); font-weight: 600; }
+  .time.overdue { color: var(--overdue); font-weight: 600; }
+  .starts { font-size: 11px; color: #33489a; background: #eef1fb; border: 1px solid #dde3f6;
+            border-radius: 999px; padding: 1px 8px; }
+  .pushed { font-size: 11px; color: #8a6d1f; background: #f7f2e8; border: 1px solid #ecdfc4;
+            border-radius: 999px; padding: 1px 8px; }
+  .caret { color: #b9bcc0; font-size: 11px; }
+
+  .panel .body { padding: 0 13px 12px; border-top: 1px solid var(--line); }
+  .panel .body p { margin: 10px 0; color: var(--muted); font-size: 14px; }
+  .dates { font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
+           background: #f7f7fa; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; margin: 10px 0; }
+  .dates b { color: var(--ink); }
+  .dates .kept { color: var(--overdue); }
+  .tmpl { font-size: 12px; color: var(--muted); margin: 10px 0; }
+  .tmpl b { color: var(--ink); }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .acts button { border: 1px solid var(--line); background: #fff; border-radius: 8px;
+                 padding: 5px 11px; font-size: 13px; cursor: pointer; color: var(--ink); }
+  .acts button.postpone { border-color: #cfd8e8; color: #33489a; }
+  .menu { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;
+          background: #f7f8fc; border: 1px solid #e2e6f3; border-radius: 8px; padding: 8px; }
+  .menu button { border: 1px solid #d5dcee; background: #fff; border-radius: 999px;
+                 padding: 4px 12px; font-size: 13px; cursor: pointer; }
+
+  .foldbar { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px;
+             padding: 11px 14px; cursor: pointer; color: var(--muted); font-size: 14px;
+             display: flex; align-items: center; gap: 10px; }
+  .foldbar .n { color: var(--ink); font-weight: 600; }
+  .foldbar .warn { color: var(--overdue); margin-left: auto; font-size: 12px; }
+
+  aside { position: sticky; top: 96px; }
+  aside .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+                padding: 14px; margin-bottom: 14px; font-size: 13px; }
+  aside h3 { margin: 0 0 8px; font-size: 13px; }
+  .ctxcard { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px solid #f1f1f4; }
+  .ctxcard .nm { flex: 1; }
+  .badge { font-size: 11px; font-weight: 600; color: #fff; background: var(--overdue);
+           border-radius: 999px; padding: 1px 8px; }
+  .badge.zero { background: #cfd0d4; }
+  .log { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
+         max-height: 240px; overflow: auto; }
+  .log div { padding: 4px 0; border-bottom: 1px solid #f1f1f4; }
+  .log .k { color: var(--accent); }
+  .log .empty { color: #b9bcc0; border: 0; }
+  .anchor { font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .anchor .stuck { color: var(--long-game); }
+
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 20;
+           background: #26252b; color: #fff; border-radius: 10px; padding: 11px 16px;
+           font-size: 14px; display: flex; gap: 16px; align-items: center; opacity: 0;
+           pointer-events: none; transition: opacity .15s; }
+  .toast.on { opacity: 1; pointer-events: auto; }
+  .toast button { background: none; border: 0; color: #9db4ff; font: inherit; font-weight: 600; cursor: pointer; }
+
+  .obs { max-width: 900px; margin: 30px auto 60px; padding: 0 20px; color: var(--muted); font-size: 13px; }
+  .obs h3 { color: var(--ink); font-size: 14px; margin: 0 0 8px; }
+  .obs li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<header class="app"><h1>Tasks</h1><span style="color:#9aa0a6;font-size:14px">postpone — pushes the start date</span></header>
+
+<div id="rig">
+  <span class="grp"><b>an overdue task you postponed:</b>
+    <button data-hide="1">sleeps until its start date</button>
+    <button data-hide="0">stays in Due today anyway</button>
+  </span>
+  <span class="grp"><b>offsets:</b>
+    <button data-off="0">tomorrow / +1 week / date</button>
+    <button data-off="1">tomorrow / weekend / +1 week / date</button>
+  </span>
+  <span class="grp"><b>counter (Q12b):</b>
+    <button data-cnt="0">hidden</button>
+    <button data-cnt="1">shown</button>
+  </span>
+  <span class="grp"><button data-reset="1">reset</button></span>
+  <span id="rigreport"></span>
+</div>
+
+<div class="wrap">
+  <div><main id="app"></main></div>
+  <aside>
+    <div class="card">
+      <h3>Context cards <span style="font-weight:400;color:#8a8d91">— do the badges still tell the truth?</span></h3>
+      <div id="cards"></div>
+    </div>
+    <div class="card">
+      <h3>Template clock <span style="font-weight:400;color:#8a8d91">— Q12's argument</span></h3>
+      <div class="anchor" id="anchor"></div>
+    </div>
+    <div class="card">
+      <h3>Patches written</h3>
+      <div class="log" id="log"></div>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"><span id="toasttext"></span><button id="undo">Undo</button></div>
+
+<div class="obs">
+  <h3>What to look for</h3>
+  <ul>
+    <li><b>The one real conflict, and the reason for the first rig switch.</b> ADR-0006:
+        <i>"everything overdue or due today is always visible, however many that is"</i>. Postponing an
+        overdue task makes it overdue <i>and</i> not started. Both rules cannot win.
+        <br><b>sleeps until its start date</b> — postpone works, and the always-visible rule acquires an
+        exception you granted by hand, one task at a time.
+        <br><b>stays in Due today anyway</b> — the rule is absolute, and postpone silently does nothing
+        for the tasks you most want to postpone. Try postponing <i>Onderhoud ketels</i> under it.</li>
+    <li><b>The due date never moves — check it.</b> Expand any postponed task: the dates block keeps
+        showing <span style="color:#c62828">due 9 Jun · 62 days ago</span> in red while the row sits in
+        <i>Not started yet</i>. This is the whole reason your version beats mine: the app never stops
+        knowing the boiler service is late, it just stops asking you about it today.</li>
+    <li><b>Do the context badges keep you honest?</b> The cards count overdue tasks
+        <i>including</i> sleeping ones. So postponing empties the list but not the badge — house stays
+        <span style="color:#c62828">3 overdue</span>. If that feels like a nag, the badge should probably
+        count only woken tasks, and then postpone really is a hiding place.</li>
+    <li><b>Does the counter still tempt you?</b> With start-date postponing the counter is a weaker
+        idea than it was — nothing is being rewritten, so there is less to be honest about. If you no
+        longer reach for it, Q12(a) is settled by construction.</li>
+    <li><b>Waking up.</b> Nothing here simulates tomorrow. Worth deciding out loud: when a postponed
+        task's start date arrives, does it just reappear in <i>Due today</i> (it is still overdue), or
+        does it need to announce itself?</li>
+  </ul>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+// startIn / dueIn: days from today (Mon 10 Aug 2026). negative = in the past.
+// A task is LIVE when startIn <= 0. Otherwise it is "not started yet" — this is the
+// band portal actually had, and what the first cut of this file got wrong.
+const T = (n, b, c, startIn, dueIn, tmpl, d) => ({ n, b, c, startIn, dueIn, tmpl, d: d || "", pushed: 0 });
+const START = [
+  T("Onderhoud ketels", "focus", "house", -400, -62,
+    { min: 330, max: 400, lastCompletedOn: "7 Jun '24" }, "The boiler service nobody books."),
+  T("Vacuum the living room", "focus", "house", -9, -6,
+    { min: 7, max: 10, lastCompletedOn: "2 Aug" }, "Including under the couch."),
+  T("Call mum", "focus", "social", -14, -1,
+    { min: 14, max: 21, lastCompletedOn: "18 Jul" }, "It has been three weeks."),
+  T("Descale the coffee machine", "fit-in", "house", -30, 0,
+    { min: 30, max: 45, lastCompletedOn: "25 Jun" }, "It is starting to taste like the tap."),
+  T("Book dentist appointment", "focus", "health", -3, 2, null, "Six-month check-up."),
+  T("Replace the kitchen tap washer", "fit-in", "house", -20, 3, null, "Parts are in the drawer."),
+  T("Learn 'Wish You Were Here' intro", "long-game", "setlist", -5, 5, null, "Slow it to 60% first."),
+  T("Coffee with Tom", "long-game", "social", -1, 7, { min: 60, max: 90, lastCompletedOn: "12 Mar" }, ""),
+  T("Renew bike insurance", "fit-in", "house", 0, 9, null, ""),
+  T("Stretch routine", "back-burner", "health", -2, 10, null, ""),
+  T("Clean the gutters", "back-burner", "house", 21, 30, null, "Before the autumn leaves."),
+  T("Winter tyres on", "fit-in", "house", 60, 75, null, ""),
+];
+
+const CAP = 5;
+const OFFSETS = [
+  [["Tomorrow", 1], ["+1 week", 7], ["Pick a date…", null]],
+  [["Tomorrow", 1], ["This weekend", 5], ["+1 week", 7], ["Pick a date…", null]],
+];
+
+let tasks = START.map(t => ({ ...t }));
+let hide = 1, offsets = 0, counter = 0, open = null, menu = null, log = [], lastAction = null;
+let folded = { also: true, later: true };
+
+function label(dueIn) {
+  if (dueIn < 0) return `${-dueIn}d overdue`;
+  if (dueIn === 0) return "today";
+  if (dueIn === 1) return "tomorrow";
+  if (dueIn < 14) return `in ${dueIn} days`;
+  return `in ${Math.round(dueIn / 7)} weeks`;
+}
+const timeClass = t => t.dueIn < 0 ? "overdue" : t.dueIn === 0 ? "today" : "";
+const dateOf = n => new Date(2026, 7, 10 + n).toLocaleDateString("en-GB",
+  { day: "numeric", month: "short", year: n < -180 || n > 180 ? "2-digit" : undefined });
+
+// THE RULE, as the author restated it in round 3:
+//   every due-or-overdue task is shown, however many;
+//   then normal tasks top the band up to CAP — i.e. max(0, 5 - dueCount) of them.
+// Banding is by START date first: a task that has not started is not live work at all.
+function split(all) {
+  const live  = all.filter(t => hide ? t.startIn <= 0 : (t.startIn <= 0 || t.dueIn <= 0));
+  const later = all.filter(t => !live.includes(t)).sort((a, b) => a.startIn - b.startIn);
+  const sorted = [...live].sort((a, b) => a.dueIn - b.dueIn);
+  const now  = sorted.filter(t => t.dueIn <= 0);
+  const rest = sorted.filter(t => t.dueIn > 0);
+  const topUp = Math.max(0, CAP - now.length);
+  return { visible: [...now, ...rest.slice(0, topUp)], also: rest.slice(topUp), later, dueNow: now.length };
+}
+
+function panelHTML(t, sleeping) {
+  const isOpen = open === t.n, showMenu = menu === t.n;
+  return `
+  <div class="panel${sleeping ? " asleep" : ""}" data-bucket="${t.b}" data-n="${t.n}">
+    <div class="row">
+      <span class="name">${t.n}</span>
+      <span class="meta">
+        ${counter && t.pushed ? `<span class="pushed">pushed ${t.pushed}×</span>` : ``}
+        ${sleeping ? `<span class="starts">starts ${dateOf(t.startIn)}</span>` : ``}
+        <span class="ctxlabel">${t.c}</span>
+        <span class="time ${timeClass(t)}">${label(t.dueIn)}</span>
+        <span class="caret">${isOpen ? "▴" : "▾"}</span>
+      </span>
+    </div>
+    ${isOpen ? `<div class="body">
+      <p>${t.d || "<i>No description.</i>"}</p>
+      <div class="dates">
+        start <b>${dateOf(t.startIn)}</b>${t.pushed ? ` <span style="color:#8a6d1f">← moved by you</span>` : ``}<br>
+        due &nbsp;&nbsp;<b class="${t.dueIn < 0 ? "kept" : ""}">${dateOf(t.dueIn)}</b>
+        <span class="${t.dueIn < 0 ? "kept" : ""}">· ${label(t.dueIn)}</span>
+        ${t.pushed ? ` <span style="color:#8a8d91">← untouched</span>` : ``}
+      </div>
+      ${t.tmpl ? `<div class="tmpl">from a template · every <b>${t.tmpl.min}–${t.tmpl.max} days</b> ·
+                   last completed <b>${t.tmpl.lastCompletedOn}</b></div>` : ``}
+      <div class="acts">
+        <button data-act="edit">Edit</button>
+        <button data-act="postpone" class="postpone">Postpone ▾</button>
+        <button data-act="complete">Complete</button>
+        <button data-act="cancel">Cancel</button>
+      </div>
+      ${showMenu ? `<div class="menu">${OFFSETS[offsets]
+        .map(([lab, days]) => `<button data-days="${days === null ? "" : days}">${lab}</button>`).join("")}</div>` : ``}
+    </div>` : ``}
+  </div>`;
+}
+
+function render() {
+  const { visible, also, later, dueNow } = split(tasks);
+  const capped = dueNow > CAP;
+  const sleepingOverdue = later.filter(t => t.dueIn < 0).length;
+
+  document.getElementById("app").innerHTML = `
+    <h2 class="band">${capped
+      ? `Due today — all ${dueNow} <span class="why">the cap does not apply</span>`
+      : `Due today`}</h2>
+    <div class="grid">${visible.map(t => panelHTML(t, false)).join("")}</div>
+
+    ${also.length ? `<h2 class="band">${folded.also ? "" : "Also…"}</h2>
+      ${folded.also
+        ? `<div class="foldbar" data-fold="also">Also… <span class="n">(${also.length})</span></div>`
+        : `<div class="grid">${also.map(t => panelHTML(t, false)).join("")}</div>`}` : ``}
+
+    ${later.length ? `<h2 class="band">${folded.later ? "" : "Not started yet…"}</h2>
+      ${folded.later
+        ? `<div class="foldbar" data-fold="later">Not started yet… <span class="n">(${later.length})</span>
+             ${sleepingOverdue ? `<span class="warn">${sleepingOverdue} of them already overdue</span>` : ``}</div>`
+        : `<div class="grid">${later.map(t => panelHTML(t, true)).join("")}</div>`}` : ``}
+  `;
+
+  // context cards count overdue INCLUDING sleeping tasks — see the observations
+  const byCtx = {};
+  tasks.forEach(t => { byCtx[t.c] = byCtx[t.c] || { open: 0, overdue: 0 };
+                       byCtx[t.c].open++; if (t.dueIn < 0) byCtx[t.c].overdue++; });
+  document.getElementById("cards").innerHTML = Object.entries(byCtx).map(([c, v]) =>
+    `<div class="ctxcard"><span class="nm">${c}</span>
+       <span style="color:#8a8d91">${v.open} open</span>
+       <span class="badge ${v.overdue ? "" : "zero"}">${v.overdue} overdue</span></div>`).join("");
+
+  document.getElementById("anchor").innerHTML = tasks.filter(t => t.tmpl).map(t =>
+    `<div>${t.n}<br>&nbsp;&nbsp;start <b>${dateOf(t.startIn)}</b>${t.pushed ? ` (pushed ${t.pushed}×)` : ``}` +
+    `<br>&nbsp;&nbsp;due <b>${dateOf(t.dueIn)}</b>` +
+    `<br>&nbsp;&nbsp;anchor <span class="stuck">${t.tmpl.lastCompletedOn}</span> — unmoved</div>`).join("");
+
+  document.getElementById("log").innerHTML = log.length
+    ? log.map(l => `<div>${l}</div>`).join("")
+    : `<div class="empty">nothing written yet</div>`;
+
+  document.getElementById("rigreport").innerHTML =
+    `due/overdue <b>${dueNow}</b> · visible <b>${visible.length}</b> · also <b>${also.length}</b>` +
+    ` · not started <b>${later.length}</b>` +
+    (sleepingOverdue ? ` · <span style="color:#c62828">${sleepingOverdue} overdue asleep</span>` : ``);
+
+  document.querySelectorAll("#rig button").forEach(b =>
+    b.classList.toggle("on", !!((b.dataset.hide && +b.dataset.hide === hide) ||
+                                (b.dataset.off  && +b.dataset.off  === offsets) ||
+                                (b.dataset.cnt  && +b.dataset.cnt  === counter))));
+}
+
+function toast(text, undo) {
+  const el = document.getElementById("toast");
+  document.getElementById("toasttext").textContent = text;
+  lastAction = undo;
+  el.classList.add("on");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("on"), 8000);
+}
+
+document.addEventListener("click", e => {
+  const rig = e.target.closest("#rig button");
+  if (rig) {
+    if (rig.dataset.hide)  hide = +rig.dataset.hide;
+    if (rig.dataset.off)   offsets = +rig.dataset.off;
+    if (rig.dataset.cnt)   counter = +rig.dataset.cnt;
+    if (rig.dataset.reset) { tasks = START.map(t => ({ ...t })); log = []; open = menu = null;
+                             folded = { also: true, later: true }; }
+    return render();
+  }
+
+  if (e.target.id === "undo") {
+    if (lastAction) lastAction();
+    document.getElementById("toast").classList.remove("on");
+    return render();
+  }
+
+  const fold = e.target.closest("[data-fold]");
+  if (fold) { folded[fold.dataset.fold] = false; return render(); }
+
+  const days = e.target.closest(".menu button");
+  if (days) {
+    const t = tasks.find(x => x.n === menu);
+    const n = days.dataset.days === "" ? 7 : +days.dataset.days;   // "pick a date" stubbed as +7
+    const was = t.startIn;
+    t.startIn = n; t.pushed++;              // counted from TODAY, not from the old start date
+    log.unshift(`<span class="k">startDate</span> ${dateOf(was)} → ${dateOf(n)}<br>` +
+                `&nbsp;&nbsp;${t.n}<br>&nbsp;&nbsp;<span style="color:#b9bcc0">dueDate untouched (${dateOf(t.dueIn)})</span>`);
+    menu = null; open = null;
+    toast(`Postponed to ${dateOf(n)} — still due ${dateOf(t.dueIn)}`,
+          () => { t.startIn = was; t.pushed--; log.shift(); });
+    return render();
+  }
+
+  const act = e.target.closest("[data-act]");
+  if (act) {
+    e.stopPropagation();
+    const name = act.closest(".panel").dataset.n;
+    if (act.dataset.act === "postpone") { menu = menu === name ? null : name; return render(); }
+    if (act.dataset.act === "complete" || act.dataset.act === "cancel") {
+      const i = tasks.findIndex(x => x.n === name);
+      const [gone] = tasks.splice(i, 1);
+      log.unshift(`<span class="k">status</span> → ${act.dataset.act.toUpperCase()}<br>&nbsp;&nbsp;${gone.n}`);
+      toast(`${act.dataset.act === "complete" ? "Completed" : "Cancelled"} ${gone.n}`,
+            () => { tasks.splice(i, 0, gone); log.shift(); });
+      open = menu = null;
+      return render();
+    }
+    return;
+  }
+
+  const panel = e.target.closest(".panel");
+  if (panel) { open = open === panel.dataset.n ? null : panel.dataset.n; menu = null; return render(); }
+});
+
+render();
+</script>
+</body>
+</html>
