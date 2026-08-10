@@ -244,3 +244,14 @@ withdrawn.
 `active_since` also seeds `MinMax` for a template with no closed task yet, which is the explicit
 start date [#13](https://github.com/stainii/task/issues/13) decided in REC-003 and that this ADR's
 restructure around the anchor silently dropped.
+
+### `Task.importance` is non-nullable
+
+Amended by [Task create/edit: the surface where you write a task](https://github.com/stainii/task/issues/42),
+2026-08-10.
+
+Importance stops being optional on both `Task` and `TaskDefinition`, and defaults to `important`.
+Portal contradicted itself about what a missing importance meant — its comparator scored `null`
+*above* `NOT_SO_IMPORTANT` while its bucket logic treated it as low — and rather than ruling on the
+contradiction, [ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md) removes the
+values it could apply to. Migrated tasks with no importance become `NOT_SO_IMPORTANT`.

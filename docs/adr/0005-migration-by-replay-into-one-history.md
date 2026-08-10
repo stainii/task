@@ -358,3 +358,30 @@ Amended by the same ticket. ADR-0011 adds a `completedOn` date to `Task`, set on
 The importer sets it from the portal execution date — and, for ordinary completed tasks, from the
 completing patch's own date — rather than letting it default. Portal's `ExecutionDto` carried exactly
 this date and its UI made it required, so the value exists in the corpus and does not need inventing.
+
+### The prefix check aborts on a prefix that is correct
+
+Amended by [Task create/edit: the surface where you write a task](https://github.com/stainii/task/issues/42),
+2026-08-10.
+
+Step 1 above — *enumerate the distinct `flowId` prefixes present in the Mongo `task` collection* —
+was run for the first time against the archive. It yields five: `Health` (2,729), `Housagotchi`
+(2,528), `Setlist` (2,049), `social` (762) and **`Todo` (744)**.
+
+Step 2 treats a prefix with no recurring-tasks database as an **abort signal**. `Todo` is exactly
+that, and it is entirely correct: it is not a deployment but portal-todo's own task-template
+`flowId`. As specified, the importer would refuse to run on healthy data.
+
+**The shape is the discriminator**: deployment flowIds are `<Name>-<numeric id>`, task-template
+flowIds are `Todo-<uuid>`. The `Todo` prefix is excluded from the deployment set before the
+database match, and only the remaining four take part in step 2's reconciliation.
+
+The casing decision this ADR anticipated is now measured rather than hypothetical: **three of the
+four deployment prefixes are capitalised and one (`social`) is not**, so normalising is a real
+choice with a visible product consequence, not a theoretical one.
+
+### Migrated tasks with no importance
+
+Amended by the same ticket. [ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md)
+makes `importance` non-nullable. The importer maps a missing importance to `NOT_SO_IMPORTANT`.
+17 hand-made tasks in the archive are affected.

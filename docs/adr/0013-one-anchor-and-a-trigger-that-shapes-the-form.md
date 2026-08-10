@@ -334,3 +334,23 @@ written on creation, on reactivation, and whenever the **trigger** changes. The 
 ADR's, and it is the one that is easy to miss: a bin template that has fired every Tuesday since
 January, re-ruled to `Weeks(1, [Thu])`, finds no task on any Thursday and would immediately fire a
 backdated one. Editing a task definition's name or description writes nothing.
+
+### The task form inverts this one's split, and `TaskDefinition.importance` is non-nullable
+
+Amended by [Task create/edit: the surface where you write a task](https://github.com/stainii/task/issues/42),
+2026-08-10.
+
+Two things, both from measuring six years of real edits.
+
+**The split.** This ADR's progressive drawer hides what is rarely **set** — offsets and description.
+[ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md) found that applying the
+same rule to the *task* form would hide description and *ask me from*, the third and fourth
+most-edited fields in the app. The rule that fits an edit screen hides what is rarely **changed**,
+which is the opposite list — and the task form ends up flat anyway, being short enough that a drawer
+buys no space. A template form is where you set things up; a task form is where you change one
+thing.
+
+**Importance.** `TaskDefinition.importance` becomes non-nullable, defaulting to `important`, so that
+a definition cannot produce a task that must have one from a value that does not. Portal corroborates
+that no null case is needed: its `recurring_task` table had no importance column at all, and each
+subscription pinned a constant.

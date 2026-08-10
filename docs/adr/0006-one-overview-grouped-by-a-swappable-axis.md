@@ -190,3 +190,23 @@ Two back-end findings, both outside this ticket, raised separately:
   date-anchored, so unlike min/max it has genuinely missed occurrences. ADR-0001 ruled missed
   calendar firings out of scope, noting they are derivable with no schema change. The author's
   wish for catch-up on reboot re-opens exactly that.
+
+## Amendments
+
+### Ordering *within* a band is specified, and it is FE-004 redesigned
+
+Amended by [Task create/edit: the surface where you write a task](https://github.com/stainii/task/issues/42),
+2026-08-10.
+
+This ADR settled which **band** a task lands in and what the cap does, but never what order tasks
+take **inside** a band. Instant capture made that urgent: a task created from the omnibox has no due
+date, and must not sink out of sight.
+
+[ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md) adopts portal's
+`task.comparator.ts` points model — urgency 0–50, importance 0–50, an importance-scaled overdue
+bonus, ties broken by earliest creation date — with the `expectedDurationInHours` term deleted along
+with the field. An undated but important task scores 20 urgency points, which is exactly "due in 30
+days".
+
+**Band membership trumps the score.** The always-visible guarantee is unchanged; the points order
+what sits inside it.

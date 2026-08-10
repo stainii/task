@@ -192,3 +192,26 @@ maintain forever, for a single-user app that is primarily a phone in a hand.
 - **`CONTEXT.md` was still missing `omnibox`**, which
   [ADR-0014](0014-two-destinations-and-you-capture-by-typing.md) flagged and deliberately did not
   add because a concurrent session held the file. Added here, with `postpone`.
+
+## Amendments
+
+### Portal *did* postpone — constantly — and the presets were shaped against the wrong distribution
+
+Amended by [Task create/edit: the surface where you write a task](https://github.com/stainii/task/issues/42),
+2026-08-10.
+
+This ADR states that portal "had no way to say *not today* except editing the due date inside a
+seven-step dialog, so in practice nothing was ever postponed". Measured against the archive, that is
+**false in its second half**. Step 5 of that dialog is the only UI in portal that writes
+`startDateTime`, and it produced **3,726 start-date-only patches on 1,190 hand-made tasks** — 64% of
+all edit traffic, every year from 2020 to 2026, one task pushed 98 times. Postpone was portal's most
+common act on an existing task; it just cost four clicks and a dialog.
+
+The decision this ADR reached is **unaffected and strengthened** — postpone deserves its own
+affordance more, not less. What changes is the preset set. `Tomorrow / +1 week / pick a date` is
+shaped against a distribution that is not in the data: exactly +7 days was used **55** times, while
++2…6 days was used **1,283**. [ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md)
+replaces it with **`Tomorrow / In 3 days / Next week`** in the panel, and the same set plus
+**`Today`** on the task edit screen — because 1,210 of the 3,726 pushes set the start date to the
+current day, which is a task being pulled *back* into the day's work and which postpone, moving
+forward only, cannot express.

@@ -11,7 +11,7 @@ Decisions that shaped these terms live in `docs/adr/`.
 
 **The only thing you ever tick off.** One aggregate, one shape — there are no task subtypes.
 
-A task has a name, a context, a start date, an optional due date, an optional importance, an
+A task has a name, a context, a start date, an optional due date, an **importance**, an
 optional description, a status, and an append-only history of task patches. Tasks are never
 deleted; they are closed by status.
 
@@ -144,8 +144,13 @@ rejected when saved, because nothing is present to fill it when it fires.
 
 **The date you actually did the thing**, as opposed to the date you told the app about it.
 
-Set on every completion, defaulting to today, and patchable like any other field — so "I ticked it
-off today but I did it last Tuesday" is a value, and correcting it later is just another patch.
+Set on every completion, defaulting to today — so "I ticked it off today but I did it last Tuesday"
+is a value rather than a lie.
+
+It is **not editable after the fact**. The only correction is undoing the completion and redoing it
+from the toast, because the overview shows no closed tasks and nothing else can reach one. That is a
+stated limit, taken knowingly in [#42](https://github.com/stainii/task/issues/42): a wrong
+completion date outlives the toast.
 
 It is deliberately not the completing patch's `dateTime`, which is the **write** clock: backdating
 that would make an older-looking completion lose the fold to any later edit from another device. This
@@ -207,8 +212,58 @@ tasks with a different context.
 
 ### Importance / status
 
-Importance is an optional grade on a task. Status is `OPEN`, `COMPLETED` or `CANCELLED` — tasks are
-closed, never deleted.
+Importance is a **required** grade on a task — `I_DO_NOT_REALLY_CARE`, `NOT_SO_IMPORTANT`,
+`IMPORTANT`, `VERY_IMPORTANT` — defaulting to `IMPORTANT` wherever a task is created, including from
+the **omnibox**. It is required on a **task definition** too, so a firing cannot produce a task
+without one.
+
+There is deliberately no "unset" value. Portal had one and its two components disagreed about what
+it meant: the comparator ranked it *above* `NOT_SO_IMPORTANT`, the colour buckets treated it as low.
+The default removes the values that contradiction could apply to. Migrated tasks with no importance
+become `NOT_SO_IMPORTANT`.
+
+The default also does real work: it is what stops a task captured by **omnibox** — which has no due
+date — from sinking to the bottom of the **ranking**.
+
+Status is `OPEN`, `COMPLETED` or `CANCELLED` — tasks are closed, never deleted.
+
+Resolved in [#42](https://github.com/stainii/task/issues/42),
+[ADR-0018](docs/adr/0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md).
+
+### Ranking
+
+**The order tasks take within a band of visible work.** A points model, balancing three things
+rather than sorting on one: urgency from the due date (0–50, with overdue flat at 50), importance
+(0–50), and an importance-scaled bonus for being overdue. Ties go to the task created first.
+
+A task with **no due date** is not at the bottom: an important one scores 20 urgency points, which
+is exactly what "due in 30 days" scores. That is portal's rule, kept deliberately — an important
+thing with no date is assumed to want doing within the month.
+
+**Band membership beats the score.** Visible work decides *what is on screen*; the ranking only
+orders what is already there. A high score never promotes a task that has not started, and a low one
+never hides a task that is overdue.
+
+Client-side only, over data the client already holds, so it works identically offline. It is
+portal's documented **Eisenhower** model, minus the expected-duration term that died with the field.
+
+Resolved in [#42](https://github.com/stainii/task/issues/42),
+[ADR-0018](docs/adr/0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md).
+
+### Ask me from
+
+**What the start date is called wherever a person sees it.** The task edit dialog never says "start
+date": it asks from when you want to be asked, with `Today · Tomorrow · In 3 days · Next week`.
+
+It is the same field **postpone** writes, worded the same way on purpose, so the two surfaces cannot
+come to mean different things. The one thing it can do that postpone cannot is **`Today`** — pulling
+a sleeping task back into the day's work. Postpone only ever moves forward.
+
+A start date **later** than the due date is normal, not an error: that is what postponing an overdue
+task produces, and 40% of the author's real tasks look like it. Nothing validates against it.
+
+Resolved in [#42](https://github.com/stainii/task/issues/42),
+[ADR-0018](docs/adr/0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md).
 
 ### Importance bucket
 
@@ -250,6 +305,9 @@ Postponing writes an ordinary patch on an ordinary column. It is not a status, n
 a record of its own: how often a task has been pushed is deliberately not stored. What keeps it
 honest is that **context cards count sleeping tasks in their overdue badge**.
 
+Offered as `Tomorrow · In 3 days · Next week`, measured against six years of real pushes rather than
+guessed. The un-postpone lives on the edit dialog as **ask me from**'s `Today`.
+
 It cannot move a **task template**'s clock, because the **anchor** is the last *completed* patch.
 
 Resolved in [#38](https://github.com/stainii/task/issues/38),
@@ -264,6 +322,12 @@ opens the shared date confirm first.
 
 The omnibox is a control, not a route: typing never changes the URL and Escape returns you where you
 were.
+
+A created task takes the **context you are standing in**, falling back to the last one you used; one
+tap on a chip changes that before Enter. Its importance is `IMPORTANT` and it has no due date — the
+toast that follows offers one in a tap, and *Add details* opens the edit dialog for the minority of
+tasks that need more. There is deliberately **no token syntax** (`#house`, `^friday`): a vocabulary
+whose failure mode is silently eating a word out of a task name.
 
 Resolved in [#37](https://github.com/stainii/task/issues/37),
 [ADR-0014](docs/adr/0014-two-destinations-and-you-capture-by-typing.md); instant creation settled in
@@ -341,3 +405,10 @@ Resolved in [#4](https://github.com/stainii/task/issues/4), slot kept by
   that has never fired.
 - **Postpone count** — considered twice and refused twice; **postpone** keeps no tally of itself. The
   overdue badge on the context card is what stops deferral becoming a hiding place.
+- **Unset importance** — dropped; **importance** is required and defaults to `IMPORTANT`. Portal's
+  two components could not agree what a missing one meant, so there is no longer one to disagree
+  about.
+- **Start date** (as a word a person sees) — replaced by **ask me from**. The column keeps its name;
+  the UI never uses it, so that the edit dialog and **postpone** cannot drift apart in meaning.
+- **Expected duration in hours** — dropped with TODO-001, and with it the term it contributed to the
+  **ranking**.

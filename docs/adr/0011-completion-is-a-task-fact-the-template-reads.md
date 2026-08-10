@@ -205,3 +205,24 @@ fixture.**
 - **Leaving the duplicated renderer untested** because it is forty lines. Rejected: the failure mode
   is a task rendered with a different name or due date on one device than another, visible only in
   history, which is the class of defect this map has now found seven times.
+
+## Amendments
+
+### Backdating does not live on the task edit screen, and `completedOn` is not editable later
+
+Amended by [Task create/edit: the surface where you write a task](https://github.com/stainii/task/issues/42),
+2026-08-10.
+
+This ADR placed correcting a completion date on the task create/edit screen "explicitly", and
+[ADR-0014](0014-two-destinations-and-you-capture-by-typing.md) kept it there.
+[ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md) removes it: `completedOn`
+is written by the completion confirm and is **never editable afterwards**.
+
+The reason is reachability, not preference. ADR-0006's overview shows only open tasks, so the moment
+a task is completed the screen that would own the field becomes unreachable. Reaching closed tasks
+through the omnibox was offered and refused as functionality the author does not want, and the
+nearest thing that would restore it — reporting / task history — is out of scope for this map.
+
+**A stated limit follows.** This ADR sold `completedOn` partly on *"correcting it later is just
+another patch"*. That promise is withdrawn: the correction path is undo-then-recomplete inside the
+toast's ~8 seconds, and after that a wrong completion date is permanent.

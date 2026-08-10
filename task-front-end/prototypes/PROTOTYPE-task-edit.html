@@ -1,0 +1,745 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #42, questions Q1, Q2, Q3 (Q4 is settled and baked in).
+  "What does the screen where you write or change a task look like?"
+
+  BUILT AGAINST THE REAL DATA, not against the ledger. The frozen archive at
+  ~/portal-archive/2026-08-04/portal-todo-db.archive.gz was parsed directly (Docker was
+  down, so: concatenated gzip streams + a hand-rolled BSON reader). 11,833 tasks and
+  38,165 patches, 2020-2026. Two premises this ticket inherited do not survive it:
+
+    1. "Portal tasks were rarely edited" (#38, repeated in #42's body) is FALSE.
+       1,207 of 3,021 hand-made tasks (40%) carry a real edit — 3,289 edit patches, and
+       1,371 of them land MORE THAN 30 DAYS after creation. The seven steps were also
+       answered, every time: importance set on 99% of tasks, a due date on 92%, context
+       on 100%. The stepper was opened constantly. Avoidance was never the symptom.
+
+    2. "Portal had no way to say not today ... so in practice nothing was ever
+       postponed" (ADR-0015) is FALSE. Step 5 of that dialog is the ONLY UI in portal
+       that writes startDateTime, and it produced 3,726 start-date-only patches on 1,190
+       hand-made tasks — 64% of all edit traffic, every year from 2020 to 2026, one task
+       pushed 98 times. Postpone was not missing. It was the stepper's dominant real use,
+       done the long way round: open dialog, click past four steps, change date, save.
+
+  So this screen is not "the form nobody used". It is the busiest surface in the app
+  after the overview, and its single busiest job already has its own affordance in
+  ADR-0015. What is left for it is what postpone CANNOT do.
+
+  WHAT ONLY THIS SCREEN CAN DO (also from the data):
+    - 1,210 of those 3,726 pushes set the start date to TODAY — pulling a sleeping task
+      back into the day. ADR-0015's postpone only moves forward. This is the un-postpone.
+    - The push sizes are SHORT: today / +1 / +2..6 days = 3,045 of 3,726. Exactly +7 days
+      was used 55 times. ADR-0015's proposed `Tomorrow / +1 week / pick a date` is shaped
+      against a distribution that is not in the data.
+
+  A CONSTRAINT THE FORM MUST NOT VIOLATE:
+    4,678 of 11,579 tasks (40%) have a start date LATER than their due date — the direct
+    consequence of ADR-0015's "push start, never due". The reflex validation on a form
+    like this ("start must be before due") would reject 40% of real history. There is no
+    such rule here, on purpose. See the red note under the dates.
+
+  SETTLED BEFORE THIS FILE, NOT UP FOR GRABS:
+    Q4 — the start date is worded as postpone, never as a schema field: "Ask me from".
+    Instant capture (ADR-0015) — this screen must never be what Enter opens.
+    expectedDurationInHours — dropped by TODO-001. It was set on 4% and edited 41 times.
+
+  WHAT THE RIG DROVE, AND WHAT WAS DECIDED (ADR-0018 — #42 is closed):
+    Q1 host   — DIALOG, but ROUTED as /task/:id. Editing in the panel was rejected on a
+                cost this file found rather than the predicted one: the form is perfectly
+                legible in a ~410px cell, but CSS grid grows EVERY card in that row to
+                match, and the full-width variant evicts the whole first fold.
+    Q2 create — NO create mode. Enter mints the task; the toast bridges with "Add
+                details" and three due-date chips.
+    Q3 shape  — FLAT. Both progressive splits are still here, and the point survives the
+                decision: ADR-0013 hid what is RARELY SET, while an EDIT screen would
+                have to hide what is RARELY CHANGED, and those are near-opposite lists.
+                Flat won because the form is short enough that a drawer buys no space —
+                it fits a 375px phone unscrolled.
+    Q4 dates  — "Ask me from", presets Today / Tomorrow / In 3 days / Next week, measured.
+                No start-before-due validation, ever.
+    density   — the icon variant is INPUT TO #43 (a coherent visual language), not a
+                decision taken here. Drive it and note the two dates: a calendar icon and
+                a clock icon both read as "a date" and neither says WHICH, which is the
+                one pair ADR-0015 exists to keep apart.
+
+  DELETE ME once this screen is built — along with the rest of prototypes/.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — task create/edit (#42)</title>
+<style>
+  :root {
+    --focus:#e53935; --long-game:#7cb342; --fit-in:#fb8c00; --back-burner:#9e9e9e;
+    --ink:#1c1b1f; --muted:#5f6368; --line:#e3e3e6; --surface:#fff; --bg:#f6f6f8;
+    --accent:#3f51b5; --overdue:#c62828;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+
+  header.app { background:var(--surface); border-bottom:1px solid var(--line);
+               padding:10px 20px; display:flex; align-items:center; gap:14px;
+               position:sticky; top:0; z-index:9; }
+  header.app h1 { font-size:17px; margin:0; font-weight:600; white-space:nowrap; }
+  header.app .omni { flex:1; max-width:520px; position:relative; }
+  header.app input.omni-i { width:100%; padding:7px 12px; border:1px solid var(--line);
+               border-radius:20px; font:inherit; background:var(--bg); }
+  header.app input.omni-i:focus { outline:2px solid var(--accent); outline-offset:-1px; background:#fff; }
+  .omnihint { position:absolute; left:12px; top:36px; font-size:12px; color:var(--muted);
+              background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px;
+              box-shadow:0 6px 18px rgba(0,0,0,.10); z-index:20; }
+  .url { font:12px/1 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted);
+         background:var(--bg); border:1px solid var(--line); border-radius:5px; padding:4px 8px; }
+
+  #rig { background:#ecebf1; border-bottom:1px solid var(--line); padding:8px 20px;
+         font-size:12px; color:var(--muted); display:flex; gap:18px; align-items:center;
+         flex-wrap:wrap; position:sticky; top:47px; z-index:8; }
+  #rig b { color:var(--ink); font-weight:600; }
+  #rig .grp { display:flex; gap:5px; align-items:center; }
+  #rig button { font:inherit; font-size:12px; padding:3px 9px; border:1px solid #c9c8d0;
+                background:#fff; border-radius:5px; cursor:pointer; color:var(--muted); }
+  #rig button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  #rigreport { margin-left:auto; }
+
+  main { padding:18px 20px 80px; max-width:1180px; margin:0 auto; }
+  .bandtitle { font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+               color:var(--muted); margin:16px 0 8px; }
+  .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); }
+  @media (min-width:900px)  { .grid { grid-template-columns:repeat(3,1fr); } }
+  @media (max-width:899px) and (min-width:600px) { .grid { grid-template-columns:repeat(2,1fr); } }
+
+  .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px;
+           padding:10px 12px 10px 16px; position:relative; cursor:pointer; overflow:hidden; }
+  .panel::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; }
+  .panel.focus::before { background:var(--focus); }
+  .panel.long-game::before { background:var(--long-game); }
+  .panel.fit-in::before { background:var(--fit-in); }
+  .panel.back-burner::before { background:var(--back-burner); }
+  .panel .n { font-weight:600; display:block; }
+  .panel .meta { font-size:12px; color:var(--muted); margin-top:3px; }
+  .panel .meta .od { color:var(--overdue); font-weight:600; }
+  .panel .desc { font-size:13px; color:var(--muted); margin-top:8px; white-space:pre-wrap; }
+  .acts { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .acts button { font:inherit; font-size:12px; padding:4px 10px; border-radius:6px;
+                 border:1px solid var(--line); background:#fff; cursor:pointer; }
+  .acts button.primary { border-color:var(--accent); color:var(--accent); }
+
+  /* ---- the form ---- */
+  .form { background:var(--surface); }
+  .form .fld { margin-bottom:14px; }
+  .form label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .form input[type=text], .form input[type=date], .form textarea, .form select {
+      width:100%; font:inherit; padding:8px 10px; border:1px solid var(--line);
+      border-radius:8px; background:#fff; color:var(--ink); }
+  .form textarea { min-height:88px; resize:vertical; }
+  /* Due and "Ask me from" sit side by side, but only where both fit. Below ~430px the
+     native date input's own calendar button clips the second field — found at 375px. */
+  .form .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .form .row > * { flex:1 1 190px; min-width:0; }
+  .form h2 { margin:0 0 2px; font-size:20px; }
+  .form .sub { font-size:12px; color:var(--muted); margin-bottom:16px; }
+  .more { border:none; background:none; color:var(--accent); font:inherit; font-size:13px;
+          cursor:pointer; padding:6px 0; margin-bottom:10px; }
+  .drawer { border-left:2px solid var(--line); padding-left:12px; margin-bottom:10px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .chips button { font:inherit; font-size:12px; padding:3px 10px; border-radius:14px;
+                  border:1px solid var(--line); background:#fff; cursor:pointer; color:var(--muted); }
+  .chips button.on { border-color:var(--accent); color:var(--accent); background:#f2f3fb; }
+  .note { font-size:12px; color:var(--overdue); margin-top:-8px; margin-bottom:12px; }
+  .formacts { display:flex; gap:8px; align-items:center; margin-top:6px; }
+  .formacts button { font:inherit; padding:8px 16px; border-radius:8px; cursor:pointer;
+                     border:1px solid var(--line); background:#fff; }
+  .formacts button.save { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .formacts .dirty { font-size:12px; color:var(--muted); margin-left:auto; }
+
+  /* host: route */
+  .route { max-width:640px; margin:0 auto; background:var(--surface);
+           border:1px solid var(--line); border-radius:12px; padding:20px 22px; }
+  .backbar { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .backbar button { font:inherit; border:none; background:none; cursor:pointer;
+                    color:var(--accent); padding:0; }
+
+  /* host: dialog */
+  .scrim { position:fixed; inset:0; background:rgba(0,0,0,.34); z-index:30;
+           display:flex; align-items:center; justify-content:center; padding:20px; }
+  .dialog { background:var(--surface); border-radius:12px; padding:20px 22px; width:100%;
+            max-width:560px; max-height:86vh; overflow:auto; box-shadow:0 20px 50px rgba(0,0,0,.3); }
+
+  /* host: inline */
+  .panel.editing { cursor:default; }
+  .panel.editing.wide { grid-column:1 / -1; }
+  .panel.editing .form { padding-top:8px; }
+  .inlinewarn { font-size:12px; color:var(--overdue); margin-bottom:10px; }
+
+  aside { position:fixed; right:14px; bottom:14px; width:320px; max-height:56vh; overflow:auto;
+          background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+          font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--muted);
+          box-shadow:0 8px 26px rgba(0,0,0,.10); z-index:25; }
+  aside h3 { margin:0 0 6px; font:600 11px/1 system-ui; letter-spacing:.08em;
+             text-transform:uppercase; color:var(--ink); }
+  aside .k { color:var(--accent); }
+  aside .empty { color:#b9bcc0; }
+  aside > div + h3 { margin-top:12px; }
+
+  #toast { position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:40;
+           background:#26262b; color:#fff; border-radius:10px; padding:10px 14px;
+           display:none; gap:16px; align-items:center; font-size:14px;
+           box-shadow:0 8px 26px rgba(0,0,0,.3); }
+  #toast.on { display:flex; }
+  #toast button { font:inherit; background:none; border:none; color:#b7c0ff; cursor:pointer;
+                  font-weight:600; }
+  #toastchips { display:flex; gap:6px; }
+  #toastchips button { border:1px solid #4a4a55; border-radius:14px; padding:2px 10px;
+                       font-size:13px; font-weight:400; color:#e6e6ea; }
+  .confirm { background:#fff6f5; border:1px solid #f0c9c5; border-radius:8px; padding:10px 12px;
+             margin-bottom:12px; font-size:13px; }
+  .confirm .row2 { display:flex; gap:8px; margin-top:8px; }
+  .confirm button { font:inherit; font-size:13px; padding:5px 12px; border-radius:6px;
+                    border:1px solid var(--line); background:#fff; cursor:pointer; }
+  .confirm button.warn { border-color:var(--overdue); color:var(--overdue); }
+  .provenance { font-size:12px; margin:-10px 0 14px; }
+  .provenance a { color:var(--accent); text-decoration:none; }
+
+  /* dense variant — the author's note: too much textual overload.
+     The label becomes an icon, the field says what it is by its own content. */
+  .dense h2 { display:none; }
+  .dense .sub { display:none; }
+  .dense .nameline input { font-size:19px; font-weight:600; border:none; border-bottom:2px solid var(--line);
+                           border-radius:0; padding:6px 2px; }
+  .dense .nameline input:focus { outline:none; border-bottom-color:var(--accent); }
+  .dense .iconrow { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .dense .iconrow svg { flex:none; width:18px; height:18px; stroke:var(--muted); fill:none;
+                        stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .dense .iconrow > .f { flex:1 1 150px; min-width:0; }
+  .dense .fld { margin-bottom:12px; }
+  .dense label { display:none; }
+  .dense textarea { min-height:64px; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Tasks</h1>
+  <div class="omni">
+    <input class="omni-i" id="omni" placeholder="Add, find, or say what you did…" autocomplete="off">
+    <div class="omnihint" id="omnihint" style="display:none"></div>
+  </div>
+  <span class="url" id="url">/</span>
+</header>
+
+<div id="rig">
+  <span class="grp"><b>Q1 host:</b>
+    <button data-host="route">route /task/:id</button>
+    <button data-host="dialog">dialog</button>
+    <button data-host="inline">edit in the panel</button>
+    <button data-wide="1">└ full width</button>
+  </span>
+  <span class="grp"><b>Q2 create:</b>
+    <button data-create="toast">Enter creates + toast</button>
+    <button data-create="form">Enter opens a blank form</button>
+  </span>
+  <span class="grp"><b>Q3 shape:</b>
+    <button data-shape="flat">flat</button>
+    <button data-shape="changed">progressive · hide rarely CHANGED</button>
+    <button data-shape="set">progressive · hide rarely SET (ADR-0013's split)</button>
+  </span>
+  <span class="grp"><b>Q9 capture:</b>
+    <button data-fast="1">fast input (context chips + due chips)</button>
+    <button data-ctx="housagotchi">stand inside /in/housagotchi</button>
+  </span>
+  <span class="grp"><b>density:</b>
+    <button data-dense="1">icons, no labels</button>
+  </span>
+  <span class="grp"><button data-reset="1">reset</button></span>
+  <span id="rigreport"></span>
+</div>
+
+<main id="main"></main>
+
+<aside>
+  <h3>patches this session</h3>
+  <div id="log"><div class="empty">nothing written yet</div></div>
+  <h3>what portal actually did</h3>
+  <div id="evidence"></div>
+</aside>
+
+<div id="toast"><span id="toasttext"></span><span id="toastchips"></span><button id="toastbtn"></button></div>
+
+<script>
+// ---- state ----------------------------------------------------------------
+let host   = "dialog";    // route | dialog | inline   — SETTLED: dialog
+let create = "toast";     // toast | form
+let shape  = "flat";      // flat | changed | set    — SETTLED: flat, no drawer
+let wide   = false;       // inline host only: does the editing card span the whole grid?
+let editing = null;       // task id being edited, or "new"
+let draft   = null;       // working copy
+let drawer  = false;      // progressive drawer open?
+let log = [];
+let toastAction = null;
+let toastChips  = null;   // extra one-tap actions carried by a toast (the due-date idea)
+let confirming  = false;  // Q12(C): dismissing a dirty dialog by scrim/Escape/back asks first
+
+// Q9: defaults. The author asked for context to default to the LAST CHOSEN one. Being
+// INSIDE a context beats that — ADR-0006's card click "enters" a context, and a task
+// captured from inside `house` is a house task by construction, not by history.
+let lastContext = "Personal";
+let inContext   = "";     // simulates standing on /in/:value; rig toggles it
+let fastInput   = true;   // Q9 follow-up: the omnibox's context chips + the toast's due chips
+let dense       = false;  // the author's note: the prototypes are textually overloaded. Icons?
+
+// SETTLED (Q13): importance defaults to `important`. Portal set it on 99% of tasks and
+// changed it 194 times in six years — and under instant capture the default is what stops
+// an Enter-captured task with no due date from sinking: important + far = `long-game`,
+// not `back-burner`. The default IS the anti-inbox mechanism (Q14).
+const DEFAULT_IMPORTANCE = "IMPORTANT";
+
+const CONTEXTS = ["Personal","Scholencoordinatie","Medisch Huis","Ideeën","housagotchi","social"];
+const IMPORTANCE = ["I_DO_NOT_REALLY_CARE","NOT_SO_IMPORTANT","IMPORTANT","VERY_IMPORTANT"];
+const IMP_LABEL = { I_DO_NOT_REALLY_CARE:"don't really care", NOT_SO_IMPORTANT:"not so important",
+                    IMPORTANT:"important", VERY_IMPORTANT:"very important" };
+
+const today = new Date(); today.setHours(0,0,0,0);
+const iso  = d => new Date(d).toISOString().slice(0,10);
+const plus = n => { const d = new Date(today); d.setDate(d.getDate()+n); return iso(d); };
+const days = s => s ? Math.round((new Date(s) - today) / 86400000) : null;
+
+// real tasks, real names, real field mixes (sampled from the archive)
+const START = [
+  { id:"t1", n:"Waterbak technische ruimte", c:"Medisch Huis", imp:"VERY_IMPORTANT",
+    start:plus(-3), due:plus(-1), desc:"", tmpl:null },
+  { id:"t2", n:"Reageren op Greenmade", c:"Personal", imp:"IMPORTANT",
+    start:plus(0), due:plus(2), desc:"- 2 weekends maart\n- cateraar zou best ook meekomen", tmpl:null },
+  { id:"t3", n:"Peter Beke afspreken + sessies zoeken", c:"Personal", imp:"IMPORTANT",
+    start:plus(9), due:plus(-40),
+    desc:"", tmpl:null },   // start AFTER due — postponed while overdue. 40% of real tasks look like this.
+  { id:"t4", n:"Beddengoed wassen", c:"housagotchi", imp:"NOT_SO_IMPORTANT",
+    start:plus(0), due:plus(4), desc:"", tmpl:"Beddengoed wassen en bed stofzuigen" },
+  { id:"t5", n:"Architectuur oefenen", c:"Personal", imp:"IMPORTANT",
+    start:plus(-1), due:plus(20),
+    desc:"1) C4 diagrammen maken in Structurizr voor portal.\n2) Visiedocument schrijven.", tmpl:null },
+  { id:"t6", n:"Bureau betalen", c:"Personal", imp:"IMPORTANT",
+    start:plus(0), due:plus(1), desc:"", tmpl:null },
+];
+let tasks = START.map(t => ({...t}));
+
+function bucket(t) {
+  const near = t.due !== null && days(t.due) < 7;
+  const big  = t.imp === "IMPORTANT" || t.imp === "VERY_IMPORTANT";
+  if (big && near) return "focus";
+  if (big) return "long-game";
+  if (near) return "fit-in";
+  return "back-burner";
+}
+
+// ---- which fields are behind the drawer -----------------------------------
+// The whole point of the `changed` vs `set` rig. Both lists come from the archive:
+//   rarely SET at creation   : description (12% of hand-made tasks)
+//   rarely CHANGED afterwards: importance (194 edits), context (102 edits)
+// ADR-0013 hid the first kind. An EDIT screen is a place you go to change something.
+const HIDDEN = {
+  flat:    [],
+  changed: ["imp","c"],
+  set:     ["desc","start"],
+};
+const isHidden = f => HIDDEN[shape].includes(f) && !drawer;
+
+// ---- form -----------------------------------------------------------------
+function fieldHTML(f) {
+  if (isHidden(f)) return "";
+  switch (f) {
+    case "n": return `
+      <div class="fld"><label>What needs to be done?</label>
+        <input type="text" data-f="n" value="${esc(draft.n)}" ${editing==="new"?"autofocus":""}></div>`;
+    case "c": return `
+      <div class="fld"><label>Context</label>
+        <select data-f="c">${CONTEXTS.map(c =>
+          `<option ${c===draft.c?"selected":""}>${c}</option>`).join("")}</select></div>`;
+    case "imp": return `
+      <div class="fld"><label>Importance</label>
+        <select data-f="imp"><option value="">—</option>${IMPORTANCE.map(i =>
+          `<option value="${i}" ${i===draft.imp?"selected":""}>${IMP_LABEL[i]}</option>`).join("")}</select></div>`;
+    case "dates": return `
+      <div class="fld"><div class="row">
+        <div><label>Due</label><input type="date" data-f="due" value="${draft.due||""}"></div>
+        ${isHidden("start") ? `<div></div>` : `
+        <div><label>Ask me from</label><input type="date" data-f="start" value="${draft.start||""}">
+          <div class="chips">
+            <button data-set="0"  class="${draft.start===plus(0)?"on":""}">today</button>
+            <button data-set="1"  class="${draft.start===plus(1)?"on":""}">tomorrow</button>
+            <button data-set="3"  class="${draft.start===plus(3)?"on":""}">in 3 days</button>
+            <button data-set="7"  class="${draft.start===plus(7)?"on":""}">next week</button>
+          </div>
+        </div>`}
+      </div></div>
+      ${draft.due && draft.start > draft.due
+        ? `<div class="note">Asking from ${draft.start}, still due ${draft.due} — ${-days(draft.due)} days overdue.
+             Not an error: 40% of your real tasks look like this.</div>` : ``}`;
+    case "desc": return `
+      <div class="fld"><label>Extra information</label>
+        <textarea data-f="desc" placeholder="What needs to be done, in detail?">${esc(draft.desc)}</textarea></div>`;
+  }
+  return "";
+}
+
+const ICON = {
+  tag:  `<svg viewBox="0 0 24 24"><path d="M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>`,
+  flag: `<svg viewBox="0 0 24 24"><path d="M4 21V4"/><path d="M4 5h13l-2 4 2 4H4"/></svg>`,
+  due:  `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`,
+  wake: `<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M5 3 2.5 5.5M19 3l2.5 2.5"/></svg>`,
+  note: `<svg viewBox="0 0 24 24"><path d="M4 6h16M4 11h16M4 16h9"/></svg>`,
+};
+
+// The dense form: no field labels, an icon per row, the control carries its own meaning.
+function denseFormHTML() {
+  return `
+    <div class="fld nameline"><input type="text" data-f="n" value="${esc(draft.n)}"
+        placeholder="What needs to be done?"></div>
+    <div class="iconrow">${ICON.tag}
+      <span class="f"><select data-f="c">${CONTEXTS.map(c =>
+        `<option ${c===draft.c?"selected":""}>${c}</option>`).join("")}</select></span>
+      ${ICON.flag}
+      <span class="f"><select data-f="imp"><option value="">—</option>${IMPORTANCE.map(i =>
+        `<option value="${i}" ${i===draft.imp?"selected":""}>${IMP_LABEL[i]}</option>`).join("")}</select></span>
+    </div>
+    <div class="iconrow">${ICON.due}
+      <span class="f"><input type="date" data-f="due" value="${draft.due||""}"></span>
+      ${ICON.wake}
+      <span class="f"><input type="date" data-f="start" value="${draft.start||""}"></span>
+    </div>
+    <div class="chips" style="margin:-6px 0 12px 28px">
+      <button data-set="0" class="${draft.start===plus(0)?"on":""}">today</button>
+      <button data-set="1" class="${draft.start===plus(1)?"on":""}">tomorrow</button>
+      <button data-set="3" class="${draft.start===plus(3)?"on":""}">in 3 days</button>
+      <button data-set="7" class="${draft.start===plus(7)?"on":""}">next week</button>
+    </div>
+    ${draft.due && draft.start > draft.due
+      ? `<div class="note">still due ${draft.due} — ${-days(draft.due)} days overdue</div>` : ``}
+    <div class="iconrow" style="align-items:flex-start">${ICON.note}
+      <span class="f"><textarea data-f="desc" placeholder="Extra information">${esc(draft.desc)}</textarea></span>
+    </div>`;
+}
+
+function formHTML() {
+  const isNew = editing === "new";
+  const hidden = HIDDEN[shape].filter(f => !drawer);
+  const order = ["n","c","imp","dates","desc"];
+  return `
+    <h2>${isNew ? "New task" : esc(draft.n) || "(no name)"}</h2>
+    <div class="sub">${isNew ? "nothing written yet — the task does not exist until you save"
+                             : "every change is a patch"}</div>
+    ${confirming ? `
+      <div class="confirm">
+        <b>${diffFields().length} unsaved change(s).</b> Leaving now discards them.
+        <div class="row2">
+          <button data-keep="1">Keep editing</button>
+          <button class="warn" data-discard="1">Discard</button>
+        </div>
+      </div>` : ``}
+    ${!isNew && draft.tmpl
+      // Q10 — free edit, plus the link. Renaming fixes this fortnight; the link is the
+      // only thing on the screen that offers to fix every fortnight after it.
+      ? `<div class="provenance">Made by <b>${esc(draft.tmpl)}</b> —
+           <a href="#" data-tmpl="1">edit the template instead →</a>
+           <br><span style="color:#8a8d91">changes here apply to this task only</span></div>`
+      : ``}
+    ${dense ? denseFormHTML() : order.map(fieldHTML).join("")}
+    ${!dense && hidden.length && !drawer
+      ? `<button class="more" data-drawer="1">More — ${hidden.map(f =>
+           ({imp:"importance",c:"context",desc:"description",start:"ask me from"})[f]).join(", ")} ▾</button>`
+      : ``}
+    <div class="formacts">
+      <button class="save" data-save="1">${isNew ? "Create" : "Save"}</button>
+      <button data-cancel="1">Cancel</button>
+      <span class="dirty">${diffFields().length ? diffFields().length + " field(s) changed" : "no changes"}</span>
+    </div>`;
+}
+
+function defaultContext() { return inContext || lastContext; }
+
+function original() { return editing === "new" ? null : tasks.find(t => t.id === editing); }
+function diffFields() {
+  const o = original();
+  if (!o) return ["n","c","imp","start","due","desc"].filter(f => draft[f]);
+  return ["n","c","imp","start","due","desc"].filter(f => (draft[f]||"") !== (o[f]||""));
+}
+
+// ---- render ---------------------------------------------------------------
+function esc(s) { return (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+function panelHTML(t) {
+  const inlineEdit = host === "inline" && editing === t.id;
+  const d = days(t.due), s = days(t.start);
+  if (inlineEdit) return `
+    <div class="panel editing ${wide?"wide":""} ${bucket(t)}" data-id="${t.id}">
+      <div class="form ${dense?"dense":""}">
+        <div class="inlinewarn">${wide
+          ? "Full width — the neighbours are evicted and the fold moves."
+          : "In its own cell — the neighbours stay, but every card in this row grows to match."}</div>
+        ${formHTML()}
+      </div>
+    </div>`;
+  return `
+    <div class="panel ${bucket(t)}" data-id="${t.id}">
+      <span class="n">${esc(t.n)}</span>
+      <div class="meta">${t.c} · ${d === null ? "no due date"
+        : d < 0 ? `<span class="od">${-d}d overdue</span>` : d === 0 ? "due today" : `due in ${d}d`}
+        ${s > 0 ? ` · asleep for ${s}d` : ""}</div>
+      ${t.desc ? `<div class="desc">${esc(t.desc)}</div>` : ""}
+      <div class="acts">
+        <button data-edit="${t.id}" class="primary">Edit</button>
+        <button data-postpone="${t.id}">Postpone</button>
+        <button>Complete</button><button>Cancel</button>
+      </div>
+    </div>`;
+}
+
+function render() {
+  const editingSomething = editing !== null;
+  const showOverview = !(host === "route" && editingSomething);
+
+  let html = "";
+  if (showOverview) {
+    const started = tasks.filter(t => days(t.start) <= 0);
+    const asleep  = tasks.filter(t => days(t.start) > 0);
+    html += `<div class="bandtitle">Today</div>
+             <div class="grid">${started.map(panelHTML).join("")}</div>`;
+    if (asleep.length) html += `<div class="bandtitle">Not started yet (${asleep.length})</div>
+             <div class="grid">${asleep.map(panelHTML).join("")}</div>`;
+  }
+  if (host === "route" && editingSomething) {
+    html = `<div class="route">
+              <div class="backbar"><button data-cancel="1">← Tasks</button></div>
+              <div class="form ${dense?"dense":""}">${formHTML()}</div>
+            </div>`;
+  }
+  document.getElementById("main").innerHTML = html;
+
+  const old = document.querySelector(".scrim"); if (old) old.remove();
+  if (host === "dialog" && editingSomething) {
+    const s = document.createElement("div"); s.className = "scrim";
+    s.innerHTML = `<div class="dialog"><div class="form ${dense?"dense":""}">${formHTML()}</div></div>`;
+    document.body.appendChild(s);
+  }
+
+  // SETTLED (Q11): the dialog IS a route — /task/:id renders as a dialog over the overview,
+  // so hardware back closes it, ADR-0012's push can deep-link, and the toast's "Add details"
+  // is an ordinary navigation. The URL below is live in every host for that reason.
+  document.getElementById("url").textContent =
+    editingSomething ? (editing === "new" ? "/task/new" : "/task/" + editing)
+                     : (inContext ? "/in/" + inContext : "/");
+
+  document.getElementById("log").innerHTML = log.length
+    ? log.map(l => `<div>${l}</div>`).join("") : `<div class="empty">nothing written yet</div>`;
+
+  document.getElementById("evidence").innerHTML = `
+    <div>hand-made tasks <b>3,021</b></div>
+    <div>· ever really edited <b>1,207</b> (40%)</div>
+    <div>· start-date-only pushes <b>3,726</b></div>
+    <div>&nbsp;&nbsp;on <b>1,190</b> tasks, one <b>98×</b></div>
+    <div>&nbsp;&nbsp;→ today <b>1,210</b> · +1 <b>552</b></div>
+    <div>&nbsp;&nbsp;→ +2..6 <b>1,283</b> · exactly +7 <b>55</b></div>
+    <div>edits by field:</div>
+    <div>&nbsp;&nbsp;due <b>1,397</b> · name <b>951</b></div>
+    <div>&nbsp;&nbsp;desc <b>827</b> · start <b>664</b></div>
+    <div>&nbsp;&nbsp;importance <b>194</b> · context <b>102</b></div>
+    <div>set at creation:</div>
+    <div>&nbsp;&nbsp;importance <b>99%</b> · due <b>92%</b></div>
+    <div>&nbsp;&nbsp;description <b>12%</b></div>
+    <div>start &gt; due: <b>40%</b> of all tasks</div>`;
+
+  document.getElementById("rigreport").innerHTML =
+    `host <b>${host}</b> · create <b>${create}</b> · shape <b>${shape}</b>` +
+    (editingSomething ? ` · editing <b>${editing}</b>` : ``);
+
+  document.querySelectorAll("#rig button").forEach(b => b.classList.toggle("on",
+    !!(b.dataset.host === host || b.dataset.create === create || b.dataset.shape === shape
+       || (b.dataset.wide && wide) || (b.dataset.fast && fastInput)
+       || (b.dataset.ctx && inContext) || (b.dataset.dense && dense))));
+}
+
+function openEditor(id) {
+  editing = id; drawer = false;
+  draft = id === "new"
+    ? { id:"new", n:"", c:defaultContext(), imp:DEFAULT_IMPORTANCE, start:plus(0), due:"", desc:"", tmpl:null }
+    : { ...tasks.find(t => t.id === id) };
+  render();
+}
+
+// leave(deliberate): B — go, and say what went. dismiss(): C — ask, if there is anything to lose.
+function leave(deliberate) {
+  const n = diffFields().length;
+  editing = null; confirming = false; render();
+  if (n && deliberate) toast(`Discarded ${n} unsaved change(s)`, "Dismiss", null);
+}
+function dismiss() {
+  if (diffFields().length) { confirming = true; return render(); }
+  editing = null; render();
+}
+
+function toast(text, btn, action, chips) {
+  const el = document.getElementById("toast");
+  document.getElementById("toasttext").textContent = text;
+  document.getElementById("toastbtn").textContent = btn;
+  toastAction = action; toastChips = chips || null;
+  const box = document.getElementById("toastchips");
+  box.innerHTML = toastChips
+    ? toastChips.map((c,i) => `<button data-chip="${i}">${c.label}</button>`).join("") : "";
+  el.classList.add("on");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("on"), 8000);
+}
+
+function writePatch(fields, label) {
+  log.unshift(`<span class="k">patch</span> ${label}<br>` +
+    fields.map(f => `&nbsp;&nbsp;${f} → ${esc(String(draft[f] ?? "")).slice(0,40) || "∅"}`).join("<br>"));
+}
+
+// ---- events ---------------------------------------------------------------
+document.addEventListener("click", e => {
+  const rig = e.target.closest("#rig button");
+  if (rig) {
+    if (rig.dataset.host)   { host = rig.dataset.host; }
+    if (rig.dataset.create) { create = rig.dataset.create; }
+    if (rig.dataset.shape)  { shape = rig.dataset.shape; drawer = false; }
+    if (rig.dataset.wide)   { wide = !wide; host = "inline"; }
+    if (rig.dataset.fast)   { fastInput = !fastInput; }
+    if (rig.dataset.dense)  { dense = !dense; }
+    if (rig.dataset.ctx)    { inContext = inContext ? "" : rig.dataset.ctx; }
+    if (rig.dataset.reset)  { tasks = START.map(t => ({...t})); log = []; editing = null; }
+    return render();
+  }
+
+  if (e.target.id === "toastbtn") {
+    document.getElementById("toast").classList.remove("on");
+    if (toastAction) toastAction();
+    return render();
+  }
+
+  const ed = e.target.closest("[data-edit]");
+  if (ed) { e.stopPropagation(); return openEditor(ed.dataset.edit); }
+
+  const pp = e.target.closest("[data-postpone]");
+  if (pp) {
+    e.stopPropagation();
+    const t = tasks.find(x => x.id === pp.dataset.postpone);
+    const was = t.start; t.start = plus(3);
+    log.unshift(`<span class="k">patch</span> postpone (panel)<br>&nbsp;&nbsp;start ${was} → ${t.start}`);
+    toast(`Postponed — still due ${t.due || "—"}`, "Undo", () => { t.start = was; log.shift(); });
+    return render();
+  }
+
+  if (e.target.closest("[data-drawer]")) { drawer = true; return render(); }
+
+  const octx = e.target.closest("[data-omnictx]");
+  if (octx) {
+    lastContext = octx.dataset.omnictx; inContext = "";
+    const o = document.getElementById("omni");
+    o.dispatchEvent(new Event("input", { bubbles:true })); o.focus();
+    return render();
+  }
+
+  const chip = e.target.closest(".chips button");
+  if (chip && chip.dataset.set !== undefined) { draft.start = plus(+chip.dataset.set); return render(); }
+
+  // Q12, split by gesture. A deliberate Cancel is an answer, so it just goes (B).
+  // An accidental scrim tap / Escape / hardware back asks first (C) — see dismiss().
+  if (e.target.closest("[data-cancel]")) return leave(true);
+  if (e.target.closest("[data-keep]"))    { confirming = false; return render(); }
+  if (e.target.closest("[data-discard]")) { confirming = false; return leave(true); }
+
+  if (e.target.closest("[data-tmpl]")) {
+    e.preventDefault();
+    log.unshift(`<span class="k">nav</span> /templates/… <span style="color:#b9bcc0">(stub)</span>`);
+    return render();
+  }
+
+  const chip2 = e.target.closest("#toastchips button");
+  if (chip2 && toastChips) {
+    toastChips[+chip2.dataset.chip].run();
+    document.getElementById("toast").classList.remove("on");
+    return render();
+  }
+
+  if (e.target.closest("[data-save]")) {
+    const changed = diffFields();
+    if (editing === "new") {
+      if (!draft.n.trim()) return;
+      const t = { ...draft, id:"t" + (tasks.length+1) };
+      tasks.push(t);
+      writePatch(["n","c","imp","start","due","desc"], "CREATE (first patch carries every field — ADR-0004)");
+      editing = null; render();
+      toast(`Added "${t.n}"`, "Undo", () => { tasks.pop(); log.shift(); });
+      return;
+    }
+    if (changed.length) {
+      const t = tasks.find(x => x.id === editing);
+      changed.forEach(f => t[f] = draft[f]);
+      writePatch(changed, `edit ${editing}`);
+      if (changed.includes("c")) lastContext = draft.c;
+    }
+    editing = null; render();
+    if (changed.length) toast(`Saved ${changed.length} change(s)`, "Undo", null);
+    return;
+  }
+
+  // the scrim is an accidental dismissal — it asks
+  if (e.target.classList.contains("scrim")) return dismiss();
+});
+
+document.addEventListener("input", e => {
+  const f = e.target.dataset.f;
+  if (f && draft) {
+    draft[f] = e.target.value;
+    const dirty = document.querySelector(".formacts .dirty");
+    if (dirty) dirty.textContent = diffFields().length ? diffFields().length + " field(s) changed" : "no changes";
+    // re-render only the start>due note, so typing is not interrupted
+    return;
+  }
+  if (e.target.id === "omni") {
+    const v = e.target.value.trim();
+    const hint = document.getElementById("omnihint");
+    hint.style.display = v ? "block" : "none";
+    if (!v) { hint.innerHTML = ""; return; }
+    if (create === "form") { hint.innerHTML = `<b>Enter</b> — open a form prefilled with “${esc(v)}”`; return; }
+    hint.innerHTML =
+      `<b>Enter</b> — create “${esc(v)}” in <b>${defaultContext()}</b>, from today, no due date` +
+      (inContext ? `<br><span style="color:#8a8d91">(you are inside ${inContext})</span>` : ``) +
+      (fastInput
+        // ONE TAP, NOT A SYNTAX. #38 rejected a keyboard layer, so `#house` tokens are out.
+        // A chip row changes the default before Enter and costs no vocabulary to learn.
+        ? `<div class="chips" style="margin-top:6px">${CONTEXTS.map(c =>
+            `<button data-omnictx="${c}" class="${c===defaultContext()?"on":""}">${c}</button>`).join("")}</div>`
+        : ``);
+  }
+});
+
+document.addEventListener("keydown", e => {
+  if (e.target.id === "omni" && e.key === "Enter") {
+    const v = e.target.value.trim(); if (!v) return;
+    e.target.value = ""; document.getElementById("omnihint").style.display = "none";
+    if (create === "form") { openEditor("new"); draft.n = v; draft.c = defaultContext(); return render(); }
+    const c = defaultContext();
+    const t = { id:"t"+(tasks.length+1), n:v, c, imp:DEFAULT_IMPORTANCE, start:plus(0), due:"", desc:"", tmpl:null };
+    tasks.push(t); lastContext = c;
+    log.unshift(`<span class="k">patch</span> CREATE from omnibox<br>&nbsp;&nbsp;name → ${esc(v)}<br>` +
+                `&nbsp;&nbsp;<span style="color:#b9bcc0">context ${c}, start today, no due date</span>`);
+    render();
+    // The toast carries the ONE follow-up the data says is likeliest: a due date.
+    // due is the #1 edited field (1,397 edits). One tap here means the dialog never opens.
+    toast(`Added “${v}” in ${c}`, "Add details", () => openEditor(t.id),
+          fastInput ? [{ label:"due today", d:0 }, { label:"tomorrow", d:1 }, { label:"in 3 days", d:3 }]
+                      .map(o => ({ ...o, run:() => {
+                        t.due = plus(o.d);
+                        log.unshift(`<span class="k">patch</span> due (from the toast)<br>&nbsp;&nbsp;${esc(t.n)} → ${t.due}`);
+                      }})) : null);
+    return;
+  }
+  if (e.key === "Escape" && editing !== null) dismiss();   // Escape = hardware back = accidental
+});
+
+render();
+</script>
+</body>
+</html>
