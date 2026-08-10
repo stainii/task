@@ -279,7 +279,9 @@ Flyway V1–V3 were checked field by field against `Task`, `TaskPatch`, `TaskTem
 
 ### Genuine defects found
 
-**D1 — `RecurringTaskTemplate.shouldTaskBeCreatedBecauseItIsDue` uses the wrong day count.**
+> **Dispositions.** Every defect below has a home, tracked as `HEALTH-01`…`HEALTH-08` in [`docs/coverage-gate.md`](coverage-gate.md) (#16). Two are decisions **not** to fix: **D6/`HEALTH-06`** dies with `Execution`, which ADR-0001 deletes, and **F1–F3/`HEALTH-08`** were resolved by deletion in #30 and are kept here verbatim as the evidence that discard was right.
+
+**D1 (`HEALTH-01`) — `RecurringTaskTemplate.shouldTaskBeCreatedBecauseItIsDue` uses the wrong day count.**
 
 ```java
 var numberOfDaysSinceLastExecution = Period.between(getLastExecutionDateOrCreationDate(), now).getDays();
@@ -294,11 +296,11 @@ actual days apart                                = 211
 
 So a recurring task last executed 7 months ago reports "30 days since last execution". Any template with `minNumberOfDaysBetweenExecutions > 30` can **never** become due. `ChronoUnit.DAYS.between(...)` is the correct call. The 14 `RecurringTaskTemplateTest` cases do not catch it.
 
-**D2 — `Task.patch()` re-applies newer patches recursively and re-appends them.**
+**D2 (`HEALTH-02`) — `Task.patch()` re-applies newer patches recursively and re-appends them.**
 
 `patch()` adds the patch to `history`, then finds the first patch newer than it and calls `patch()` on that one — which appends that newer patch to `history` **again**. Re-patching a task with out-of-order patches grows the history with duplicates and re-runs the reapplication loop over a mutating list. This is the offline-first replay path, so it matters. Flagged in the ticket as "worth a second look"; it looks like a real bug, not just a smell.
 
-**D3 — patch ids are reachable only over SSE, so undo breaks on a cold start.**
+**D3 (`HEALTH-03`) — patch ids are reachable only over SSE, so undo breaks on a cold start.**
 
 `DELETE /api/task-patches/{id}` needs a patch id. The two read paths disagree about whether the client may have one:
 
@@ -317,14 +319,14 @@ bfc7d11e-11dc-4639-aeaa-4677544dc597 | 13ebc8b7-008d-473a-b5d6-bd725621dc98 | 1
 
 This also collides with offline-first: a disconnected client cannot mint patch ids, so it cannot make writes idempotent on reconnect.
 
-**D4 — `RecurringTaskTemplateController` is inconsistent with the other three controllers.**
+**D4 (`HEALTH-04`) — `RecurringTaskTemplateController` is inconsistent with the other three controllers.**
 
 - Routes are `"/"` and `"/{id}"`, so `GET /api/recurring-task-templates` (no trailing slash) **404s** while the sibling controllers work without one.
 - Read endpoints use bare `@RequestMapping` rather than `@GetMapping`, so they answer **every** HTTP method.
 - It injects `RecurringTaskTemplateRepository` **directly into the controller**, bypassing the service layer that `task` and `template` use.
 - No `@Valid` on its request bodies (`TaskController` and `TaskPatchController` do validate).
 
-**D5 — a null `changes` map yields a 500, not a 400.**
+**D5 (`HEALTH-05`) — a null `changes` map yields a 500, not a 400.**
 
 `POST /api/task-patches` with a body lacking `changes` produces:
 
@@ -337,7 +339,7 @@ java.lang.NullPointerException: changes is marked non-null but is null
 
 `TaskPatchDto` is a bare record with no Bean Validation constraints, so `@Valid` has nothing to enforce and the Lombok `@NonNull` check fires deep in the mapper. There is no `@ControllerAdvice` anywhere in the codebase, so the custom exceptions (`TaskNotFoundException` and friends) also have no declared HTTP mapping.
 
-**D6 — the `addExecution` Spring Data JDBC workaround.**
+**D6 (`HEALTH-06`) — the `addExecution` Spring Data JDBC workaround.**
 
 ```java
 public void addExecution(Execution execution) {
@@ -349,7 +351,7 @@ public void addExecution(Execution execution) {
 
 Real and load-bearing (Spring Data JDBC change detection is identity-based), but it is a workaround carrying a comment that reads as unresolved. Worth an explicit decision rather than leaving it as folklore.
 
-**D7 — the committed module diagram reorders itself, so #6's tripwire channel carries noise.**
+**D7 (`HEALTH-07`) — the committed module diagram reorders itself, so #6's tripwire channel carries noise.**
 *(Found by [#23](https://github.com/stainii/task/issues/23), 2026-08-07.)*
 
 [#6](https://github.com/stainii/task/issues/6) pointed the Spring Modulith `Documenter` at `docs/modules/` and committed the output **so that a new arrow between modules shows up as a diff**. The generated `components.puml` does not have a stable edge order:
