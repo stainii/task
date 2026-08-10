@@ -5,4 +5,5 @@
 |Spring components
 |* `b.s.t.b.c.JdbcConfig`
 * `b.s.t.b.c.SpringSecurityConfig`
+* `b.s.t.b.c.TimeConfig`
 |===

@@ -149,6 +149,37 @@ One thing that will waste your time otherwise:
 
 - **`~/.mavenrc` beats `sdk env`.** If you have a `~/.mavenrc` setting `JAVA_HOME` (to sdkman's `current` symlink, for instance), `./mvnw` uses *that* JDK regardless of the shell's `JAVA_HOME`, and the build fails with `release version 26 not supported`. Either make 26 your sdkman default (`sdk default java 26.0.2-tem`) or run with `MAVEN_SKIP_RC=1`.
 
+### Faster local test runs
+
+The integration tests start Postgres and Keycloak through Testcontainers, and both containers ask
+to be reused. **Reuse is opt-in per machine and does nothing until you enable it:**
+
+```
+echo 'testcontainers.reuse.enable=true' >> ~/.testcontainers.properties
+```
+
+With it on, the containers survive between runs and `./mvnw verify` skips ~20 seconds of container
+startup; with it off, `withReuse(true)` is a no-op — which is also the case on CI, where a fresh
+runner has nothing to reuse ([#21](https://github.com/stainii/task/issues/21)).
+
+One trap when running a single class: **`./mvnw surefire:test -Dtest=Foo` does not compile
+anything** and will happily run a stale `Foo` from `target/`. Use `./mvnw test -Dtest=Foo`. Found
+while canarying #44's boundary test: deliberately broken, it still "passed".
+
+This is also why the Keycloak container in `AbstractIntegrationTestCases` is started and never
+stopped: stopping it would defeat reuse on the next run, and Testcontainers' Ryuk removes it when
+reuse is off. It is *not* the cause of the 30-second exit penalty that used to end every build —
+that was Tomcat's graceful shutdown waiting on an SSE stream that never completes, fixed in
+`SseEmitters` ([#44](https://github.com/stainii/task/issues/44)).
+
+### Time and the clock
+
+The application's zone is `task.time-zone` in `application.yml` (`Europe/Brussels`), and the only
+way to read the current date in `src/main` is the `Clock` bean in `config/TimeConfig` —
+`JavaTimeDefaultTimeZone` is an ERROR, so `LocalDate.now()` does not compile. Entities receive the
+time from their caller; they never read it. In tests, use `TestClock` and move it rather than
+waiting for the calendar.
+
 ### Static analysis
 
 `./mvnw verify` runs **Error Prone + NullAway** over `src/main`, and it fails the build. Two things

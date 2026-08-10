@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.task;
 
+import be.stijnhooft.task.backend.TestClock;
 import be.stijnhooft.task.backend.task.util.ObjectUtils;
 import org.junit.jupiter.api.Test;
 
@@ -13,10 +14,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TaskTest {
 
+    private final TestClock clock = TestClock.atNoonOn(LocalDate.of(2026, 8, 10));
+
     @Test
     void builderForInitialTaskFillsInDefaultFieldsWhenNull() {
         var id = UUID.randomUUID();
-        Task task = Task.builderForInitialTask()
+        Task task = Task.builderForInitialTask(clock)
                 .id(id)
                 .name("test")
                 .context("test")
@@ -33,7 +36,7 @@ class TaskTest {
     void initialPatchGetsCreated() {
         var id = UUID.randomUUID();
 
-        Task task = Task.builderForInitialTask()
+        Task task = Task.builderForInitialTask(clock)
                 .id(id)
                 .name("original")
                 .status(TaskStatus.OPEN)
@@ -190,7 +193,7 @@ class TaskTest {
         task.patch(taskPatch3);
         task.patch(taskPatch4);
 
-        task.undoPatch(taskPatch2);
+        task.undoPatch(taskPatch2, clock);
 
         assertThat(task.getDueDate()).isEqualTo(LocalDate.of(2019, 4, 4));
         assertThat(task.getDescription()).isEqualTo("original");
@@ -202,7 +205,7 @@ class TaskTest {
 
         TaskPatch creationPatch = task.getHistory().getFirst();
 
-        task.undoPatch(creationPatch);
+        task.undoPatch(creationPatch, clock);
 
         assertThat(task.getStatus()).isEqualTo(TaskStatus.COMPLETED);
 
@@ -214,7 +217,7 @@ class TaskTest {
     }
 
     private Task baseTask() {
-        return Task.builderForInitialTask()
+        return Task.builderForInitialTask(clock)
                 .id(UUID.randomUUID())
                 .name("original")
                 .status(TaskStatus.OPEN)

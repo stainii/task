@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,6 +21,7 @@ public class TaskController {
 
     private final TaskService taskService;
     private final TaskMapper taskMapper;
+    private final Clock clock;
 
     @GetMapping
     public List<TaskDto> getAllActiveTasks() {
@@ -32,7 +34,7 @@ public class TaskController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public TaskDto create(@RequestBody @Valid CreateTaskDto taskDto) {
-        var createdTask = taskService.create(taskMapper.toDomain(taskDto));
+        var createdTask = taskService.create(taskMapper.toDomain(taskDto, clock));
         return taskMapper.toDto(createdTask);
     }
 

@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.task.service;
 
+import be.stijnhooft.task.backend.TestClock;
 import be.stijnhooft.task.backend.task.Task;
 import be.stijnhooft.task.backend.task.TaskPatch;
 import be.stijnhooft.task.backend.task.exception.TaskNotFoundException;
@@ -10,10 +11,12 @@ import org.instancio.Instancio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.Spy;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -38,6 +41,10 @@ class TaskPatchServiceTest {
 
     @Mock
     private TaskPatchSseEmitterService taskPatchSseEmitterService;
+
+    /// A real clock rather than a mock: the service hands it to Task.undoPatch, which reads it.
+    @Spy
+    private TestClock clock = TestClock.atNoonOn(LocalDate.of(2026, 8, 10));
 
     @Test
     void findById_success() {
@@ -102,7 +109,7 @@ class TaskPatchServiceTest {
 
         taskPatchService.undoPatch(taskPatch);
 
-        verify(spiedTask).undoPatch(taskPatch);
+        verify(spiedTask).undoPatch(taskPatch, clock);
         verify(taskRepository, times(2)).save(spiedTask);
         verify(taskPatchSseEmitterService, times(2)).emitNewlyCreatedTaskPatch(taskPatch);
     }
@@ -118,7 +125,7 @@ class TaskPatchServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> taskPatchService.undoPatch(taskPatch));
 
-        verify(spiedTask).undoPatch(taskPatch);
+        verify(spiedTask).undoPatch(taskPatch, clock);
         verify(taskRepository, never()).save(spiedTask);
         verify(taskPatchSseEmitterService, never()).emitNewlyCreatedTaskPatch(taskPatch);
     }

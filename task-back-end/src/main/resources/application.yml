@@ -2,6 +2,13 @@ recurring-tasks:
   create-due-tasks:
     cron: "0 0 4 * * *"
 
+# TODO-042/043: the zone this application thinks in, whatever the host is set to. It feeds the
+# Clock bean (config/TimeConfig), which is the only way src/main can read the current date -
+# JavaTimeDefaultTimeZone is an ERROR, so LocalDate.now() does not compile. ADR-0012's 07:30
+# push and the due check's notion of "today" both hang off this one line.
+task:
+  time-zone: Europe/Brussels
+
 # ADR-0009: health is the only management endpoint, and it exists for compose's healthcheck,
 # not for a monitoring stack. Details stay hidden — up or down is all anything needs.
 management:
@@ -25,11 +32,12 @@ logging:
 
 spring:
   application.name: task-back-end
-  datasource:
-    url: jdbc:postgresql://localhost:5432/mydatabase
-    username: myuser
-    password: secret
-    driver-class-name: org.postgresql.Driver
+  # No datasource block on purpose. In development spring-boot-docker-compose derives the
+  # connection from compose.yaml, and in production it arrives as environment variables; the
+  # four lines that used to sit here named localhost:5432 while compose publishes 61655, and
+  # nothing ever read them (#18 reported that as a defect, #11 established it is not one).
+  # Deleted rather than corrected, on #30's argument: config whose values are wrong but which
+  # looks settled is worse than no config, because nobody re-reads it.
   security:
     oauth2:
       resourceserver:

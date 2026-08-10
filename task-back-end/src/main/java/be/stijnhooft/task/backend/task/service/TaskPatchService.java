@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +31,7 @@ public class TaskPatchService {
     private final TaskPatchRepository taskPatchRepository;
     private final TaskRepository taskRepository;
     private final TaskPatchSseEmitterService taskPatchSseEmitterService;
+    private final Clock clock;
 
     public Optional<TaskPatch> findById(UUID id) {
         return taskPatchRepository.findById(id);
@@ -42,7 +44,7 @@ public class TaskPatchService {
     }
 
     public void undoPatch(TaskPatch taskPatch) {
-        applyToTask(taskPatch, task -> task.undoPatch(taskPatch));
+        applyToTask(taskPatch, task -> task.undoPatch(taskPatch, clock));
     }
 
     public SseEmitter tail(@Nullable LocalDateTime since) {

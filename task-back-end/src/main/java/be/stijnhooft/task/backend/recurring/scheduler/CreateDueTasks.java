@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -22,20 +23,20 @@ import java.util.stream.StreamSupport;
 @Slf4j
 @EnableScheduling
 @Transactional
-/// Parked by #10 (docs/quality-bar.md): now() reads the machine's default time zone.
-/// The fix is the Clock bean of TODO-043, which lands with this scheduler's rebuild.
-@SuppressWarnings("JavaTimeDefaultTimeZone")
 public class CreateDueTasks {
 
     public static final String $_RECURRING_TASKS_CREATE_DUE_TASKS_CRON = "${recurring-tasks.create-due-tasks.cron}";
     private final RecurringTaskTemplateRepository recurringTaskTemplateRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final Clock clock;
 
     public CreateDueTasks(RecurringTaskTemplateRepository recurringTaskTemplateRepository,
                           @Value($_RECURRING_TASKS_CREATE_DUE_TASKS_CRON) String cron,
-                          ApplicationEventPublisher applicationEventPublisher) {
+                          ApplicationEventPublisher applicationEventPublisher,
+                          Clock clock) {
         this.recurringTaskTemplateRepository = recurringTaskTemplateRepository;
         this.applicationEventPublisher = applicationEventPublisher;
+        this.clock = clock;
         log.info("I will publish overtime recurring tasks following this cron: {}", cron);
     }
 
@@ -46,7 +47,7 @@ public class CreateDueTasks {
         var overtimeRecurringTaskTemplates = findDueRecurringTaskTemplatesForWhichTaskShouldBeCreated();
 
         var tasksToCreate = overtimeRecurringTaskTemplates.stream()
-                .map(CreateDueTasks::mapToTask)
+                .map(this::mapToTask)
                 .toList();
         applicationEventPublisher.publishEvent(new TaskCreationRequestedEvent(tasksToCreate));
 
@@ -58,14 +59,14 @@ public class CreateDueTasks {
 
     private Set<RecurringTaskTemplate> findDueRecurringTaskTemplatesForWhichTaskShouldBeCreated() {
         return StreamSupport.stream(recurringTaskTemplateRepository.findAll().spliterator(), false)
-                .filter(recurringTask -> recurringTask.shouldTaskBeCreatedBecauseItIsDue(LocalDate.now()))
+                .filter(recurringTask -> recurringTask.shouldTaskBeCreatedBecauseItIsDue(LocalDate.now(clock)))
                 .collect(Collectors.toSet());
     }
 
-    private static Task mapToTask(RecurringTaskTemplate recurringTaskTemplate) {
-        return Task.builderForInitialTask()
+    private Task mapToTask(RecurringTaskTemplate recurringTaskTemplate) {
+        return Task.builderForInitialTask(clock)
                 .name(recurringTaskTemplate.getName())
-                .creationDateTime(LocalDateTime.now())
+                .creationDateTime(LocalDateTime.now(clock))
                 .dueDate(recurringTaskTemplate.getLastExecutionDateOrCreationDate().plusDays(recurringTaskTemplate.getMaxNumberOfDaysBetweenExecutions()))
                 .importance(recurringTaskTemplate.getImportance())
                 .context(recurringTaskTemplate.getContext())

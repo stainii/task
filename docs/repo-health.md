@@ -56,6 +56,8 @@ One non-fatal but real symptom — **the test JVM does not shut down**:
 
 This costs 30s on every build. Likely causes visible in the code: `AbstractIntegrationTestCases` starts a `KeycloakContainer` in a **static initialiser and never stops it**, and the SSE emitter machinery holds non-daemon threads.
 
+**RESOLVED by [#44](https://github.com/stainii/task/issues/44)** — and *both* guesses above were wrong, which is why they are kept verbatim. Measured by running the classes separately: a Keycloak-only test class (`RecurringTaskTemplateModuleIntegrationTest`) exits cleanly, while each class that opens a stream (`TaskModuleIntegrationTest`, `TaskPatchStreamResumeIntegrationTest`) pays the full 30 seconds. It was not a leaked thread and not the container: **an `SseEmitter(0L)` request never completes, so Tomcat's graceful shutdown waits out `spring.lifecycle.timeout-per-shutdown-phase`**. `SseEmitters` now completes its listeners on `ContextClosedEvent`, before the web server's shutdown phase runs — evidence in the app log: `Completing 1 open SSE listener(s) before shutdown`, then `Graceful shutdown complete` 8 ms later instead of 30 s. The same 30 seconds were being paid on every nightly deploy under [ADR-0007](adr/0007-the-box-pulls-nightly-behind-a-dump.md), where nothing was measuring them.
+
 ### Back-end — pitest: REMOVED (resolved by [#32](https://github.com/stainii/task/issues/32), 2026-08-05)
 
 > **This whole section is history.** pitest is no longer in `task-back-end/pom.xml`. Everything below is kept verbatim as the evidence the decision was made on — including two claims this section itself got wrong, corrected in the closing amendment. **There is no mutation baseline and there is not meant to be one.** Skip to *"Resolved by #32"* at the end of this section for what actually holds.
@@ -212,6 +214,8 @@ Started TaskBackEndApplication in 23.502 seconds
 ```
 
 **Configuration mismatch found**: `application.yml` points the datasource at `localhost:5432`, but `compose.yaml` publishes Postgres on **61655**. The run above only worked because the URL was overridden on the command line. `spring-boot-docker-compose` is on the classpath (which papers over this during `mvn spring-boot:run`), but the committed config does not stand on its own.
+
+**NOT A DEFECT, and now deleted** — [#11](https://github.com/stainii/task/issues/11) established that nothing ever read those four lines: `spring-boot-docker-compose` *derives* the connection from `compose.yaml`, so the app works with or without them. [#44](https://github.com/stainii/task/issues/44) removed them rather than correcting them, on [#30](https://github.com/stainii/task/issues/30)'s argument that config whose values are wrong but which looks settled is worse than no config at all.
 
 ### Endpoints exercised (real Keycloak token, `portal-realm` / `portal-client`)
 
@@ -373,8 +377,8 @@ The direct consequence for CI: **the build cannot gate on "the committed diagram
 - Weakest by that measure: `TaskPatchControllerTest` (4 tests / 5 assertions) and `RecurringTaskTemplateTest` (14 / 22 — and it still misses D1).
 - **Container images are unpinned**: tests use `postgres:latest` and the default `KeycloakContainer` image, which resolved to **26.0**, while `compose.yaml` pins **26.1**. Tests and local runtime are on different Keycloak versions, and `postgres:latest` resolved to **PostgreSQL 18.1** here.
   **RESOLVED by [#20](https://github.com/stainii/task/issues/20)** — kept verbatim above as the evidence that the drift was real. Both sides are now pinned to the same explicit versions: `postgres:18.4` in `TestcontainersConfiguration` *and* `compose.yaml`, and `quay.io/keycloak/keycloak:26.7.0` in `AbstractIntegrationTestCases` *and* `compose.yaml`. The Keycloak image is now named explicitly rather than inherited from `testcontainers-keycloak`'s default, so a library bump cannot move it silently.
-- `TestcontainersConfiguration` carries three unused imports (`KeycloakContainer`, `DynamicPropertyRegistry`, `DynamicPropertySource`) — leftovers from a refactor.
-- Both containers use `.withReuse(true)`, which silently does nothing unless testcontainers reuse is enabled in the user's `~/.testcontainers.properties`.
+- `TestcontainersConfiguration` carries three unused imports (`KeycloakContainer`, `DynamicPropertyRegistry`, `DynamicPropertySource`) — leftovers from a refactor. **RESOLVED by [#44](https://github.com/stainii/task/issues/44)**: deleted.
+- Both containers use `.withReuse(true)`, which silently does nothing unless testcontainers reuse is enabled in the user's `~/.testcontainers.properties`. **RULED ON by [#44](https://github.com/stainii/task/issues/44)**: kept and documented (`task-back-end/README.md`, "Faster local test runs") rather than removed — opting in is worth ~20 seconds a run locally, [#21](https://github.com/stainii/task/issues/21) established it is inert in CI either way, and it is the reason the Keycloak container is deliberately never stopped.
 - Test realm is `test-realm` / `test-client` / `testuser`; runtime realm is `portal-realm` / `portal-client`. Divergent fixtures.
 
 ### Front-end versus back-end coverage

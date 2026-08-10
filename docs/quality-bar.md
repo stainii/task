@@ -64,6 +64,18 @@ warning in a build that already prints MapStruct warnings would not have caught 
 `JavaTimeDefaultTimeZone` at ERROR is how TODO-043's `Clock` bean stops being a documented wish and
 becomes a compiler rule: `LocalDate.now()` will not compile.
 
+> **With one hole, found by canary in [#44](https://github.com/stainii/task/issues/44): a `now()`
+> behind Lombok's `@Builder.Default` is invisible to Error Prone.** `@Builder.Default private
+> LocalDate d = LocalDate.now();` compiles green; delete the annotation and the identical
+> initializer is an ERROR — Lombok moves the initializer into a generated `$default$` method, and
+> the check never sees it. That is not a theoretical gap: **three of the six `now()` calls in
+> `src/main` were hidden this way**, which is why #10 counted exactly three findings. So the rule
+> the compiler enforces is narrower than it looks, and until the entities are records
+> ([#45](https://github.com/stainii/task/issues/45),
+> [#47](https://github.com/stainii/task/issues/47)) it needs a human: **no `@Builder.Default`
+> initializer may call `now()`.** One more entry in #19's Lombok ledger — records do not have this
+> failure mode either.
+
 `StringConcatToTextBlock` is **off** — it crashes the compiler on `VariableUtils`, an upstream bug.
 
 #### Scope
@@ -211,7 +223,12 @@ were decided in.
   (#13, REC-013)
 - **Ids are minted client-side** for anything an offline client can create. It needs its id before
   the server is reachable. (#12, ADR-0004)
-- **All `now()` goes through the `Clock` bean.** Enforced by `JavaTimeDefaultTimeZone` at ERROR.
+- **All `now()` goes through the `Clock` bean**, which is `config/TimeConfig` and reads its zone
+  from `task.time-zone` (`Europe/Brussels`). Enforced by `JavaTimeDefaultTimeZone` at ERROR:
+  `LocalDate.now()` does not compile. **An entity receives the time, it never reads it** — it has
+  no bean to inject, so `Task.builderForInitialTask(clock)` and `Task.undoPatch(patch, clock)` take
+  one from their caller (#44). In tests, use `TestClock` and *move* it; a mocked `Clock` returns
+  null for whichever method you forget to stub, and fails somewhere else.
 - **jspecify is enforced, not decorative.** Packages are `@NullMarked`; NullAway checks them.
   Before this ticket, all 28 `package-info.java` files were annotated and nothing in the build read
   a single one.

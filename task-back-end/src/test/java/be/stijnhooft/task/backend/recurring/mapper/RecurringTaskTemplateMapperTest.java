@@ -11,17 +11,22 @@ class RecurringTaskTemplateMapperTest {
 
     private final RecurringTaskTemplateMapper mapper = new RecurringTaskTemplateMapperImpl();
 
+    /// The creation date arrives from the caller's Clock bean (#44) instead of being read off
+    /// the machine inside the entity, so this asserts on a date that is nobody's "today".
     @Test
-    void toDomainShouldFillInDefaultCreationDate() {
+    void toDomainShouldTakeItsCreationDateFromTheCaller() {
         var randomRecurringTaskTemplateDto = createRandomRecurringTaskTemplateDto();
-        var recurringTaskTemplate = mapper.toDomain(randomRecurringTaskTemplateDto);
-        assertThat(recurringTaskTemplate.getCreationDate()).isEqualTo(LocalDate.now());
+        var creationDate = LocalDate.of(2026, 3, 29);
+
+        var recurringTaskTemplate = mapper.toDomain(randomRecurringTaskTemplateDto, creationDate);
+
+        assertThat(recurringTaskTemplate.getCreationDate()).isEqualTo(creationDate);
     }
 
     @Test
     void toDomainShouldFillInDefaultEmptyListForExecutions() {
         var randomRecurringTaskTemplateDto = createRandomRecurringTaskTemplateDto();
-        var recurringTaskTemplate = mapper.toDomain(randomRecurringTaskTemplateDto);
+        var recurringTaskTemplate = mapper.toDomain(randomRecurringTaskTemplateDto, LocalDate.of(2026, 3, 29));
         assertThat(recurringTaskTemplate.getExecutions())
                 .isNotNull()
                 .isEmpty();

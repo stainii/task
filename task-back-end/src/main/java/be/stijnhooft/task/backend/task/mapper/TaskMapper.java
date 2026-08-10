@@ -6,14 +6,18 @@ import be.stijnhooft.task.backend.task.dto.TaskDto;
 import org.mapstruct.Mapper;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
+
 @Component
 @Mapper(componentModel = "spring")
 public interface TaskMapper {
 
     TaskDto toDto(Task task);
 
-    default Task toDomain(CreateTaskDto taskDto) {
-        var builder = Task.builderForInitialTask()
+    /// The clock is a parameter because a task that the request does not date is dated now,
+    /// and *now* belongs to the Clock bean rather than to the machine (#44).
+    default Task toDomain(CreateTaskDto taskDto, Clock clock) {
+        var builder = Task.builderForInitialTask(clock)
                 .name(taskDto.name())
                 .description(taskDto.description())
                 .importance(taskDto.importance())

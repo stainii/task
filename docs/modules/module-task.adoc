@@ -4,4 +4,5 @@
 |`be.stijnhooft.task.backend.task`
 |Events listened to
 |* `b.s.t.b.t.TaskCreationRequestedEvent` 
+* `org.springframework.context.event.ContextClosedEvent` 
 |===

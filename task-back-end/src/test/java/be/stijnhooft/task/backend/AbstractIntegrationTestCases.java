@@ -17,6 +17,12 @@ public class AbstractIntegrationTestCases {
 
     static KeycloakContainer keycloakContainer;
 
+    /// Started once for the whole fork and deliberately never stopped: Testcontainers' Ryuk
+    /// removes it when the JVM exits, and where reuse is enabled (see TestcontainersConfiguration)
+    /// keeping it alive is the entire point. #44 suspected this container of the 30-second
+    /// `Surefire is going to kill self fork JVM` penalty and measured instead: a Keycloak-only
+    /// test class exits cleanly, while any class that opens an SSE stream pays it. The cost was
+    /// Tomcat's graceful shutdown waiting on a stream that cannot end - see SseEmitters.
     static {
         // Read from compose.yaml rather than pinned here, so tests and the dev stack cannot run
         // different Keycloaks. #20 pinned it explicitly to stop testcontainers-keycloak's default

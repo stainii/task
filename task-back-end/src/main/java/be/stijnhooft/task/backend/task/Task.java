@@ -9,6 +9,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.MappedCollection;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -22,8 +23,10 @@ import java.util.function.Consumer;
 /// Parked by #10 (docs/quality-bar.md). NullAway: Lombok @Builder and @Data cannot prove
 /// the non-null fields are initialised; records do not have this problem, which is evidence
 /// for #19's 'Lombok is judgment' when this entity is rebuilt under ADR-0004.
-/// JavaTimeDefaultTimeZone: awaits the Clock bean (TODO-043).
-@SuppressWarnings({"NullAway", "JavaTimeDefaultTimeZone"})
+///
+/// A task receives the time, it never reads it (#44): an entity has no Clock to inject, so
+/// every method here that needs *now* takes one from its caller.
+@SuppressWarnings("NullAway")
 public class Task {
 
     @Id
@@ -32,11 +35,9 @@ public class Task {
 
     private String name;
 
-    @Builder.Default
-    private LocalDateTime creationDateTime = LocalDateTime.now();
+    private LocalDateTime creationDateTime;
 
-    @Builder.Default
-    private LocalDate startDate = LocalDate.now();
+    private LocalDate startDate;
 
     @Nullable
     private LocalDate dueDate;
@@ -89,12 +90,12 @@ public class Task {
         }
     }
 
-    public void undoPatch(TaskPatch taskPatch) {
+    public void undoPatch(TaskPatch taskPatch, Clock clock) {
         HashMap<String, String> revertedChanges = calculateUndoPatchChanges(taskPatch);
 
         var undoPatch = TaskPatch.builder()
                 .id(UUID.randomUUID())
-                .dateTime(LocalDateTime.now())
+                .dateTime(LocalDateTime.now(clock))
                 .taskId(id)
                 .changes(revertedChanges)
                 .build();
@@ -150,10 +151,20 @@ public class Task {
         throw new UnsupportedOperationException();
     }
 
-    public static TaskBuilder builderForInitialTask() {
+    /// The clock supplies the creation date-time and the start date when the caller does not
+    /// set them. It is a parameter rather than a field default because the zone belongs to the
+    /// Clock bean (#44) and an entity cannot inject one.
+    public static TaskBuilder builderForInitialTask(Clock clock) {
         return new TaskBuilder() {
             public Task build() {
                 var task = super.build();
+
+                if (task.creationDateTime == null) {
+                    task.creationDateTime = LocalDateTime.now(clock);
+                }
+                if (task.startDate == null) {
+                    task.startDate = LocalDate.now(clock);
+                }
 
                 Map<String, String> changes = ObjectUtils.getAllFieldsAndTheirValues(task);
                 changes.remove("history");

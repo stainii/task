@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +31,7 @@ public class TaskTemplateService {
 
     private final TaskTemplateRepository taskTemplateRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     public Iterable<TaskTemplate> findAll() {
         return taskTemplateRepository.findAll();
@@ -82,7 +84,7 @@ public class TaskTemplateService {
                     var importance = taskDefinition.getImportance();
 
                     // assemble task
-                    return Task.builderForInitialTask()
+                    return Task.builderForInitialTask(clock)
                             .name(name)
                             .startDate(startDate)
                             .dueDate(dueDate)

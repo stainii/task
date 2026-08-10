@@ -50,8 +50,9 @@ public class RecurringTaskTemplate {
     @Builder.Default
     private List<Execution> executions = new ArrayList<>();
 
-    @Builder.Default
-    private LocalDate creationDate = LocalDate.now();
+    /// Set by whoever creates the template, from the Clock bean (#44): an entity does not read
+    /// the clock. ADR-0017 replaces this field with `active_since` when #47 rebuilds the class.
+    private LocalDate creationDate;
 
     private boolean activeTask;
 

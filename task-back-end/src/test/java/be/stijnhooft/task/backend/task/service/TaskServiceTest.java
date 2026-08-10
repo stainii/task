@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.task.service;
 
+import be.stijnhooft.task.backend.TestClock;
 import be.stijnhooft.task.backend.task.Task;
 import be.stijnhooft.task.backend.task.TaskStatus;
 import be.stijnhooft.task.backend.task.exception.TaskAlreadyExistsException;
@@ -11,6 +12,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +22,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class TaskServiceTest {
+
+    private final TestClock clock = TestClock.atNoonOn(LocalDate.of(2026, 8, 10));
 
     @InjectMocks
     private TaskService taskService;
@@ -47,7 +51,7 @@ class TaskServiceTest {
 
     @Test
     void create_whenSuccess() {
-        var task = Task.builderForInitialTask().build();
+        var task = Task.builderForInitialTask(clock).build();
 
         when(taskRepository.existsById(task.getId())).thenReturn(false);
         when(taskRepository.save(task)).thenReturn(task);
@@ -73,8 +77,8 @@ class TaskServiceTest {
 
     @Test
     void create_whenList() {
-        var task1 = Task.builderForInitialTask().build();
-        var task2 = Task.builderForInitialTask().build();
+        var task1 = Task.builderForInitialTask(clock).build();
+        var task2 = Task.builderForInitialTask(clock).build();
 
         when(taskRepository.existsById(task1.getId())).thenReturn(false);
         when(taskRepository.existsById(task2.getId())).thenReturn(false);

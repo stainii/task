@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,6 +25,7 @@ public class RecurringTaskTemplateController {
 
     private final RecurringTaskTemplateRepository repo;
     private final RecurringTaskTemplateMapper mapper;
+    private final Clock clock;
 
     @RequestMapping("/")
     public Iterable<RecurringTaskTemplateDto> findAll() {
@@ -42,7 +45,7 @@ public class RecurringTaskTemplateController {
     @ResponseStatus(HttpStatus.CREATED)
     public RecurringTaskTemplateDto create(@RequestBody RecurringTaskTemplateDto recurringTaskTemplate) {
         var savedRecurringTaskTemplate = repo.save(
-                mapper.toDomain(recurringTaskTemplate)
+                mapper.toDomain(recurringTaskTemplate, LocalDate.now(clock))
         );
         return mapper.toDto(savedRecurringTaskTemplate);
     }

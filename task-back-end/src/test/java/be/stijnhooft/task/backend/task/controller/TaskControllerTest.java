@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.task.controller;
 
+import be.stijnhooft.task.backend.TestClock;
 import be.stijnhooft.task.backend.task.Task;
 import be.stijnhooft.task.backend.task.exception.TaskAlreadyExistsException;
 import be.stijnhooft.task.backend.task.mapper.TaskMapper;
@@ -14,10 +15,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +40,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 @Import(TaskMapperImpl.class)
 class TaskControllerTest {
+
+    private static final LocalDate TODAY = LocalDate.of(2026, 8, 10);
+
+    /// The slice gets a clock standing still, so "the controller dates an undated task today"
+    /// can be asserted as a date rather than as "not null" (#44).
+    @TestConfiguration
+    static class FixedClockConfiguration {
+
+        @Bean
+        Clock clock() {
+            return TestClock.atNoonOn(TODAY);
+        }
+
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -193,8 +212,8 @@ class TaskControllerTest {
         assertThat(capturedTask.getImportance()).isNull();
         assertThat(capturedTask.getDescription()).isNull();
         assertThat(capturedTask.getDueDate()).isNull();
-        assertThat(capturedTask.getStartDate()).isNotNull();
-        assertThat(capturedTask.getCreationDateTime()).isNotNull();
+        assertThat(capturedTask.getStartDate()).isEqualTo(TODAY);
+        assertThat(capturedTask.getCreationDateTime().toLocalDate()).isEqualTo(TODAY);
         assertThat(capturedTask.getContext()).isEqualTo(task.getContext());
         assertThat(capturedTask.getHistory()).hasSize(1);
     }
