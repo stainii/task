@@ -109,6 +109,12 @@ almost every task name — *"Vacuum the l…"*, *"Replace the kitch…"* — whi
 ADR-0006 rejected always-visible action buttons in order to avoid. One column phone, two tablet,
 three desktop.
 
+> **Note added by [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md).** The cap itself is
+> untouched — it was measured on **task names** at five columns, and has nothing to do with buttons.
+> Only the cross-reference moved: ADR-0006's button rejection now rests on swipe coverage rather
+> than on the ~110px of text-button width, because ADR-0019 makes the verbs glyphs. Also: the fourth
+> verb this ADR adds, **Postpone**, is a glyph like the other three.
+
 At three columns the cap of five leaves one empty cell in the second row. **It stays empty.** Both
 variants were rendered side by side: outlining the gap turns an absence into a UI element, and the
 dashed outline collides with the fold bars, which use the same border to mean *you can click this*.

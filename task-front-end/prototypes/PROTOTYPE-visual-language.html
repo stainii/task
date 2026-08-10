@@ -1,0 +1,718 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #43.
+  "What does this app use words for, and what does it use icons for?"
+
+  FOUR POLICIES, applied to FIVE SURFACES AT ONCE. Switch with the floating bar or ← →.
+  A visual language cannot be judged one screen at a time, so every policy repaints the
+  whole scroll: overview, templates list, task dialog, omnibox, and the state indicators.
+
+    A — WORDS            : what ADR-0006/0014/0015/0018 actually specified. The control.
+    B — ICONS FOR VERBS  : every ACTION is a glyph, every FACT stays a word.
+                           This is what portal ACTUALLY DID for years, promoted to a rule.
+    C — ICONS FOR KINDS  : a glyph says WHAT KIND of thing a field/fact is; every VALUE
+                           stays a word. This is PROTOTYPE-task-edit's dense variant,
+                           generalised past the one form it was built in.
+    D — FEWER WORDS      : no icon vocabulary at all. Attack the overload by SAYING LESS.
+                           Here to test whether the complaint is verbosity, not word-ness.
+    E — B+D              : added mid-session at the author's request, and the reason this file
+                           earned its cost. See the verdict below.
+
+  THE ANSWER — B WINS. #43 is closed, recorded as ADR-0019 (verbs are glyphs, facts are words),
+  amending ADR-0006 twice and ADR-0015 once.
+    A  lost as a DRIFT, not a design: portal was icon-only where the ADRs specified words, and
+       the author confirms the icons were clear.
+    C  lost because the three FLOORS carve two holes in the middle of the one form it was
+       invented for — the dialog ends up with three glyph labels and two word labels and no rule
+       a reader could infer — and it is no shorter than A anyway.
+    D  looked like the winner after round one: it delivered C's only real saving (the context
+       card header on one line) for ONE distinct glyph instead of seven.
+    E  is what killed it. The author asked to combine B with D, so E was built and driven — and
+       seeing the prune rule applied to the TEMPLATES LIST reversed the verdict: it deletes
+       "last 792 days ago", which ADR-0014 records as the author's own improvement, on the stated
+       ground that an elapsed count is arithmetic and a date is a memory. "D/E loses too much
+       interesting info." A rule that cannot tell a redundant word from a second fact is not a
+       rule worth having.
+    KEEP ALL FIVE POLICIES. E is the primary source for why pruning was refused; deleting it
+    would leave only the screenshot that made pruning look free.
+
+  EVIDENCE THIS WAS BUILT ON (found while resolving #43, not assumed):
+    portal-front-end ran an icon vocabulary of SEVENTEEN glyphs, self-hosted from the
+    `material-design-icons` npm package (styles.scss:13 — never a CDN, so offline was
+    never the blocker). And it was ICON-ONLY exactly where this map specified words:
+      todo-task-panel.component.html    <mat-icon aria-label="Edit task">edit</mat-icon>
+                                        <mat-icon aria-label="Complete task">done</mat-icon>
+      todo-menu-bar-for-overview        inbox = Tasks, settings = Templates, mailbox = Subscriptions
+    The author confirms (#43, Q1): THE ICONS WERE CLEAR. So B is not a proposal, it is
+    the incumbent — and A is the change nobody on this map ever decided to make.
+
+  THE THREE FLOORS — words under every policy, confirmed by the author (#43, Q3).
+  Toggle "show floors" in the rig to outline them. They are NOT under test:
+    1. The two dates      — #42: a calendar glyph and a clock glyph both read as "a date"
+                            and neither says WHICH. That is the pair ADR-0015 exists to
+                            keep apart.
+    2. The collapsed band — ADR-0015 drove four variants and chose words over stripes.
+    3. Rejected changes   — ADR-0014 put it above the work so it would SPEAK.
+
+  DATA IS REAL. 44 recurring templates, names/min/max/last from the frozen archive at
+  ~/portal-archive/2026-08-04 (#35). "Today" is pinned to 2026-08-08. The four `todo`
+  rows marked INVENTED are the only made-up strings in the file.
+
+  DARK MODE IS A TEST, NOT A THEME. ADR-0015 requires dark from the first component, so
+  every glyph here is inline SVG on `currentColor` — one asset, both themes. Flip it.
+
+  DELETE ME once #43 is answered.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — a coherent visual language (#43)</title>
+<style>
+  :root {
+    --focus:#e53935; --long-game:#7cb342; --fit-in:#fb8c00; --back-burner:#9e9e9e;
+    --ink:#1c1b1f; --muted:#5f6368; --line:#e3e3e6; --surface:#fff; --bg:#f6f6f8;
+    --accent:#3f51b5; --overdue:#c62828; --complete:#2e7d32; --cancel:#c62828;
+    --chip:#eceef7;
+  }
+  body.dark {
+    --ink:#e6e1e5; --muted:#a8a2ab; --line:#3a3840; --surface:#1e1c22; --bg:#141317;
+    --accent:#aab4ff; --overdue:#ff8a80; --complete:#8bd18e; --cancel:#ff8a80;
+    --chip:#2b2934;
+    --focus:#ff6b66; --long-game:#9ccc65; --fit-in:#ffa726; --back-burner:#8e8a94;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:#dcdce2; color:var(--ink);
+    font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding-bottom:90px;
+  }
+  body.dark { background:#0b0a0d; }
+
+  /* ---------- prototype scaffolding — deliberately ugly ---------- */
+  #rig {
+    background:#ecebf1; border-bottom:1px solid #c9c8d2; color:#5f6368;
+    padding:8px 20px; font-size:12px;
+    display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+    position:sticky; top:0; z-index:60;
+  }
+  body.dark #rig { background:#26242c; border-color:#3a3840; color:#a8a2ab; }
+  #rig b { color:#1c1b1f; font-weight:600; }
+  body.dark #rig b { color:#e6e1e5; }
+  #rig .grp { display:flex; gap:5px; align-items:center; }
+  #rig button {
+    border:1px solid #c9c8d2; background:#fff; border-radius:999px;
+    padding:3px 10px; font-size:12px; cursor:pointer; color:#5f6368;
+  }
+  body.dark #rig button { background:#1e1c22; border-color:#3a3840; color:#a8a2ab; }
+  #rig button.on { background:#1c1b1f; color:#fff; border-color:#1c1b1f; }
+  body.dark #rig button.on { background:#e6e1e5; color:#141317; border-color:#e6e1e5; }
+  #rigreport { font-family:ui-monospace,Menlo,monospace; font-size:11px; }
+
+  /* the device frame everything renders inside */
+  #frame {
+    margin:18px auto; background:var(--bg); overflow:hidden;
+    box-shadow:0 6px 30px rgba(0,0,0,.18); position:relative;
+  }
+  body.phone #frame { width:390px; border-radius:26px; }
+  body.desktop #frame { width:min(1180px,calc(100vw - 36px)); border-radius:10px; }
+
+  /* ---------- surface separators (scaffolding, not design) ---------- */
+  .surface { border-bottom:10px solid #cfcfd6; }
+  body.dark .surface { border-bottom-color:#000; }
+  .surface:last-child { border-bottom:0; }
+  .slabel {
+    background:#cfcfd6; color:#3a3840; font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; padding:4px 14px; font-weight:700;
+  }
+  body.dark .slabel { background:#000; color:#77737d; }
+
+  /* ---------- app furniture ---------- */
+  .appbar {
+    background:var(--surface); border-bottom:1px solid var(--line);
+    padding:10px 14px; display:flex; align-items:center; gap:10px;
+  }
+  .omni {
+    flex:1; display:flex; align-items:center; gap:8px; min-width:0;
+    background:var(--chip); border-radius:999px; padding:8px 14px;
+    color:var(--muted); font-size:14px;
+  }
+  .omni .ph { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .barstate { display:flex; align-items:center; gap:10px; flex:none; }
+  .barstate .bit {
+    display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted);
+    white-space:nowrap;
+  }
+  .barstate .bit.warn { color:var(--overdue); }
+  .kebab { flex:none; color:var(--muted); font-size:18px; letter-spacing:2px; }
+
+  /* rejected band — FLOOR 3 */
+  .rejected {
+    background:#fdecea; border-left:4px solid var(--overdue); color:#8c1d13;
+    padding:10px 14px; margin:10px; border-radius:6px; font-size:13px;
+  }
+  body.dark .rejected { background:#3a1f1d; color:#ffb4ab; }
+  .rejected b { display:block; font-size:13px; margin-bottom:2px; }
+
+  /* context cards */
+  .cards { display:flex; gap:10px; padding:12px 10px 4px; overflow-x:auto; }
+  body.desktop .cards { flex-wrap:wrap; overflow:visible; }
+  .card {
+    flex:none; width:172px; background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px;
+  }
+  /* the header WRAPS rather than truncating: a policy that needs two lines here should
+     pay in height, visibly — not hide the cost by clipping the context's own name. */
+  .card .top { display:flex; align-items:center; gap:6px; justify-content:space-between;
+               flex-wrap:wrap; row-gap:3px; }
+  .card .nm { font-weight:600; font-size:14px; display:flex; align-items:center; gap:6px;
+              flex:1 1 auto; min-width:64px; }
+  .card .cnt { font-size:13px; color:var(--muted); flex:0 1 auto; display:flex;
+               align-items:center; gap:4px; white-space:nowrap; }
+  .card .badge {
+    background:var(--overdue); color:#fff; border-radius:999px; padding:1px 7px;
+    font-size:11px; font-weight:700; display:inline-flex; align-items:center; gap:3px;
+  }
+  .card .bar { display:flex; height:6px; border-radius:3px; overflow:hidden; margin:9px 0 7px; }
+  .card .bar i { display:block; }
+  .card .next { font-size:11.5px; color:var(--muted); line-height:1.35; }
+
+  /* bands */
+  .band {
+    font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted);
+    margin:16px 14px 7px; font-weight:700; display:flex; align-items:center; gap:6px;
+  }
+  .band .why { text-transform:none; letter-spacing:0; font-weight:400; font-size:12px; }
+  .tasks { padding:0 10px; display:grid; gap:8px; }
+  body.desktop .tasks { grid-template-columns:repeat(3,1fr); }
+
+  .task {
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    display:flex; overflow:hidden;
+  }
+  .task .stripe { width:10px; flex:none; }
+  .task .body { padding:10px 12px; flex:1; min-width:0; }
+  .task .nm { font-size:14.5px; font-weight:500; }
+  .task .meta {
+    font-size:12px; color:var(--muted); margin-top:3px;
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  }
+  .task .meta .od { color:var(--overdue); font-weight:600; }
+
+  /* the expanded panel's action row — the heart of the question */
+  .actions {
+    display:flex; gap:6px; border-top:1px solid var(--line); padding:8px 12px;
+    align-items:center;
+  }
+  .actions.words button {
+    border:0; background:transparent; color:var(--accent); font:inherit; font-size:13px;
+    font-weight:600; padding:7px 10px; border-radius:8px; cursor:pointer;
+    text-transform:uppercase; letter-spacing:.04em;
+  }
+  .actions.words button.danger { color:var(--cancel); }
+  .actions.words button.good { color:var(--complete); }
+  .actions.icons button {
+    border:0; background:transparent; color:var(--muted); cursor:pointer;
+    width:40px; height:40px; border-radius:999px;
+    display:inline-flex; align-items:center; justify-content:center;
+  }
+  .actions.icons button.danger { color:var(--cancel); }
+  .actions.icons button.good { color:var(--complete); }
+  .actions.icons button:hover { background:var(--chip); }
+
+  /* the fold — FLOOR 2 */
+  .fold {
+    margin:10px; border:1px dashed var(--line); border-radius:10px;
+    padding:11px 14px; color:var(--muted); font-size:13px; cursor:pointer;
+  }
+
+  /* templates list */
+  .trow {
+    background:var(--surface); border-bottom:1px solid var(--line);
+    padding:11px 14px; display:flex; align-items:center; gap:10px;
+  }
+  .trow .body { flex:1; min-width:0; }
+  .trow .nm { font-size:14.5px; font-weight:500; }
+  .trow .meta { font-size:12px; color:var(--muted); margin-top:2px; }
+  .trow .meta .od { color:var(--overdue); font-weight:600; }
+  .trow .tick {
+    flex:none; border:1px solid var(--line); background:transparent; color:var(--complete);
+    border-radius:999px; height:34px; min-width:34px; padding:0 12px; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    font:inherit; font-size:13px; font-weight:600;
+  }
+  .trow .tick.iconly { padding:0; width:34px; }
+
+  /* task dialog */
+  .dlg { background:var(--surface); margin:12px; border-radius:14px; padding:14px 16px 16px; }
+  .dlg h3 { margin:0 0 12px; font-size:16px; }
+  .field { margin-bottom:13px; }
+  .field .lab {
+    font-size:11.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+    font-weight:700; margin-bottom:4px; display:block;
+  }
+  .field .iconlab { color:var(--muted); display:flex; align-items:center; }
+  .field .ctl {
+    border:1px solid var(--line); border-radius:8px; padding:9px 11px; font-size:14px;
+    background:var(--bg);
+  }
+  .field.inline { display:flex; align-items:center; gap:10px; }
+  .field.inline .ctl { flex:1; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip {
+    background:var(--chip); border-radius:999px; padding:5px 11px; font-size:13px;
+    display:inline-flex; align-items:center; gap:5px; color:var(--ink);
+  }
+  .chip.on { background:var(--accent); color:#fff; }
+  body.dark .chip.on { color:#141317; }
+  .dlgbtns { display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+  .dlgbtns button {
+    border:0; background:transparent; color:var(--accent); font:inherit; font-weight:600;
+    font-size:13px; padding:8px 12px; border-radius:8px; cursor:pointer;
+    text-transform:uppercase; letter-spacing:.04em;
+  }
+
+  /* omnibox open */
+  .omniopen { background:var(--surface); padding:12px 14px 14px; }
+  .omniopen .inp {
+    border:1px solid var(--accent); border-radius:10px; padding:10px 12px; font-size:15px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .omniopen .hint { font-size:12px; color:var(--muted); margin:9px 0 10px; }
+  .omniopen .sug { display:flex; align-items:center; gap:8px; padding:9px 4px; font-size:14px;
+    border-top:1px solid var(--line); }
+  .omniopen .sug .sub { color:var(--muted); font-size:12px; margin-left:auto; }
+
+  svg.g { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.9;
+          stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  svg.g.sm { width:15px; height:15px; }
+  svg.g.lg { width:21px; height:21px; }
+
+  /* floors highlight */
+  body.floors .floor { outline:2px dashed #ff9800; outline-offset:2px; position:relative; }
+  body.floors .floor::after {
+    content:'FLOOR — words under every policy'; position:absolute; top:-9px; right:6px;
+    background:#ff9800; color:#000; font-size:9px; font-weight:700; padding:1px 5px;
+    border-radius:3px; letter-spacing:.04em;
+  }
+
+  /* switcher */
+  #sw {
+    position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:100;
+    background:#1c1b1f; color:#fff; border-radius:999px; padding:7px 8px;
+    display:flex; align-items:center; gap:6px; box-shadow:0 6px 24px rgba(0,0,0,.35);
+    font-size:13px;
+  }
+  #sw button {
+    border:0; background:#3a3840; color:#fff; width:30px; height:30px; border-radius:999px;
+    cursor:pointer; font-size:15px; line-height:1;
+  }
+  #sw .lbl { padding:0 10px; font-weight:600; white-space:nowrap; }
+  #sw .lbl small { font-weight:400; opacity:.7; }
+</style>
+</head>
+<body class="phone">
+
+<div id="rig">
+  <span class="grp"><b>width:</b>
+    <button data-w="phone">phone 390</button>
+    <button data-w="desktop">desktop</button>
+  </span>
+  <span class="grp"><b>theme:</b>
+    <button data-t="light">light</button>
+    <button data-t="dark">dark</button>
+  </span>
+  <span class="grp">
+    <button data-floors="1">show floors</button>
+  </span>
+  <span id="rigreport"></span>
+</div>
+
+<div id="frame"></div>
+
+<div id="sw">
+  <button id="prev">‹</button>
+  <span class="lbl" id="swlbl"></span>
+  <button id="next">›</button>
+</div>
+
+<script>
+/* =========================================================================
+   REAL DATA — 44 templates from ~/portal-archive/2026-08-04 (#35)
+   ========================================================================= */
+const TODAY = new Date('2026-08-08T00:00:00');
+const d = s => new Date(s + 'T00:00:00');
+const days = (a,b) => Math.round((a-b)/86400000);
+/* NOT +n*86400000: adding fixed milliseconds across the CET→CEST boundary lands the
+   result at 01:00, so `due > TODAY` is true for a task due TODAY and it sorts into the
+   wrong band. The earlier prototypes in this directory all carry that line. */
+const addD = (dt,n) => { const x = new Date(dt); x.setDate(x.getDate()+n); return x; };
+
+const T = [
+  ['house','Wasmachine uitkuisen',210,240,'2026-06-07'],
+  ['house','Date night',21,30,'2026-08-16'],
+  ['house','Ventilatie filters uitwassen',100,180,'2026-06-21'],
+  ['house','Gitaar schoonmaken',180,200,'2026-01-20'],
+  ['house','Beleggingen nakijken',60,90,'2026-06-07'],
+  ['house','Vegen voor deur',14,30,'2026-07-26'],
+  ["house","Shaary foto's backuppen",30,60,'2026-07-11'],
+  ['house','Warmteketels laten keuren',720,720,null],
+  ['house','Gsm Stijn backuppen',14,31,'2026-07-26'],
+  ['house','Doucheputje uitkuisen',21,31,'2026-07-26'],
+  ['house','Afwasmachine uitkuisen',21,30,'2026-07-31'],
+  ['house','Pensioensparen plafond verhogen',365,365,'2026-01-29'],
+  ['house','Visa afrekening',30,30,'2026-08-04'],
+  ['house','Beddengoed wassen en bed stofzuigen',10,21,'2026-07-31'],
+  ['house','Onderhoud ketels',720,730,'2024-06-07'],
+  ['house','Backup Medisch Huis',30,60,'2026-07-25'],
+  ['house','De Goede Gasten (alle oneven weken)',120,150,'2026-03-11'],
+  ['house','Onedrive en Google Drive backuppen',90,120,'2026-06-20'],
+  ['house','Onkruid wieden',150,180,'2026-02-24'],
+  ['house','Tandenborstels vervangen',180,210,'2026-03-01'],
+  ['house','Kussens wassen',90,120,'2026-07-05'],
+  ['house','Koffiezet ontkalken',340,364,'2025-08-09'],
+  ['house','Gas- en energieleverancier vergelijken',364,400,'2026-03-11'],
+  ['house','Server backuppen',14,30,'2026-07-25'],
+  ['house','Filters regenwater vervangen',300,365,'2025-11-11'],
+  ['health','Insmeren',8,8,'2026-07-29'],
+  ['health','Tandarts',361,361,'2025-09-23'],
+  ['health','Benen',5,5,'2026-08-02'],
+  ['health','Buik',5,5,'2026-07-31'],
+  ['health','Armen',5,5,'2026-08-03'],
+  ['health','Yoga',6,6,'2026-07-31'],
+  ['setlist','Amelie Poulain',14,21,'2026-07-29'],
+  ['setlist','Gitaarles',3,3,'2026-07-29'],
+  ["setlist","Mia en Sebastian's theme",14,21,'2026-07-29'],
+  ['setlist','The National',21,30,'2026-07-29'],
+  ['social','Papa',21,30,'2026-07-22'],
+  ['social','Lien',21,30,'2026-07-31'],
+  ['social','Glenn',14,21,'2026-07-31'],
+  ['social','Laurens',14,21,'2026-07-25'],
+  ['social','Thomas',14,21,'2026-07-26'],
+  ['social','Mama',14,30,'2026-07-22'],
+  ['social','Tim',21,30,'2026-07-22'],
+  ['social','Peter',60,75,'2026-07-09'],
+  ['social','Cleo',60,90,'2026-07-26'],
+].map(([ctx,name,min,max,last],i) => {
+  const l = last ? d(last) : null;
+  return { id:'T'+i, ctx, name, min, max, last:l,
+           fires: l ? addD(l,min) : TODAY, due: l ? addD(l,max) : TODAY,
+           get open(){ return this.fires <= TODAY; },
+           get overdue(){ return this.due < TODAY; } };
+});
+
+/* INVENTED — the only made-up strings here. portal's todo data is a mongodump. */
+const TODO = [
+  { id:'X1', ctx:'personal', name:'Boeken tandarts voor Elise', due:d('2026-08-06'), bucket:'focus' },
+  { id:'X2', ctx:'personal', name:'Offerte dakwerken opvolgen',  due:d('2026-08-08'), bucket:'focus' },
+  { id:'X3', ctx:'personal', name:'Fietsverzekering hernieuwen', due:d('2026-08-17'), bucket:'fit-in' },
+  { id:'X4', ctx:'personal', name:'Cadeau zoeken voor Tim',      due:d('2026-08-23'), bucket:'long-game' },
+];
+
+const COL = { focus:'var(--focus)', 'long-game':'var(--long-game)',
+              'fit-in':'var(--fit-in)', 'back-burner':'var(--back-burner)' };
+const bucketOf = t => t.overdue ? 'focus' : (t.due <= addD(TODAY,3) ? 'fit-in' : 'long-game');
+
+function openTasks() {
+  const a = T.filter(t => t.open).map(t => ({ id:t.id, ctx:t.ctx, name:t.name, due:t.due,
+                                              overdue:t.overdue, bucket:bucketOf(t) }));
+  const b = TODO.map(x => ({ ...x, overdue: x.due < TODAY }));
+  return [...a,...b].sort((p,q) => p.due - q.due);
+}
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const on  = dt => `${dt.getDate()} ${MON[dt.getMonth()]}${dt.getFullYear()!==2026 ? " '"+String(dt.getFullYear()).slice(2) : ''}`;
+const rel = dt => { const n = days(dt,TODAY);
+  return n===0 ? 'today' : n===1 ? 'tomorrow' : n<0 ? Math.abs(n)+' days overdue' : 'in '+n+' days'; };
+
+/* =========================================================================
+   THE GLYPH SET — inline SVG on currentColor, so one asset serves both themes.
+   Count it: this is the whole vocabulary a policy is allowed to spend.
+   ========================================================================= */
+const I = {
+  edit:     '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 6.5 17.5 9.5"/>',
+  complete: '<path d="M4 12.5 9.5 18 20 6.5"/>',
+  cancel:   '<path d="M6 6 18 18M18 6 6 18"/>',
+  postpone: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M17.5 4.5 21 7"/>',
+  context:  '<path d="M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
+  importance:'<path d="M4 21V4"/><path d="M4 5h13l-2 4 2 4H4"/>',
+  due:      '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  wake:     '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M5 3 2.5 5.5M19 3l2.5 2.5"/>',
+  note:     '<path d="M4 6h16M4 11h16M4 16h9"/>',
+  queued:   '<path d="M6 17.5A4 4 0 0 1 6.5 9.6a6 6 0 0 1 11.4 1.6A3.6 3.6 0 0 1 18 18"/><path d="M12 21v-8M9 15.5 12 12.5l3 3"/>',
+  synced:   '<path d="M6 17.5A4 4 0 0 1 6.5 9.6a6 6 0 0 1 11.4 1.6A3.6 3.6 0 0 1 18 18"/><path d="m9.5 15 2 2 4-4"/>',
+  overdue:  '<path d="M12 3 22 20H2Z"/><path d="M12 10v4M12 17.2v.1"/>',
+  search:   '<circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/>',
+  add:      '<path d="M12 5v14M5 12h14"/>',
+};
+const g = (n, cls='') => `<svg class="g ${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
+/* an icon-only control still needs an accessible name — every policy, no exceptions */
+const gbtn = (n, label, cls='') =>
+  `<button class="${cls}" aria-label="${label}" title="${label}">${g(n)}</button>`;
+
+/* =========================================================================
+   POLICIES
+   ========================================================================= */
+const POLICY = {
+  A: { name:'Words', blurb:'what the ADRs specified — the control',
+       verbs:'words', kinds:'words', prune:false },
+  B: { name:'Icons for verbs', blurb:"portal's actual rule, promoted",
+       verbs:'icons', kinds:'words', prune:false },
+  C: { name:'Icons for kinds', blurb:'#42’s dense form, generalised',
+       verbs:'words', kinds:'icons', prune:false },
+  D: { name:'Fewer words', blurb:'no icons — say less instead',
+       verbs:'words', kinds:'words', prune:true },
+  /* THE AUTHOR'S COMBINATION (#43): B's verbs + D's pruning. Note what it does NOT take
+     from D — D had to shorten the verbs themselves (Postpone→Later, Cancel→Drop), which
+     changes what they MEAN. E deletes that problem rather than solving it: an icon has
+     no length to shrink, so the verb keeps its full name in its accessible name and
+     tooltip while costing zero horizontal space. */
+  E: { name:'Icons for verbs + fewer words', blurb:"B+D — the author's combination",
+       verbs:'icons', kinds:'words', prune:true },
+};
+let P = 'A';
+const p = () => POLICY[P];
+
+/* =========================================================================
+   SURFACES
+   ========================================================================= */
+
+/* ---- 1. the appbar: omnibox + the two ADR-0009/0015 state indicators ---- */
+function appbar() {
+  const pol = p();
+  const ph = pol.prune ? 'Add a task' : 'Type to add a task, or search';
+  const omniLead = pol.kinds === 'icons' ? g('search','sm') : '';
+  let state;
+  if (pol.kinds === 'icons') {
+    state = `<span class="bit" title="40 changes waiting to sync">${g('queued','sm')} 40</span>`;
+  } else if (pol.prune) {
+    state = `<span class="bit">40 queued</span>`;
+  } else {
+    state = `<span class="bit">40 changes queued</span>`;
+  }
+  return `<div class="appbar">
+    <div class="omni">${omniLead}<span class="ph">${ph}</span></div>
+    <div class="barstate">${state}</div>
+    <span class="kebab">⋯</span>
+  </div>`;
+}
+
+/* ---- FLOOR 3: the rejected-changes band ---- */
+function rejected() {
+  return `<div class="rejected floor">
+    <b>2 changes the server refused</b>
+    You completed <i>Doucheputje uitkuisen</i> and edited <i>Visa afrekening</i>. Neither was saved.
+  </div>`;
+}
+
+/* ---- 2. context cards ---- */
+const CTXS = [
+  { key:'house',    n:'house',    open:14, over:6, next:'Kussens wassen in 6 days' },
+  { key:'health',   n:'health',   open:5,  over:3, next:'Yoga tomorrow' },
+  { key:'setlist',  n:'setlist',  open:4,  over:2, next:'The National in 4 days' },
+  { key:'social',   n:'social',   open:9,  over:4, next:'Cleo in 5 days' },
+  { key:'personal', n:'personal', open:4,  over:2, next:'Fietsverzekering in 9 days' },
+];
+function cards() {
+  const pol = p();
+  return `<div class="cards">${CTXS.map(c => {
+    const nm = pol.kinds === 'icons'
+      ? `<div class="nm">${g('context','sm')}<span>${c.n}</span></div>`
+      : `<div class="nm"><span>${c.n}</span></div>`;
+    let right;
+    if (pol.kinds === 'icons') {
+      right = `<div class="cnt"><span class="badge">${g('overdue','sm')}${c.over}</span> ${c.open}</div>`;
+    } else if (pol.prune) {
+      right = `<div class="cnt"><span class="badge">${c.over}</span> ${c.open}</div>`;
+    } else {
+      right = `<div class="cnt"><span class="badge">${c.over} overdue</span> ${c.open} open</div>`;
+    }
+    const seg = [['focus',c.over],['fit-in',2],['long-game',c.open-c.over-2 > 0 ? c.open-c.over-2 : 1]];
+    const tot = seg.reduce((s,[,v])=>s+v,0);
+    const bar = `<div class="bar">${seg.map(([k,v]) =>
+      `<i style="background:${COL[k]};width:${(v/tot*100).toFixed(1)}%"></i>`).join('')}</div>`;
+    const next = pol.prune ? '' : `<div class="next">then ${c.next}</div>`;
+    return `<div class="card">
+      <div class="top">${nm}${right}</div>${bar}${next}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ---- 3. bands + task panels ---- */
+function taskRow(t, expanded) {
+  const pol = p();
+  const dueTxt = t.overdue
+    ? `<span class="od">${rel(t.due)}</span>`
+    : `<span>due ${rel(t.due)}</span>`;
+  /* NOT marked as FLOOR 1, and the distinction is a finding: on the overview only ONE of
+     the two dates can ever be live — the task is visible, so "ask me from" is already in
+     the past. #42's confusable pair is a property of the DIALOG, where both are editable
+     and side by side. So D is allowed to prune it here without touching the floor. */
+  const wake = pol.prune ? '' : `<span>· asked from ${on(addD(t.due,-3))}</span>`;
+  const meta = `<div class="meta">${dueTxt}${wake}</div>`;
+
+  let acts = '';
+  if (expanded) {
+    if (pol.verbs === 'icons') {
+      acts = `<div class="actions icons">
+        ${gbtn('edit','Edit')}
+        ${gbtn('postpone','Postpone')}
+        ${gbtn('complete','Complete','good')}
+        ${gbtn('cancel','Cancel','danger')}
+      </div>`;
+    } else {
+      const lbl = pol.prune ? ['Edit','Later','Done','Drop'] : ['Edit','Postpone','Complete','Cancel'];
+      acts = `<div class="actions words">
+        <button>${lbl[0]}</button><button>${lbl[1]}</button>
+        <button class="good">${lbl[2]}</button><button class="danger">${lbl[3]}</button>
+      </div>`;
+    }
+  }
+  return `<div class="task">
+    <span class="stripe" style="background:${COL[t.bucket]}"></span>
+    <span class="body"><div class="nm">${t.name}</div>${meta}${acts}</span>
+  </div>`;
+}
+
+function bands() {
+  const pol = p();
+  const all = openTasks();
+  const dueNow = all.filter(t => t.due <= TODAY);
+  const rest   = all.filter(t => t.due > TODAY);
+  const shown  = dueNow;   /* ADR-0015: everything due or overdue is visible, however many */
+  const title = pol.prune
+    ? `Due today <span class="why">(${dueNow.length})</span>`
+    : `Due today <span class="why">— all ${dueNow.length}, the cap does not apply</span>`;
+  let h = `<h2 class="band">${title}</h2>`;
+  h += `<div class="tasks">${shown.map((t,i) => taskRow(t, i===0)).join('')}</div>`;
+  /* FLOOR 2 — the fold speaks, under every policy */
+  h += `<div class="fold floor">Also… (${rest.length}) · nothing urgent · soonest in ${days(rest[0].due,TODAY)} days</div>`;
+  return h;
+}
+
+/* ---- 4. templates list ---- */
+function templates() {
+  const pol = p();
+  const rows = ['Onderhoud ketels','Koffiezet ontkalken','Insmeren','Yoga','Papa','Visa afrekening']
+    .map(n => T.find(t => t.name === n)).filter(Boolean);
+  return rows.map(t => {
+    const od = t.overdue ? `<span class="od">${Math.abs(days(t.due,TODAY))} days overdue</span> · ` : '';
+    const meta = pol.prune
+      ? `${od}last ${on(t.last)}`
+      : `${od}last ${days(TODAY,t.last)} days ago · ${on(t.last)}`;
+    const tick = pol.verbs === 'icons'
+      ? `<button class="tick iconly" aria-label="I already did this" title="I already did this">${g('complete')}</button>`
+      : `<button class="tick">${g('complete','sm')} ${pol.prune ? 'Did it' : 'I did this'}</button>`;
+    return `<div class="trow">
+      <div class="body"><div class="nm">${t.name}</div><div class="meta">${meta}</div></div>
+      ${tick}
+    </div>`;
+  }).join('');
+}
+
+/* ---- 5. the task dialog — six fields ---- */
+function dialog() {
+  const pol = p();
+  const F = [
+    ['name',       'Name',         'text',  'Offerte dakwerken opvolgen'],
+    ['context',    'Context',      'chips', null],
+    ['importance', 'Importance',   'chips', null],
+    ['due',        'Due',          'text',  '8 Aug 2026'],
+    ['wake',       'Ask me from',  'text',  '5 Aug 2026'],
+    ['note',       'Description',  'text',  ''],
+  ];
+  const GL = { name:null, context:'context', importance:'importance', due:'due', wake:'wake', note:'note' };
+  const body = F.map(([k,label,kind,val]) => {
+    let ctl;
+    if (kind === 'chips' && k === 'context') {
+      ctl = `<div class="chips">${['house','health','setlist','social','personal']
+        .map((c,i) => `<span class="chip${i===4?' on':''}">${pol.kinds==='icons'&&i===0?g('context','sm'):''}${c}</span>`).join('')}</div>`;
+    } else if (kind === 'chips') {
+      ctl = `<div class="chips">${['focus','fit-in','long-game','back-burner']
+        .map((c,i) => `<span class="chip${i===1?' on':''}">${c}</span>`).join('')}</div>`;
+    } else {
+      ctl = `<div class="ctl">${val || '<span style="color:var(--muted)">—</span>'}</div>`;
+    }
+    /* FLOOR 1 — the two date fields keep their words under every policy */
+    const isDate = (k === 'due' || k === 'wake');
+    if (pol.kinds === 'icons' && GL[k] && !isDate) {
+      return `<div class="field inline"><span class="iconlab" title="${label}" aria-label="${label}">${g(GL[k],'lg')}</span>${ctl}</div>`;
+    }
+    if (pol.kinds === 'icons' && isDate) {
+      return `<div class="field floor"><span class="lab">${label}</span>${ctl}</div>`;
+    }
+    return `<div class="field${isDate?' floor':''}"><span class="lab">${label}</span>${ctl}</div>`;
+  }).join('');
+  const btns = pol.verbs === 'icons'
+    ? `<div class="dlgbtns actions icons">${gbtn('cancel','Discard')}${gbtn('complete','Save','good')}</div>`
+    : `<div class="dlgbtns"><button>${pol.prune?'Discard':'Discard'}</button><button>Save</button></div>`;
+  return `<div class="dlg"><h3>Offerte dakwerken opvolgen</h3>${body}${btns}</div>`;
+}
+
+/* ---- 6. omnibox, open ---- */
+function omnibox() {
+  const pol = p();
+  const hint = pol.prune
+    ? 'Enter adds it. Pick a context below.'
+    : 'Press Enter to add this as a task in <b>personal</b>, or pick a context below.';
+  return `<div class="omniopen">
+    <div class="inp">${pol.kinds==='icons'?g('search'):''}<span>Offerte dakwerken opvolgen</span></div>
+    <div class="hint">${hint}</div>
+    <div class="chips" style="margin-bottom:6px">${['house','health','setlist','social','personal']
+      .map((c,i) => `<span class="chip${i===4?' on':''}">${pol.kinds==='icons'?g('context','sm'):''}${c}</span>`).join('')}</div>
+    <div class="sug">${pol.kinds==='icons'?g('complete','sm'):''}<span>Insmeren</span>
+      <span class="sub">${pol.prune?'did it':'I already did this'}</span></div>
+    <div class="sug">${pol.kinds==='icons'?g('complete','sm'):''}<span>Gitaarles</span>
+      <span class="sub">${pol.prune?'did it':'I already did this'}</span></div>
+  </div>`;
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+function render() {
+  const s = (label, html) => `<div class="surface"><div class="slabel">${label}</div>${html}</div>`;
+  document.getElementById('frame').innerHTML =
+      s('1 · overview',  appbar() + rejected() + cards() + bands())
+    + s('2 · templates', templates())
+    + s('3 · task dialog', dialog())
+    + s('4 · omnibox, open', omnibox());
+
+  const pol = p();
+  document.getElementById('swlbl').innerHTML = `${P} — ${pol.name} <small>${pol.blurb}</small>`;
+
+  /* count the glyphs actually on screen — the vocabulary a policy spends */
+  const used = new Set();
+  document.querySelectorAll('#frame svg.g').forEach(sv => used.add(sv.innerHTML));
+  document.getElementById('rigreport').textContent =
+    `policy ${P} · verbs=${pol.verbs} kinds=${pol.kinds} prune=${pol.prune} · ` +
+    `${document.querySelectorAll('#frame svg.g').length} glyphs on screen, ` +
+    `${used.size} distinct (portal shipped 17)`;
+
+  document.querySelectorAll('#rig [data-w]').forEach(b =>
+    b.classList.toggle('on', document.body.classList.contains(b.dataset.w)));
+  document.querySelectorAll('#rig [data-t]').forEach(b =>
+    b.classList.toggle('on', (b.dataset.t === 'dark') === document.body.classList.contains('dark')));
+  document.querySelector('#rig [data-floors]')
+    .classList.toggle('on', document.body.classList.contains('floors'));
+}
+
+const KEYS = Object.keys(POLICY);
+const go = n => { P = KEYS[(KEYS.indexOf(P) + n + KEYS.length) % KEYS.length]; render(); };
+document.getElementById('prev').onclick = () => go(-1);
+document.getElementById('next').onclick = () => go(1);
+document.addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  if (e.key === 'ArrowLeft')  go(-1);
+  if (e.key === 'ArrowRight') go(1);
+});
+document.getElementById('rig').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.w) { document.body.classList.remove('phone','desktop'); document.body.classList.add(b.dataset.w); }
+  if (b.dataset.t) { document.body.classList.toggle('dark', b.dataset.t === 'dark'); }
+  if (b.dataset.floors) { document.body.classList.toggle('floors'); }
+  render();
+});
+render();
+</script>
+</body>
+</html>

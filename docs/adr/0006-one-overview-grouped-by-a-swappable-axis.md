@@ -53,6 +53,13 @@ The panel stays an expandable row. Expanding reveals the description and three a
 **Edit / Complete / Cancel**. Swipe right completes, swipe left cancels, with a **labelled fill**
 so the gesture says what it is about to do.
 
+> **Amended by [ADR-0015](0015-postpone-pushes-the-start-date-and-the-fold-speaks.md) and
+> [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md).** There are **four** actions — ADR-0015 adds
+> *Postpone* — and they are **glyphs, not text buttons**. Portal drew `edit` and `done` as
+> icon-only `<mat-icon>`s for years and the author confirms they were clear; the text buttons
+> written here were a drift, not a decision. Each glyph carries the verb's full name as its
+> accessible name and tooltip. The **labelled** swipe fill is unaffected — a gesture has no glyph.
+
 **Swipe is not touch-only.** Portal's `(swiperight)`/`(pan)` ran on HammerJS, which binds mouse
 drag as well — desktop has had the gesture for years. The rebuild uses **Pointer Events**, which
 covers mouse, touch and pen in one code path. HammerJS is dead (unmaintained since 2016, Angular
@@ -63,6 +70,14 @@ grid the three buttons cost ~110px and truncate the task name — *Vacuum the li
 appoi…* — forcing a two-column grid to stay legible. That trades away the desktop density the
 layout exists to provide, so the cost lands precisely on the requirement it was meant to serve.
 Hover-reveal was rejected as a discoverability trap for `CANCELLED`, which is a brand-new verb.
+
+> **Amended by [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md): this measurement has expired,
+> but the rejection stands on a different reason.** The ~110px was **word-width** — three *text*
+> buttons. ADR-0019 makes the verbs glyphs, which do not cost that, so the evidence quoted above no
+> longer supports the conclusion. Always-visible actions are still rejected, now because swipe
+> already covers complete and cancel: a permanent row would put four affordances on every card to
+> serve the two verbs swipe does not reach. Recorded so nobody re-derives the button measurement and
+> finds it does not reproduce.
 
 ### Contexts are cards above one global list
 
