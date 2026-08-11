@@ -18,13 +18,11 @@ top to bottom direction
 System_Boundary("TaskBackEndApplication_boundary", "TaskBackEndApplication", $tags="") {
   Container_Boundary("TaskBackEndApplication.TaskBackEndApplication_boundary", "TaskBackEndApplication", $tags="") {
     Component(TaskBackEndApplication.TaskBackEndApplication.Task, "Task", $techn="Module", $descr="", $tags="", $link="")
-    Component(TaskBackEndApplication.TaskBackEndApplication.Recurring, "Recurring", $techn="Module", $descr="", $tags="", $link="")
     Component(TaskBackEndApplication.TaskBackEndApplication.Template, "Template", $techn="Module", $descr="", $tags="", $link="")
   }
 
 }
 
-Rel(TaskBackEndApplication.TaskBackEndApplication.Recurring, TaskBackEndApplication.TaskBackEndApplication.Task, "depends on", $techn="", $tags="", $link="")
 Rel(TaskBackEndApplication.TaskBackEndApplication.Template, TaskBackEndApplication.TaskBackEndApplication.Task, "depends on", $techn="", $tags="", $link="")
 
 SHOW_LEGEND(true)

@@ -1,29 +1,29 @@
 package be.stijnhooft.task.backend.template.mother;
 
-import be.stijnhooft.task.backend.template.TaskTemplateVariableName;
+import be.stijnhooft.task.backend.task.Importance;
+import be.stijnhooft.task.backend.template.StoredTrigger;
+import be.stijnhooft.task.backend.template.Trigger;
+import be.stijnhooft.task.backend.template.dto.TaskDefinitionDto;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateDto;
-import org.instancio.Instancio;
 
-import static org.instancio.Select.field;
+import java.util.List;
+import java.util.UUID;
 
 public class TaskTemplateDtoMother {
 
-    public static TaskTemplateDto createRandomTaskTemplateDto() {
-        var taskTemplate = Instancio.of(TaskTemplateDto.class)
-                .ignore(field(TaskTemplateDto::variableNames))
-                .create();
-
-        // (possibly) add variables to task definitions
-        taskTemplate.taskDefinitions()
-                .forEach(taskDefinition -> {
-                    if ((int) (Math.random() * 5) > 2) {
-                        var variableName = Instancio.create(String.class);
-                        taskDefinition.setName(taskDefinition.getName() + " ${" + variableName + "}");
-                        taskTemplate.variableNames().add(new TaskTemplateVariableName(variableName));
-                    }
-                });
-
-        return taskTemplate;
+    public static TaskTemplateDto manualTemplateDto() {
+        return templateDtoWith(new Trigger.Manual("When is the workshop?"));
     }
 
+    public static TaskTemplateDto templateDtoWith(Trigger trigger) {
+        return new TaskTemplateDto(
+                UUID.randomUUID(),
+                "Template " + UUID.randomUUID(),
+                "house",
+                true,
+                null,
+                StoredTrigger.of(trigger),
+                List.of(new TaskDefinitionDto(UUID.randomUUID(), "Beddengoed wassen ${who}",
+                        0, 2, Importance.IMPORTANT, null)));
+    }
 }

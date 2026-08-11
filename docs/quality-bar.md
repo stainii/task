@@ -70,13 +70,20 @@ becomes a compiler rule: `LocalDate.now()` will not compile.
 > initializer is an ERROR — Lombok moves the initializer into a generated `$default$` method, and
 > the check never sees it. That is not a theoretical gap: **three of the six `now()` calls in
 > `src/main` were hidden this way**, which is why #10 counted exactly three findings. So the rule
-> the compiler enforces is narrower than it looks, and until the entities are records
-> ([#45](https://github.com/stainii/task/issues/45),
-> [#47](https://github.com/stainii/task/issues/47)) it needs a human: **no `@Builder.Default`
-> initializer may call `now()`.** One more entry in #19's Lombok ledger — records do not have this
-> failure mode either.
+> the compiler enforces is narrower than it looks, and while any entity still carried a Lombok
+> builder it needed a human: **no `@Builder.Default` initializer may call `now()`.** One more entry
+> in #19's Lombok ledger — records do not have this failure mode either.
+>
+> **As of [#47](https://github.com/stainii/task/issues/47) the hole is closed by construction.**
+> [#45](https://github.com/stainii/task/issues/45) made `Task` and `TaskPatch` records and #47 did
+> the same for `TaskTemplate` and `TaskDefinition`, so
+> `grep -rn "Builder.Default" task-back-end/src/main` finds nothing and Error Prone now sees every
+> initializer there is. The rule stays written down because it governs *reintroducing* a Lombok
+> builder on an entity, not the code that happens to exist today.
 
-`StringConcatToTextBlock` is **off** — it crashes the compiler on `VariableUtils`, an upstream bug.
+`StringConcatToTextBlock` was **off** — it crashed the compiler on the old `VariableUtils`, an
+upstream bug. #47 rewrote that class; the exclusion is left in place rather than removed on a guess,
+since nothing here has re-tested the crash.
 
 #### Scope
 

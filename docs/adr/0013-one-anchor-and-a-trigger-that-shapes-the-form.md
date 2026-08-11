@@ -354,3 +354,28 @@ thing.
 a definition cannot produce a task that must have one from a value that does not. Portal corroborates
 that no null case is needed: its `recurring_task` table had no importance column at all, and each
 subscription pinned a constant.
+
+### The manual anchor's name lives on `Manual`, which is therefore not a marker record
+
+Amended by [`TaskTemplate` absorbs `RecurringTaskTemplate`](https://github.com/stainii/task/issues/47),
+2026-08-11.
+
+This ADR says two things that cannot both be built. *One anchor, two offsets* requires the template
+author to **name** the manual anchor — *"When is the workshop?"* — and calls it **"one string on the
+template"**; the variables section then concludes that **"`Manual` is a marker record"**. The second
+sentence was written to refuse `variableNames` a home once variables became inferred, and it
+overshot: the paragraph is about variables, and the anchor label is the one field that does belong
+to that record.
+
+**The field goes on `Manual`.** It is the reading that keeps both halves true. On disk it is still
+one string on the template — the whole trigger persists as columns of `task_template`, so
+`trigger_anchor_label` is a nullable column there either way. In the model it makes the invalid
+state unrepresentable: only a manual trigger can carry an anchor label, where a template-level field
+would have let a calendar template name an anchor it never asks anyone for.
+
+The alternative, a nullable `manualAnchorLabel` beside the trigger, was rejected on this map's own
+recurring shape — a field that is meaningful for one discriminator value and inert for the others is
+a second discriminator waiting to disagree with the first.
+
+`Manual` therefore has exactly one component and no behaviour: it is the trigger that answers *when
+do you next come round?* with **never**.

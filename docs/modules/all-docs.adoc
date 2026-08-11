@@ -13,10 +13,6 @@ include::module-goal.adoc[]
 plantuml::module-task.puml[,,format=svg]
 include::module-task.adoc[]
 
-== Recurring
-plantuml::module-recurring.puml[,,format=svg]
-include::module-recurring.adoc[]
-
 == Template
 plantuml::module-template.puml[,,format=svg]
 include::module-template.adoc[]

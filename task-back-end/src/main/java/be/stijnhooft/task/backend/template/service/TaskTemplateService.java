@@ -2,7 +2,7 @@ package be.stijnhooft.task.backend.template.service;
 
 import be.stijnhooft.task.backend.task.Task;
 import be.stijnhooft.task.backend.task.TaskCreationRequestedEvent;
-import be.stijnhooft.task.backend.template.DeviationBase;
+import be.stijnhooft.task.backend.template.TaskDefinition;
 import be.stijnhooft.task.backend.template.TaskTemplate;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateEntry;
 import be.stijnhooft.task.backend.template.exception.TaskTemplateAlreadyExistsException;
@@ -15,18 +15,15 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-import static be.stijnhooft.task.backend.template.util.DateTimeUtils.addDaysTo;
 import static be.stijnhooft.task.backend.template.util.VariableUtils.fillInVariables;
 
 @Service
 @RequiredArgsConstructor
-/// Parked by #10 (docs/quality-bar.md): nullable startDate and context are passed where
-/// non-null is required. ADR-0001 makes the start date explicit on creation (REC-003).
-@SuppressWarnings("NullAway")
 public class TaskTemplateService {
 
     private final TaskTemplateRepository taskTemplateRepository;
@@ -37,18 +34,31 @@ public class TaskTemplateService {
         return taskTemplateRepository.findAll();
     }
 
+    public Optional<TaskTemplate> findById(UUID id) {
+        return taskTemplateRepository.findById(id);
+    }
+
     public TaskTemplate create(TaskTemplate taskTemplate) {
-        if (taskTemplateRepository.existsById(taskTemplate.getId())) {
-            throw new TaskTemplateAlreadyExistsException(taskTemplate.getId());
+        if (taskTemplateRepository.existsById(taskTemplate.id())) {
+            throw new TaskTemplateAlreadyExistsException(taskTemplate.id());
         }
         return taskTemplateRepository.save(taskTemplate);
     }
 
-    public TaskTemplate update(TaskTemplate taskTemplate) {
-        if (!taskTemplateRepository.existsById(taskTemplate.getId())) {
-            throw new TaskTemplateNotFoundException(taskTemplate.getId());
-        }
-        return taskTemplateRepository.save(taskTemplate);
+    /// Saves an edit, and **moves `activeSince` when the trigger changed**.
+    ///
+    /// That is one of the field's three writing events (ADR-0017), and the one that is easy to
+    /// miss: a bin template that has fired every Tuesday since January, re-ruled to Thursdays,
+    /// finds no task on any Thursday and would immediately fire a backdated one. Resetting can only
+    /// ever prevent a firing, never lose one.
+    ///
+    /// The other two writes — deactivate and reactivate — arrive with their endpoints in
+    /// [#50](https://github.com/stainii/task/issues/50).
+    public TaskTemplate update(TaskTemplate edited, TaskTemplate existing) {
+        var withTrigger = edited.storedTrigger().equals(existing.storedTrigger())
+                ? edited
+                : edited.withTrigger(edited.trigger(), LocalDate.now(clock));
+        return taskTemplateRepository.save(withTrigger);
     }
 
     public void delete(UUID id) {
@@ -58,57 +68,52 @@ public class TaskTemplateService {
         taskTemplateRepository.deleteById(id);
     }
 
-    public Optional<TaskTemplate> findById(UUID id) {
-        return taskTemplateRepository.findById(id);
-    }
-
-    public void createTasksWithTemplate(TaskTemplate taskTemplate, TaskTemplateEntry taskTemplateEntry) {
-        var tasks = taskTemplate.getTaskDefinitions()
-                .stream()
-                .map(taskDefinition -> {
-                    // fill in all variables in all strings
-                    String name = fillInVariables(taskDefinition.getName(), taskTemplateEntry.variables())
-                            .orElseThrow(() -> new IllegalStateException("A task should always have a name, but after filling in the variables, the name is empty."));
-                    String description = fillInVariables(taskDefinition.getDescription(), taskTemplateEntry.variables())
-                            .orElse(null);
-                    String context = fillInVariables(taskDefinition.getContext(), taskTemplateEntry.variables())
-                            .orElse(null);
-
-                    // calculate dates
-                    var startDate = calculateDateWithDeviation(taskDefinition.getStartDateDeviationDays(), taskDefinition.getStartDateDeviationBase(), taskTemplateEntry.startDateOfMainTask(), taskTemplateEntry.dueDateOfMainTask())
-                            .orElse(null);
-                    var dueDate = calculateDateWithDeviation(taskDefinition.getDueDateDeviationDays(), taskDefinition.getDueDateDeviationBase(), taskTemplateEntry.startDateOfMainTask(), taskTemplateEntry.dueDateOfMainTask())
-                            .orElse(null);
-
-                    // other variables
-                    var importance = taskDefinition.getImportance();
-
-                    // assemble task
-                    return Task.builderForInitialTask(clock)
-                            .name(name)
-                            .startDate(startDate)
-                            .dueDate(dueDate)
-                            .context(context)
-                            .importance(importance)
-                            .description(description)
-                            .build();
-                })
-                .collect(Collectors.toList());
+    /// Renders a template into tasks and hands them over. One firing, one `occurrenceId`: an
+    /// occurrence is not stored anywhere, so this group key is all that remains of it.
+    ///
+    /// Every definition's dates come from **one anchor** — the date typed for a manual template,
+    /// the firing date for a scheduled one — and each definition's own two offsets.
+    public List<Task> createTasksWithTemplate(TaskTemplate taskTemplate, TaskTemplateEntry entry) {
+        var tasks = renderTasks(taskTemplate, entry.variables(), entry.anchorDate(), null);
         eventPublisher.publishEvent(new TaskCreationRequestedEvent(tasks));
+        return tasks;
     }
 
-    private Optional<LocalDate> calculateDateWithDeviation(@Nullable Integer deviationDays,
-                                                           @Nullable DeviationBase deviationBase,
-                                                           @Nullable LocalDate startDateOfMainTask,
-                                                           @Nullable LocalDate dueDateOfMainTask) {
-        if (deviationBase == null) {
-            return Optional.empty();
-        }
+    /// Renders a firing's tasks without publishing them, so a caller that already knows the anchor
+    /// and the due date — the scheduler — can use the same renderer.
+    ///
+    /// The name is rendered **before any task is built**: a template whose name resolves to nothing
+    /// fails loudly and creates none of its tasks, rather than part of them (TODO-022).
+    public List<Task> renderTasks(TaskTemplate taskTemplate, Map<String, String> variables,
+                                  @Nullable LocalDate anchor, @Nullable LocalDate defaultDueDate) {
+        var occurrenceId = UUID.randomUUID();
+        var context = fillInVariables(taskTemplate.context(), variables)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Template " + taskTemplate.id() + " renders to an empty context."));
 
-        return switch (deviationBase) {
-            case START_DATE -> addDaysTo(startDateOfMainTask, deviationDays);
-            case DUE_DATE -> addDaysTo(dueDateOfMainTask, deviationDays);
-        };
+        return taskTemplate.taskDefinitions().stream()
+                .map(definition -> render(taskTemplate, definition, variables, context, anchor, defaultDueDate, occurrenceId))
+                .toList();
     }
 
+    private Task render(TaskTemplate taskTemplate, TaskDefinition definition, Map<String, String> variables,
+                        String context, @Nullable LocalDate anchor, @Nullable LocalDate defaultDueDate,
+                        UUID occurrenceId) {
+        var name = fillInVariables(definition.name(), variables)
+                .filter(rendered -> !rendered.isBlank())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Definition " + definition.id() + " of template " + taskTemplate.id()
+                                + " renders to an empty name."));
+
+        return Task.builderForInitialTask(clock)
+                .name(name)
+                .context(context)
+                .description(fillInVariables(definition.description(), variables).orElse(null))
+                .importance(definition.importance())
+                .startDate(definition.startDateFrom(anchor).orElse(null))
+                .dueDate(definition.dueDateFrom(anchor).orElse(defaultDueDate))
+                .taskTemplateId(taskTemplate.id())
+                .occurrenceId(occurrenceId)
+                .build();
+    }
 }

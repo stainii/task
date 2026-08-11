@@ -21,9 +21,9 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 /// and a patch for a task that no longer exists retries forever, freezing every write behind it on
 /// that device while the app still looks fine.
 ///
-/// Scoped to this module's two controllers rather than applied globally: `template` and `recurring`
-/// carry their own `@ResponseStatus` mappings, and an advice reaching across modules would be an
-/// outbound dependency out of `task`, which ADR-0003 keeps free of them.
+/// Scoped to this module's two controllers rather than applied globally: `template` carries its own
+/// `@ResponseStatus` mappings, and an advice reaching across modules would be an outbound dependency
+/// out of `task`, which ADR-0003 keeps free of them.
 @Slf4j
 @RestControllerAdvice(assignableTypes = {TaskController.class, TaskPatchController.class})
 public class TaskApiExceptionHandler {

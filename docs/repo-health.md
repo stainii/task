@@ -283,9 +283,11 @@ Flyway V1–V3 were checked field by field against `Task`, `TaskPatch`, `TaskTem
 
 ### Genuine defects found
 
-> **Dispositions.** Every defect below has a home, tracked as `HEALTH-01`…`HEALTH-08` in [`docs/coverage-gate.md`](coverage-gate.md) (#16). Two are decisions **not** to fix: **D6/`HEALTH-06`** dies with `Execution`, which ADR-0001 deletes, and **F1–F3/`HEALTH-08`** were resolved by deletion in #30 and are kept here verbatim as the evidence that discard was right.
+> **Dispositions.** Every defect below has a home, tracked as `HEALTH-01`…`HEALTH-08` in [`docs/coverage-gate.md`](coverage-gate.md) (#16). Two are decisions **not** to fix: **D6/`HEALTH-06`** dies with `Execution`, which ADR-0001 deletes (and #47 has now deleted), and **F1–F3/`HEALTH-08`** were resolved by deletion in #30 and are kept here verbatim as the evidence that discard was right.
 
 **D1 (`HEALTH-01`) — `RecurringTaskTemplate.shouldTaskBeCreatedBecauseItIsDue` uses the wrong day count.**
+
+> **Resolved by deletion in [#47](https://github.com/stainii/task/issues/47) (2026-08-11).** `RecurringTaskTemplate` is gone, merged into `TaskTemplate` behind a sealed `Trigger`, and the class took the defect and its `JavaPeriodGetDays` suppression with it — deleted, not moved, exactly as the ticket required. `Trigger.MinMax` compares dates directly (`roundStarted.plusDays(min)` against today) and there is no `Period` anywhere in `src/main`, so the shape cannot come back silently; Error Prone would refuse it at ERROR if it did. The canary is a parameterised boundary test in `TriggerTest` over intervals of 1, 30, 31, 45, 90, 365 and 720 days, each asserted the day before, on, and after it falls due. Kept here verbatim as the standing argument for the testing convention it produced.
 
 ```java
 var numberOfDaysSinceLastExecution = Period.between(getLastExecutionDateOrCreationDate(), now).getDays();
@@ -383,6 +385,8 @@ public void addExecution(Execution execution) {
 ```
 
 Real and load-bearing (Spring Data JDBC change detection is identity-based), but it is a workaround carrying a comment that reads as unresolved. Worth an explicit decision rather than leaving it as folklore.
+
+> **Resolved by deletion in [#47](https://github.com/stainii/task/issues/47) (2026-08-11), as decided.** `Execution` is deleted — an occurrence is derived from tasks, never stored — so the copy-on-write workaround has nothing left to work around. This was #47's recorded *no ticket, by decision*: it was never fixed, and never needed to be.
 
 **D7 (`HEALTH-07`) — the committed module diagram reorders itself, so #6's tripwire channel carries noise.**
 *(Found by [#23](https://github.com/stainii/task/issues/23), 2026-08-07.)*
