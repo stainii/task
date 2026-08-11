@@ -10,8 +10,9 @@ import org.springframework.stereotype.Component;
 @Mapper(componentModel = "spring")
 public interface TaskPatchMapper {
 
-    /// `sequence` is deliberately unmapped: it is the server's clock, assigned on receipt, and a
-    /// client that could set it could rewrite another client's cursor.
+    /// `sequence` is deliberately unmapped **inbound**: it is the server's clock, assigned on
+    /// receipt, and a client that could set it could rewrite another client's cursor. It is mapped
+    /// outbound, where it is the number the client's cursor is made of.
     @Mapping(target = "sequence", ignore = true)
     TaskPatch toDomain(TaskPatchDto taskPatchDto);
 

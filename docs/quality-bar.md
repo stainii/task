@@ -35,7 +35,7 @@ actually running rather than merely configured.
 
 ### Tests and the modulith check
 
-`./mvnw verify` — currently 83 tests in about 1:16. `ApplicationModules.verify()` runs as a test
+`./mvnw verify` — currently 138 tests in about 0:38. `ApplicationModules.verify()` runs as a test
 and enforces [ADR-0003](adr/0003-two-modules-with-package-visibility-as-the-boundary.md)'s module
 boundaries.
 
@@ -155,10 +155,19 @@ So:
 - **A test asserts only on data it created, identified by its own ids.** Never "the stream contains
   one event", never "the repository has three rows".
 - **Test data is not dated in the future** unless the test is about future dates.
+- **Test data never poses as something the server issued.** A value the application mints — a
+  `sequence`, and anything like it — must be unmistakably not one when a test mints it instead.
 
-This is not theoretical. Instancio mints dates decades ahead, and a stream test written against a
+None of this is theoretical. Instancio mints dates decades ahead, and a stream test written against a
 time window received a patch from another test class dated 2071. Test *order* would have changed
 the result.
+
+The third rule cost [#46](https://github.com/stainii/task/issues/46) an afternoon. `TaskMother`
+stamped its patches with sequences drawn from far *above* the real one, to avoid the unique
+constraint — so mother data held the highest `sequence` in the shared database, the server's own
+watermark reported a cursor a thousand times past the end of history, and **every stream test
+resumed from a point no real patch will reach for years**. The numbers are negative now: the server
+only ever issues positive ones, so a negative sequence cannot be mistaken for a place in the history.
 
 ### Date and comparison logic is tested at its boundaries
 

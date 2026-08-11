@@ -21,4 +21,16 @@ public class TaskPatchSequence {
                 .query(Long.class)
                 .single();
     }
+
+    /// The highest sequence a client could have been told about: the cursor a snapshot was read at.
+    ///
+    /// Taken from the stored patches rather than from the sequence's `last_value`, because a number
+    /// can be minted and its transaction rolled back. A watermark ahead of what was actually stored
+    /// would make the client ask for patches that will never exist, and #46 answers an unservable
+    /// cursor with a resync - a hard reset triggered by our own arithmetic.
+    public long watermark() {
+        return jdbcClient.sql("SELECT COALESCE(MAX(sequence), 0) FROM task_patch")
+                .query(Long.class)
+                .single();
+    }
 }

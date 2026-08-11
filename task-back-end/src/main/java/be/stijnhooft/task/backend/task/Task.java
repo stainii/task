@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -197,27 +198,56 @@ public record Task(
         return new ResolvedVoids(voided, creationVoided);
     }
 
+    /// Every field a patch can change, with the code that applies it. **One table, because the
+    /// fold and the door must never disagree.** The API rejects an unknown change key with a `400`
+    /// (ADR-0004) while the fold ignores it; kept as two lists, the pair drifts silently and the
+    /// API accepts, forever, a key that changes nothing - the append-only log making the mistake
+    /// permanent.
+    private static final Map<String, BiConsumer<FoldState, @Nullable String>> FIELDS = Map.ofEntries(
+            Map.entry("name", (state, value) -> state.name = value),
+            Map.entry("creationDateTime", (state, value) -> state.creationDateTime = parse(value, Instant::parse)),
+            Map.entry("startDate", (state, value) -> state.startDate = parse(value, LocalDate::parse)),
+            Map.entry("dueDate", (state, value) -> state.dueDate = parse(value, LocalDate::parse)),
+            Map.entry("context", (state, value) -> state.context = value),
+            Map.entry("importance", (state, value) -> state.importance = parse(value, Importance::valueOf)),
+            Map.entry("description", (state, value) -> state.description = value),
+            Map.entry("status", (state, value) -> state.status = parse(value, TaskStatus::parse)),
+            Map.entry("completedOn", (state, value) -> state.completedOn = parse(value, LocalDate::parse)),
+            Map.entry("taskTemplateId", (state, value) -> state.taskTemplateId = parse(value, UUID::fromString)),
+            Map.entry("occurrenceId", (state, value) -> state.occurrenceId = parse(value, UUID::fromString)));
+
+    /// Checks that a change names a field and carries a value that parses as it, throwing
+    /// `IllegalArgumentException` when it does not. This is the door's half of [#FIELDS]: what the
+    /// API refuses is exactly what the fold could not have used.
+    ///
+    /// A null value is always legal - absent and present-but-null are different things, and a
+    /// change to null is how a field is cleared.
+    public static void requireFoldableChange(String field, @Nullable String value) {
+        var apply = FIELDS.get(field);
+        if (apply == null) {
+            throw new IllegalArgumentException("'" + field + "' names no field of a task.");
+        }
+        try {
+            apply.accept(new FoldState(), value);
+        } catch (RuntimeException e) {
+            // Every parse failure, not only IllegalArgumentException: `LocalDate.parse` throws
+            // DateTimeParseException, which is not one, so catching the narrower type let a
+            // malformed date through as a 500 - and a 5xx is exactly the answer that makes the
+            // client's outbox stall forever on a patch that will never be accepted.
+            throw new IllegalArgumentException(
+                    "'" + value + "' is not a valid " + field + ": " + e.getMessage(), e);
+        }
+    }
+
     private static void apply(FoldState state, TaskPatch patch) {
         for (Map.Entry<String, String> change : patch.changes().entrySet()) {
-            var value = change.getValue();
-            switch (change.getKey()) {
-                case "name" -> state.name = value;
-                case "creationDateTime" -> state.creationDateTime = parse(value, Instant::parse);
-                case "startDate" -> state.startDate = parse(value, LocalDate::parse);
-                case "dueDate" -> state.dueDate = parse(value, LocalDate::parse);
-                case "context" -> state.context = value;
-                case "importance" -> state.importance = parse(value, Importance::valueOf);
-                case "description" -> state.description = value;
-                case "status" -> state.status = parse(value, TaskStatus::parse);
-                case "completedOn" -> state.completedOn = parse(value, LocalDate::parse);
-                case "taskTemplateId" -> state.taskTemplateId = parse(value, UUID::fromString);
-                case "occurrenceId" -> state.occurrenceId = parse(value, UUID::fromString);
+            var apply = FIELDS.get(change.getKey());
 
-                // A key the fold does not know names no field, so it changes nothing. The API
-                // rejects unknown keys at the door (ADR-0004) rather than here, because the fold
-                // also replays years of migrated history that the API never saw.
-                default -> {
-                }
+            // A key the fold does not know names no field, so it changes nothing. The API rejects
+            // unknown keys at the door rather than here, because the fold also replays years of
+            // migrated history that the API never saw.
+            if (apply != null) {
+                apply.accept(state, change.getValue());
             }
         }
     }

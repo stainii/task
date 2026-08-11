@@ -20,11 +20,14 @@ public class TaskMother {
 
     private static final TestClock CLOCK = TestClock.atNoonOn(LocalDate.of(2026, 3, 1));
 
-    /// Far away from the database sequence and from any other test's numbers. `sequence` is unique
-    /// in the schema, and the integration tests share one reused Postgres, so a counter starting
-    /// at 1 collides with the real sequence on the first save.
+    /// **Negative**, and that is the point. `sequence` is unique in the schema and the integration
+    /// tests share one reused Postgres, so these numbers have to miss the real sequence - but they
+    /// must also never *pose* as it. Minted above it, as they were, they became the highest sequence
+    /// in the database, so `TaskPatchSequence.watermark()` reported a cursor a thousand times past
+    /// the end of history and every stream resumed from a point no real patch will reach for years.
+    /// The server only ever issues positive numbers, so a negative one is unmistakably test data.
     private static final AtomicLong SEQUENCES =
-            new AtomicLong(ThreadLocalRandom.current().nextLong(1_000_000L, 1_000_000_000_000L));
+            new AtomicLong(ThreadLocalRandom.current().nextLong(-1_000_000_000_000L, -1_000_000L));
 
     /// A task with a creation patch and two later patches, all uniquely identified, so a test can
     /// assert on its own data by id.

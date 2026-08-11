@@ -86,6 +86,20 @@ A sequence number only means the same patch forever *within one epoch*. Restorin
 the server's counter, so clients carry the epoch alongside their cursor and present both on
 reconnect; a stale epoch is answered with a **resync** rather than a stream.
 
+The two halves travel together as one string, `epoch:sequence`, which is the id on every SSE event —
+because the reconnect the browser performs by itself sends nothing but `Last-Event-ID`, and an epoch
+the automatic reconnect cannot carry is an epoch that is never checked.
+
+### Watermark
+
+**The cursor a snapshot was read at**: the highest sequence the server could have told anyone about
+at that moment.
+
+`GET /api/tasks` carries it, and the client streams from it. Without it, every patch landing between
+the snapshot completing and the stream attaching is lost — invisibly, because both calls succeeded.
+It is read *before* the tasks, so the worst case is a duplicate the client discards by id rather than
+a gap, which is permanent.
+
 ### Task template
 
 **A generator of tasks.** Holds a name, a **context**, one or more **task definitions**, and exactly

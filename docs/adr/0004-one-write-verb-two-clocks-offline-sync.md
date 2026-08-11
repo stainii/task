@@ -500,3 +500,75 @@ Two model consequences, both narrowing this ADR rather than contradicting it:
 - **`Task.creationDateTime` becomes an `Instant`.** The creation patch carries it verbatim, so
   leaving it a `LocalDateTime` would have meant a zone conversion at the one point in the model
   where no zone is available — and `ZoneId.systemDefault()` is a compile error here (#44).
+
+### The event id is `epoch:sequence`, because the browser's own reconnect carries nothing else
+
+Amended by [One write verb, one stream: the sync API](https://github.com/stainii/task/issues/46),
+2026-08-11.
+
+This ADR made the SSE event id the **`sequence`**, so that `Last-Event-ID` is a cursor the browser
+maintains for free. The epoch amendment above separately told clients to "persist it alongside their
+cursor and present both on every reconnect".
+
+The two rules do not compose. On the reconnect the browser performs **by itself** — after a dropped
+connection, and after every one of the bounded-lifetime closes this ADR schedules several times an
+hour — the only thing sent is `Last-Event-ID`. A bare sequence there is a cursor with no lineage, so
+the epoch check would run on the deliberate reconnect and be **skipped on the automatic one**: the
+common path, the unattended path, and precisely the path a client is on the morning after a restore.
+
+**The event id therefore carries both, formatted `epoch:sequence`**, and `?since=` is only accepted
+together with `?epoch=` — a `400` otherwise, rather than defaulting the epoch to the server's own,
+which would produce a cursor that can never be found stale.
+
+Three cases now answer **resync** rather than a stream: a cursor from another epoch, a sequence past
+the end of history, and an event id this server did not write. The last one matters for the same
+reason as the first two — a stream served on a cursor the server cannot account for looks healthy
+while silently skipping whatever the cursor could not name.
+
+### A creating patch is one that carries `creationDateTime`
+
+Amended by the same ticket.
+
+This ADR says the first patch for a task id creates it, that a non-first patch for an unknown task id
+is a `404`, and that an incomplete create is a `400` — with **no `create` flag on the wire**. On the
+wire, though, an incomplete create and an orphan are the same thing: a patch naming a task that does
+not exist, carrying fewer fields than a task needs. Without a discriminator only one of those two
+rows of the contract table is reachable.
+
+The model already has one. The creation patch is a dump of **every** field (TODO-046) and nothing
+else ever restates when the task came into being, so **a patch carrying `creationDateTime` is a
+create** and anything else is an edit. A create that does not then fold into a complete task is a
+`400`; an edit for a task nobody has heard of is a `404`. Both are dropped by the outbox, but only
+the `400` is the client's own work going missing, and only that one needs a human to see it.
+
+Two smaller rules, written down because they were being enforced nowhere:
+
+- **A patch that changes nothing and voids nothing is a `400`.** It would otherwise burn a sequence
+  number and echo to every client to say nothing happened.
+- **A patch is capped at 64 KB of changes** (`413`, as the contract table already said). The log is
+  append-only and never compacted, so there is no later opportunity to disagree with what was
+  accepted.
+
+### The write is not announced until it has committed
+
+Amended by the same ticket.
+
+The stream is how a client learns its write is durable — this ADR makes seeing its own patch echo
+back the acknowledgement, and the outbox drops the patch on the strength of it. Emitting from inside
+the transaction therefore promises durability the server has not got yet: a rollback afterwards
+leaves the client having discarded a patch the database never kept.
+
+Emission moves after the commit. In the same move, an optimistic-lock failure is **retried outside
+the transaction** rather than inside it, which is what "`409` never reaches the client" requires:
+the loser re-reads the winner's task and folds onto it, three attempts, then an honest error. A
+unique-key violation is retried on the same footing, because the only way to raise one here is two
+attempts to create the same task at once — and on the second pass the id is already in the history,
+so it resolves to the no-op it always was.
+
+**A constraint this hands to [ADR-0008](0008-every-backup-restores-itself-before-it-is-kept.md)'s
+`restore.sh`**: `task_patch.sequence` is unique, so a restore that loads rows without restoring the
+sequence generator's own position leaves the generator *behind its data*, and the next write is a
+`500` — which the outbox reads as *the server is down* and retries forever. `pg_dumpall` emits
+`setval`, so the chosen mechanism is already safe; it is written down here because nothing else says
+so, and this is the fifth time on this map that a guarantee living in code turned out to depend on
+something living outside it.

@@ -9,6 +9,18 @@ recurring-tasks:
 task:
   time-zone: Europe/Brussels
 
+  sse:
+    # ADR-0004: the server closes a stream after this long and the client reconnects. Bounded partly
+    # so an expired token cannot keep streaming, but mostly so that reconnect-and-resume - the most
+    # load-bearing and least observable mechanism in the sync contract - runs several times an hour
+    # on every device rather than only when the wifi happens to fail. A knob only because the tests
+    # have to shrink it; the contract's range is 15-30 minutes.
+    connection-lifetime: 20m
+
+    # ADR-0004: keeps a proxy from idling the connection out. ADR-0007 hands nginx the matching
+    # obligation - proxy_read_timeout must sit outside this window, or the stream dies silently.
+    heartbeat-interval: 15s
+
 # ADR-0009: health is the only management endpoint, and it exists for compose's healthcheck,
 # not for a monitoring stack. Details stay hidden — up or down is all anything needs.
 management:

@@ -4,14 +4,16 @@ import be.stijnhooft.task.backend.task.TaskPatch;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 @Repository
 public interface TaskPatchRepository extends CrudRepository<TaskPatch, UUID> {
 
-    /// Replaced by a sequence-based query in #46: querying the *client's* clock never delivers a
-    /// patch written offline before the reader's cursor. Kept only until that lands.
-    List<TaskPatch> findByDateTimeAfter(Instant since);
+    /// Catch-up, read on the **server's** clock.
+    ///
+    /// This replaced `findByDateTimeAfter`, which queried the client-minted `dateTime`: a patch
+    /// written offline on Monday and uploaded on Wednesday is never delivered to a client whose
+    /// cursor has already passed Tuesday - permanently, and with nothing to see (ADR-0004).
+    List<TaskPatch> findBySequenceGreaterThanOrderBySequenceAsc(long sequence);
 }

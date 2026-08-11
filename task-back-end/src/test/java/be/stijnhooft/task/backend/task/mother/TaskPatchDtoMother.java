@@ -19,6 +19,7 @@ public class TaskPatchDtoMother {
                 UUID.randomUUID(),
                 LocalDate.of(2026, 3, 1).atStartOfDay(ZoneOffset.UTC).toInstant(),
                 null,
+                null,
                 changes);
     }
 }

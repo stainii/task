@@ -4,6 +4,7 @@ import be.stijnhooft.task.backend.TestClock;
 import be.stijnhooft.task.backend.task.Task;
 import be.stijnhooft.task.backend.task.TaskStatus;
 import be.stijnhooft.task.backend.task.exception.TaskAlreadyExistsException;
+import be.stijnhooft.task.backend.task.repository.SyncEpoch;
 import be.stijnhooft.task.backend.task.repository.TaskPatchSequence;
 import be.stijnhooft.task.backend.task.repository.TaskRepository;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import static be.stijnhooft.task.backend.task.mother.TaskMother.createRandomTask
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,16 +42,36 @@ class TaskServiceTest {
     @Mock
     private TaskPatchSequence taskPatchSequence;
 
+    @Mock
+    private SyncEpoch syncEpoch;
+
     @Test
-    void findAllActiveTasks() {
+    void snapshot_carriesTheOpenTasksAndTheCursorTheyWereReadAt() {
         var tasks = List.of(createRandomTask(), createRandomTask());
 
         when(taskRepository.findByStatus(TaskStatus.OPEN)).thenReturn(tasks);
+        when(taskPatchSequence.watermark()).thenReturn(41L);
+        when(syncEpoch.current()).thenReturn(3L);
 
-        var result = taskService.findAllActiveTasks();
+        var result = taskService.snapshot();
 
-        verify(taskRepository).findByStatus(TaskStatus.OPEN);
-        assertThat(result).isEqualTo(tasks);
+        assertThat(result.tasks()).isEqualTo(tasks);
+        assertThat(result.watermark()).isEqualTo(41L);
+        assertThat(result.epoch()).isEqualTo(3L);
+    }
+
+    /// Read the other way round, the watermark could name a patch that is already folded into the
+    /// tasks below it, and the client would stream from a point past something it never received.
+    /// An overlap costs a duplicate the client discards by id; a gap is permanent.
+    @Test
+    void snapshot_readsTheWatermarkBeforeTheTasks() {
+        when(taskRepository.findByStatus(TaskStatus.OPEN)).thenReturn(List.of());
+
+        taskService.snapshot();
+
+        var inOrder = inOrder(taskPatchSequence, taskRepository);
+        inOrder.verify(taskPatchSequence).watermark();
+        inOrder.verify(taskRepository).findByStatus(TaskStatus.OPEN);
     }
 
     @Test

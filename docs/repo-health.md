@@ -314,8 +314,11 @@ So a recurring task last executed 7 months ago reports "30 days since last execu
 
 > **Write half resolved in [#45](https://github.com/stainii/task/issues/45)**: `TaskPatchDto` carries
 > `id`, so a client mints its own and the id is the idempotency key rather than something the server
-> hands back. The read half — SSE emitting the DTO instead of the domain object, and the snapshot
-> carrying `sequence` — is [#46](https://github.com/stainii/task/issues/46)'s.
+> hands back. **Read half resolved in [#46](https://github.com/stainii/task/issues/46)**: SSE emits
+> the DTO rather than the domain object, `sequence` joins the DTO on the way out, and the snapshot
+> carries the same fields. The inconsistency the defect was really about — one endpoint leaking the
+> domain object while the other over-stripped the DTO — is gone in both directions, because there is
+> now one shape on the wire and one mapper that produces it.
 
 `DELETE /api/task-patches/{id}` needs a patch id. The two read paths disagree about whether the client may have one:
 
@@ -342,6 +345,21 @@ This also collides with offline-first: a disconnected client cannot mint patch i
 - No `@Valid` on its request bodies (`TaskController` and `TaskPatchController` do validate).
 
 **D5 (`HEALTH-05`) — a null `changes` map yields a 500, not a 400.**
+
+> **Resolved in [#46](https://github.com/stainii/task/issues/46).** `TaskPatchDto` carries
+> `@NotNull` on the four fields a patch cannot exist without, and the module has the
+> `@RestControllerAdvice` it never had — scoped to the two `task` controllers, since `template` and
+> `recurring` carry their own `@ResponseStatus` mappings and a global advice would be an outbound
+> dependency out of `task`.
+>
+> **This report's second sentence was wrong, and load-bearingly so.** *"There is no `@ControllerAdvice`
+> anywhere in the codebase, so the custom exceptions (`TaskNotFoundException` and friends) also have
+> no declared HTTP mapping"* — they did: every one of them carried `@ResponseStatus`, and
+> `TaskNotFoundException` answered `404` throughout. The real defect was narrower and entirely
+> about the **door**: a body that never became a patch blew up inside the mapper before any handler
+> could see it. Worth recording because the wrong half of the sentence is the sort of claim later
+> tickets reason from — this map has now been caught doing that three tickets running (#42, #43 and
+> here).
 
 `POST /api/task-patches` with a body lacking `changes` produces:
 

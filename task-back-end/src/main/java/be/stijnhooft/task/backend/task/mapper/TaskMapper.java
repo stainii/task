@@ -1,31 +1,16 @@
 package be.stijnhooft.task.backend.task.mapper;
 
 import be.stijnhooft.task.backend.task.Task;
-import be.stijnhooft.task.backend.task.dto.CreateTaskDto;
 import be.stijnhooft.task.backend.task.dto.TaskDto;
 import org.mapstruct.Mapper;
 import org.springframework.stereotype.Component;
 
-import java.time.Clock;
-
+/// One direction only. There is no `toDomain`, because there is no whole-task request body to map
+/// from any more: a client writes patches, and the first patch for a task id builds the task through
+/// the fold rather than through a mapper (ADR-0004).
 @Component
 @Mapper(componentModel = "spring")
 public interface TaskMapper {
 
     TaskDto toDto(Task task);
-
-    /// The clock is a parameter because a task that the request does not date is dated now,
-    /// and *now* belongs to the Clock bean rather than to the machine (#44).
-    default Task toDomain(CreateTaskDto taskDto, Clock clock) {
-        return Task.builderForInitialTask(clock)
-                .name(taskDto.name())
-                .description(taskDto.description())
-                .importance(taskDto.importance())
-                .context(taskDto.context())
-                .dueDate(taskDto.dueDate())
-                .status(taskDto.status())
-                .creationDateTime(taskDto.creationDateTime())
-                .startDate(taskDto.startDate())
-                .build();
-    }
 }
