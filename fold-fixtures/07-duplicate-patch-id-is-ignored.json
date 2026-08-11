@@ -1,0 +1,55 @@
+{
+  "rule": "The same patch turning up twice folds to the same task, and to the same history, as it turning up once. The client-minted id is the idempotency key: the server committed the first copy and lost the response, so the outbox sent it again. The duplicate leaves no second entry in the history - which is the only way to tell it was dropped rather than applied twice, since applying the same change twice looks identical.",
+  "taskId": "11111111-0000-0000-0000-000000000007",
+  "patches": [
+    {
+      "id": "aaaaaaa7-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000007",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Change the smoke alarm battery",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "House",
+        "importance": "IMPORTANT",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaaa7-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000007",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "dueDate": "2026-03-08"
+      }
+    },
+    {
+      "id": "aaaaaaa7-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000007",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "dueDate": "2026-03-08"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000007",
+    "name": "Change the smoke alarm battery",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": "2026-03-08",
+    "context": "House",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

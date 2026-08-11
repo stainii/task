@@ -18,11 +18,11 @@ class TaskRepositoryTest extends AbstractIntegrationTestCases {
     void orderOfTasksIsMaintainedWhenSavingPatches() {
         var task = createRandomTask();
         taskRepository.save(task);
-        var readTask = taskRepository.findById(task.getId());
+        var readTask = taskRepository.findById(task.id());
 
-        assertThat(readTask.get().getHistory().get(0).getId()).isEqualTo(task.getHistory().get(0).getId());
-        assertThat(readTask.get().getHistory().get(1).getId()).isEqualTo(task.getHistory().get(1).getId());
-        assertThat(readTask.get().getHistory().get(2).getId()).isEqualTo(task.getHistory().get(2).getId());
+        assertThat(readTask.get().history().get(0).id()).isEqualTo(task.history().get(0).id());
+        assertThat(readTask.get().history().get(1).id()).isEqualTo(task.history().get(1).id());
+        assertThat(readTask.get().history().get(2).id()).isEqualTo(task.history().get(2).id());
     }
 
 }

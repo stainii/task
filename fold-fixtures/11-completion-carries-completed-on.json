@@ -1,0 +1,58 @@
+{
+  "rule": "completedOn is an ordinary patchable field carrying when the thing was actually done, which is not when you said so. The completing patch was written on 6 March about a chore done on 3 March, and a later correction to 4 March wins it like any other field - without touching the fold's own clock, where backdating would have made the completion lose to any later edit.",
+  "taskId": "11111111-0000-0000-0000-000000000011",
+  "patches": [
+    {
+      "id": "aaaaaa11-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000011",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Wash the bedding",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "House",
+        "importance": "IMPORTANT",
+        "status": "OPEN",
+        "taskTemplateId": "22222222-0000-0000-0000-000000000011",
+        "occurrenceId": "33333333-0000-0000-0000-000000000011"
+      }
+    },
+    {
+      "id": "aaaaaa11-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000011",
+      "dateTime": "2026-03-06T19:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "status": "COMPLETED",
+        "completedOn": "2026-03-03"
+      }
+    },
+    {
+      "id": "aaaaaa11-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000011",
+      "dateTime": "2026-03-06T19:05:00Z",
+      "sequence": 3,
+      "voids": null,
+      "changes": {
+        "completedOn": "2026-03-04"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000011",
+    "name": "Wash the bedding",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "House",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "COMPLETED",
+    "completedOn": "2026-03-04",
+    "taskTemplateId": "22222222-0000-0000-0000-000000000011",
+    "occurrenceId": "33333333-0000-0000-0000-000000000011"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "rule": "Undo is a void, not a reversal. Voiding a patch removes that patch's contribution to every field it touched, and nothing else's - the later edit to the description survives untouched.",
+  "taskId": "11111111-0000-0000-0000-000000000004",
+  "patches": [
+    {
+      "id": "aaaaaaa4-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000004",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Water the plants",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "House",
+        "importance": "NOT_SO_IMPORTANT",
+        "description": "Only the ones on the windowsill",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaaa4-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000004",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "importance": "VERY_IMPORTANT",
+        "dueDate": "2026-03-02"
+      }
+    },
+    {
+      "id": "aaaaaaa4-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000004",
+      "dateTime": "2026-03-03T08:00:00Z",
+      "sequence": 3,
+      "voids": null,
+      "changes": {
+        "description": "All of them"
+      }
+    },
+    {
+      "id": "aaaaaaa4-0000-0000-0000-000000000004",
+      "taskId": "11111111-0000-0000-0000-000000000004",
+      "dateTime": "2026-03-04T08:00:00Z",
+      "sequence": 4,
+      "voids": "aaaaaaa4-0000-0000-0000-000000000002",
+      "changes": {}
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000004",
+    "name": "Water the plants",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "House",
+    "importance": "NOT_SO_IMPORTANT",
+    "description": "All of them",
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

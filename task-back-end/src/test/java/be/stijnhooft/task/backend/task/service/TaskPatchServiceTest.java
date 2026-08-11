@@ -1,30 +1,31 @@
 package be.stijnhooft.task.backend.task.service;
 
-import be.stijnhooft.task.backend.TestClock;
 import be.stijnhooft.task.backend.task.Task;
-import be.stijnhooft.task.backend.task.TaskPatch;
 import be.stijnhooft.task.backend.task.exception.TaskNotFoundException;
 import be.stijnhooft.task.backend.task.repository.TaskPatchRepository;
+import be.stijnhooft.task.backend.task.repository.TaskPatchSequence;
 import be.stijnhooft.task.backend.task.repository.TaskRepository;
-import org.apache.commons.lang3.NotImplementedException;
-import org.instancio.Instancio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
-import org.mockito.Spy;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static be.stijnhooft.task.backend.task.mother.TaskMother.createRandomTask;
+import static be.stijnhooft.task.backend.task.mother.TaskPatchMother.createRandomTaskPatch;
+import static be.stijnhooft.task.backend.task.mother.TaskPatchMother.taskPatchAt;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.instancio.Select.field;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,14 +43,13 @@ class TaskPatchServiceTest {
     @Mock
     private TaskPatchSseEmitterService taskPatchSseEmitterService;
 
-    /// A real clock rather than a mock: the service hands it to Task.undoPatch, which reads it.
-    @Spy
-    private TestClock clock = TestClock.atNoonOn(LocalDate.of(2026, 8, 10));
+    @Mock
+    private TaskPatchSequence taskPatchSequence;
 
     @Test
     void findById_success() {
         var id = UUID.randomUUID();
-        var taskPatch = Instancio.create(TaskPatch.class);
+        var taskPatch = createRandomTaskPatch();
         when(taskPatchRepository.findById(id)).thenReturn(Optional.of(taskPatch));
 
         var result = taskPatchService.findById(id);
@@ -70,26 +70,45 @@ class TaskPatchServiceTest {
     }
 
     @Test
-    void patch_success() {
-        var task = Instancio.create(Task.class);
-        var taskPatch = Instancio.of(TaskPatch.class)
-                .set(field(TaskPatch::getTaskId), task.getId())
-                .create();
-        var spiedTask = spy(task);
-        when(taskRepository.findById(task.getId())).thenReturn(Optional.of(spiedTask));
+    void patch_stampsASequenceAndSavesTheRefoldedTask() {
+        var task = createRandomTask();
+        var taskPatch = taskPatchAt(task.id(), task.creationDateTime().plusSeconds(3600), "name", "patched");
+        when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
+        when(taskPatchSequence.next()).thenReturn(77L);
 
         taskPatchService.patch(taskPatch);
 
-        verify(spiedTask).patch(taskPatch);
-        verify(taskRepository).save(spiedTask);
-        verify(taskPatchSseEmitterService).emitNewlyCreatedTaskPatch(taskPatch);
+        var saved = ArgumentCaptor.forClass(Task.class);
+        verify(taskRepository).save(saved.capture());
+        assertThat(saved.getValue().history())
+                .filteredOn(patch -> patch.id().equals(taskPatch.id()))
+                .singleElement()
+                .satisfies(patch -> assertThat(patch.sequence()).isEqualTo(77L));
+
+        verify(taskPatchSseEmitterService).emitNewlyCreatedTaskPatch(taskPatch.withSequence(77L));
+    }
+
+    /// A retry after a lost response must change nothing at all - not the task, and not the
+    /// sequence every client reads by. Burning a number would leave a gap that looks like a patch
+    /// the client failed to receive.
+    @Test
+    void patch_whenThePatchIsAlreadyInTheHistory_thenNothingHappensAndNoSequenceIsBurned() {
+        var task = createRandomTask();
+        var alreadyStored = task.history().getLast();
+
+        when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
+
+        taskPatchService.patch(alreadyStored);
+
+        verify(taskRepository, never()).save(any(Task.class));
+        verify(taskPatchSequence, never()).next();
+        verify(taskPatchSseEmitterService, never()).emitNewlyCreatedTaskPatch(any());
     }
 
     @Test
     void patch_notFound() {
-        var taskPatch = Instancio.of(TaskPatch.class)
-                .create();
-        when(taskRepository.findById(taskPatch.getTaskId())).thenReturn(Optional.empty());
+        var taskPatch = createRandomTaskPatch();
+        when(taskRepository.findById(taskPatch.taskId())).thenReturn(Optional.empty());
 
         assertThrows(TaskNotFoundException.class, () -> taskPatchService.patch(taskPatch));
 
@@ -98,56 +117,9 @@ class TaskPatchServiceTest {
     }
 
     @Test
-    void undoPatch_success() {
-        var task = Instancio.create(Task.class);
-        var taskPatch = Instancio.of(TaskPatch.class)
-                .set(field(TaskPatch::getTaskId), task.getId())
-                .create();
-        var spiedTask = spy(task);
-        when(taskRepository.findById(task.getId())).thenReturn(Optional.of(spiedTask));
-        taskPatchService.patch(taskPatch);
-
-        taskPatchService.undoPatch(taskPatch);
-
-        verify(spiedTask).undoPatch(taskPatch, clock);
-        verify(taskRepository, times(2)).save(spiedTask);
-        verify(taskPatchSseEmitterService, times(2)).emitNewlyCreatedTaskPatch(taskPatch);
-    }
-
-    @Test
-    void undoPatch_whenPatchIsNotInHistory() {
-        var task = Instancio.create(Task.class);
-        var taskPatch = Instancio.of(TaskPatch.class)
-                .set(field(TaskPatch::getTaskId), task.getId())
-                .create();
-        var spiedTask = spy(task);
-        when(taskRepository.findById(task.getId())).thenReturn(Optional.of(spiedTask));
-
-        assertThrows(IllegalArgumentException.class, () -> taskPatchService.undoPatch(taskPatch));
-
-        verify(spiedTask).undoPatch(taskPatch, clock);
-        verify(taskRepository, never()).save(spiedTask);
-        verify(taskPatchSseEmitterService, never()).emitNewlyCreatedTaskPatch(taskPatch);
-    }
-
-    @Test
-    void undoPatch_notFound() {
-        var taskPatch = Instancio.of(TaskPatch.class)
-                .create();
-        when(taskRepository.findById(taskPatch.getTaskId())).thenReturn(Optional.empty());
-
-        assertThrows(TaskNotFoundException.class, () -> taskPatchService.undoPatch(taskPatch));
-
-        verify(taskRepository, never()).save(any(Task.class));
-        verify(taskPatchSseEmitterService, never()).emitNewlyCreatedTaskPatch(taskPatch);
-    }
-
-    @Test
     void tail_whenProvidingSinceParameter_thanTaskPatchesSinceThatDateAreEmitted() {
-        var since = LocalDateTime.now().minusYears(1);
-        var patchesSince = Instancio.ofList(TaskPatch.class)
-                .size(3)
-                .create();
+        var since = LocalDate.of(2025, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        var patchesSince = List.of(createRandomTaskPatch(), createRandomTaskPatch());
         var expectedSseEmitter = new SseEmitter();
 
         when(taskPatchSseEmitterService.createListener()).thenReturn(expectedSseEmitter);
@@ -163,7 +135,8 @@ class TaskPatchServiceTest {
     void tail_whenNotProvidingSinceParameter_thenNoEarlierCreatedTaskPatchesAreEmitted() {
         var expectedSseEmitter = new SseEmitter();
         when(taskPatchSseEmitterService.createListener()).thenReturn(expectedSseEmitter);
-        var actualSseEmitter = taskPatchService.tail(null);
+
+        var actualSseEmitter = taskPatchService.tail((Instant) null);
 
         assertThat(actualSseEmitter).isSameAs(expectedSseEmitter);
         verify(taskPatchSseEmitterService).createListener();

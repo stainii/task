@@ -1,0 +1,37 @@
+{
+  "rule": "Replay from the creation patch. It carries every field, so a task with no other history is exactly what its creation patch says.",
+  "taskId": "11111111-0000-0000-0000-000000000001",
+  "patches": [
+    {
+      "id": "aaaaaaa1-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000001",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Buy bread",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "dueDate": "2026-03-03",
+        "context": "Personal",
+        "importance": "VERY_IMPORTANT",
+        "description": "Sourdough",
+        "status": "OPEN"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000001",
+    "name": "Buy bread",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": "2026-03-03",
+    "context": "Personal",
+    "importance": "VERY_IMPORTANT",
+    "description": "Sourdough",
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

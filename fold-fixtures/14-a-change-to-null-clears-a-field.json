@@ -1,0 +1,48 @@
+{
+  "rule": "A change whose value is null clears the field. Absent from a patch and present-but-null are different things: absent means this patch had no opinion, null means make it empty. Both implementations must keep that difference, so neither may drop null values on the way in.",
+  "taskId": "11111111-0000-0000-0000-000000000014",
+  "patches": [
+    {
+      "id": "aaaaaa14-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000014",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Fix the shed door",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "dueDate": "2026-03-20",
+        "context": "House",
+        "importance": "IMPORTANT",
+        "description": "the hinge",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaa14-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000014",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "dueDate": null,
+        "description": null
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000014",
+    "name": "Fix the shed door",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "House",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

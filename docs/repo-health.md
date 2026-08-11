@@ -302,9 +302,20 @@ So a recurring task last executed 7 months ago reports "30 days since last execu
 
 **D2 (`HEALTH-02`) — `Task.patch()` re-applies newer patches recursively and re-appends them.**
 
+> **Resolved by replacement in [#45](https://github.com/stainii/task/issues/45).** `patch()` now appends
+> and refolds: sort by `dateTime`, resolve voids, replay from the creation patch. There is no
+> recursion and no mutating list, and the rule it restores is the one portal's own README already
+> documented. The fold's rules are pinned by `/fold-fixtures/`, which both the Java and the
+> TypeScript implementation run.
+
 `patch()` adds the patch to `history`, then finds the first patch newer than it and calls `patch()` on that one — which appends that newer patch to `history` **again**. Re-patching a task with out-of-order patches grows the history with duplicates and re-runs the reapplication loop over a mutating list. This is the offline-first replay path, so it matters. Flagged in the ticket as "worth a second look"; it looks like a real bug, not just a smell.
 
 **D3 (`HEALTH-03`) — patch ids are reachable only over SSE, so undo breaks on a cold start.**
+
+> **Write half resolved in [#45](https://github.com/stainii/task/issues/45)**: `TaskPatchDto` carries
+> `id`, so a client mints its own and the id is the idempotency key rather than something the server
+> hands back. The read half — SSE emitting the DTO instead of the domain object, and the snapshot
+> carrying `sequence` — is [#46](https://github.com/stainii/task/issues/46)'s.
 
 `DELETE /api/task-patches/{id}` needs a patch id. The two read paths disagree about whether the client may have one:
 

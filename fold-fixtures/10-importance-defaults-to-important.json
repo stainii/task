@@ -1,0 +1,33 @@
+{
+  "rule": "A task nobody gave an importance is IMPORTANT. Null used to mean undefined while the ranking treated it as low and the buckets treated it as high; the case is deleted rather than ruled on, and the default is what stops a task captured in one keystroke from sinking out of sight.",
+  "taskId": "11111111-0000-0000-0000-000000000010",
+  "patches": [
+    {
+      "id": "aaaaaa10-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000010",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Ask about the bike",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "Personal"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000010",
+    "name": "Ask about the bike",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "Personal",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

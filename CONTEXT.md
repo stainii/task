@@ -35,6 +35,10 @@ carry every field; every later patch changes it. There is no whole-task write.
 A patch carries **two clocks**, and neither does the other's job: its client-minted `dateTime`
 orders the fold, and its server-assigned **sequence** orders delivery.
 
+Two patches minted in the same millisecond are ordered by **patch id, compared as a string** — the
+only tie-break both sides can compute, since a client folds patches it has not sent and so has no
+sequence for them.
+
 ### Sequence
 
 **The server's monotonic counter of patches it has learned about** — assigned on receipt, never by a
@@ -53,6 +57,10 @@ The fold skips voided patches and recomputes, so an undo removes exactly that pa
 and nothing else's — whatever arrived in between, in whatever order. Undoing the creation patch
 completes the task instead, because a task cannot un-exist. History stays append-only: a void is
 appended, never a deletion.
+
+Voids are resolved by walking the history **backwards**, so undo-of-undo is simply voiding the void:
+a void that has itself been voided never removes anything. A void naming a patch that is not earlier
+in fold order is dangling and does nothing.
 
 ### Outbox
 

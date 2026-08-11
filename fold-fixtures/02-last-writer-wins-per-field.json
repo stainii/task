@@ -1,0 +1,58 @@
+{
+  "rule": "The winner is decided per field, not per patch: the newest patch that touches a field wins it, and a field nobody touched keeps its creation value.",
+  "taskId": "11111111-0000-0000-0000-000000000002",
+  "patches": [
+    {
+      "id": "aaaaaaa2-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000002",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Call the plumber",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "dueDate": "2026-03-05",
+        "context": "House",
+        "importance": "NOT_SO_IMPORTANT",
+        "description": "The tap drips",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaaa2-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000002",
+      "dateTime": "2026-03-02T09:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "importance": "IMPORTANT",
+        "dueDate": "2026-03-04"
+      }
+    },
+    {
+      "id": "aaaaaaa2-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000002",
+      "dateTime": "2026-03-03T09:00:00Z",
+      "sequence": 3,
+      "voids": null,
+      "changes": {
+        "importance": "VERY_IMPORTANT"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000002",
+    "name": "Call the plumber",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": "2026-03-04",
+    "context": "House",
+    "importance": "VERY_IMPORTANT",
+    "description": "The tap drips",
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

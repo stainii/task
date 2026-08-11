@@ -456,3 +456,47 @@ Template rendering gets the same protection: a sibling fixture directory holding
 expected tasks, enumerated by both suites with the same non-empty assertion. **No rendering rule
 without a fixture.** The rendering code is small; the failure mode — a task named or dated
 differently on one device than another, visible only in history — is not.
+
+### The fold rules this ADR left implicit
+
+Amended by [Rebuild the fold: `Task`, `TaskPatch` and the shared golden fixtures](https://github.com/stainii/task/issues/45),
+2026-08-11.
+
+Writing the fold twice — once in Java here, once in TypeScript in
+[#55](https://github.com/stainii/task/issues/55) — meant every rule had to be exact, and four were
+not. Each is now a fixture in `/fold-fixtures/`, which is what "no fold rule without a fixture"
+turns out to protect: not the rules this ADR stated, but the ones it did not.
+
+**Ties are broken by patch id, compared as a string.** This ADR ordered the fold by `dateTime` and
+stopped there. Two devices can mint patches in the same millisecond, and then "last writer wins"
+names no winner. It cannot be `sequence` — the client folds patches it has not sent yet and has no
+sequence for them, so the fold would give a different answer on each side, which is exactly the
+divergence the shared fixtures exist to prevent. The id is the only ordering both sides can compute
+offline. **As a string**, deliberately: `UUID.compareTo` compares signed longs and orders
+differently from every lexicographic comparison a TypeScript implementation would reach for.
+
+**A void naming a patch that is not earlier in fold order does nothing.** Voids are resolved by
+walking the history *backwards*, so a void that has itself been voided is already inactive by the
+time it would have removed anything. That direction is also what makes *undo-of-undo is voiding the
+void* terminate: two patches voiding each other is unrepresentable rather than a cycle the algorithm
+has to survive.
+
+**A change key the fold does not recognise is ignored.** The write-path contract above rejects
+unknown field names with a `400`, and that stands — but it guards the *door*, and the fold also
+replays years of migrated history that never came through it
+([ADR-0005](0005-migration-by-replay-into-one-history.md)). A key that names no field changes
+nothing rather than failing the fold.
+
+**A change whose value is null clears the field.** Absent from a patch and present-but-null are
+different things, so neither implementation may drop null values on the way in — a detail that
+matters because the obvious immutable-map idiom in Java (`Map.copyOf`) rejects them outright.
+
+Two model consequences, both narrowing this ADR rather than contradicting it:
+
+- **`TaskPatch` loses `@Version`.** This ADR gave `Task` and `TaskPatch` optimistic locking so that
+  `409` never reaches the client. A patch is immutable and append-only — there is no update to lose
+  a race over — so the version column was ceremony. `Task`'s version is what serialises two
+  concurrent folds, and that is untouched.
+- **`Task.creationDateTime` becomes an `Instant`.** The creation patch carries it verbatim, so
+  leaving it a `LocalDateTime` would have meant a zone conversion at the one point in the model
+  where no zone is available — and `ZoneId.systemDefault()` is a compile error here (#44).

@@ -13,10 +13,8 @@ import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,7 +42,7 @@ public class TaskPatchStreamResumeIntegrationTest extends AbstractIntegrationTes
     @Test
     void aClientThatDropsAndReconnectsReceivesWhatItMissed() {
         var authorizationHeader = getAuthorizationHeaderForUser();
-        var task = createTask(authorizationHeader, LocalDateTime.now().minusHours(1));
+        var task = createTask(authorizationHeader, Instant.now().minus(1, ChronoUnit.HOURS));
 
         // 1. connect, and wait until the stream is provably alive
         StepVerifier.create(openStream(authorizationHeader, null))
@@ -53,10 +51,10 @@ public class TaskPatchStreamResumeIntegrationTest extends AbstractIntegrationTes
                 .thenCancel()
                 .verify(Duration.ofSeconds(20));
 
-        var disconnectedAt = ZonedDateTime.now();
+        var disconnectedAt = Instant.now();
 
         // 3. a patch happens while this client is away
-        var patchDateTime = LocalDateTime.now().plusSeconds(1);
+        var patchDateTime = Instant.now().plusSeconds(1);
         patchTask(authorizationHeader, task.id(), patchDateTime, "Patched while away");
 
         // 4. reconnect, asking for everything since the disconnect
@@ -71,13 +69,12 @@ public class TaskPatchStreamResumeIntegrationTest extends AbstractIntegrationTes
                 .verify(Duration.ofSeconds(20));
     }
 
-    private Flux<String> openStream(String authorizationHeader, ZonedDateTime since) {
+    private Flux<String> openStream(String authorizationHeader, Instant since) {
         return webTestClient.get()
                 .uri(uriBuilder -> {
                     uriBuilder.path("/api/task-patches");
                     if (since != null) {
-                        uriBuilder.queryParam("since", since.withZoneSameInstant(ZoneOffset.UTC)
-                                .format(DateTimeFormatter.ISO_INSTANT));
+                        uriBuilder.queryParam("since", since.toString());
                     }
                     return uriBuilder.build();
                 })
@@ -89,7 +86,7 @@ public class TaskPatchStreamResumeIntegrationTest extends AbstractIntegrationTes
                 .getResponseBody();
     }
 
-    private TaskDto createTask(String authorizationHeader, LocalDateTime creationDateTime) {
+    private TaskDto createTask(String authorizationHeader, Instant creationDateTime) {
         return webTestClient.post()
                 .uri("/api/tasks")
                 .header("Authorization", authorizationHeader)
@@ -102,7 +99,7 @@ public class TaskPatchStreamResumeIntegrationTest extends AbstractIntegrationTes
                           "context": "Personal",
                           "creationDateTime": "%s"
                         }
-                        """.formatted(creationDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)))
+                        """.formatted(creationDateTime))
                 .exchange()
                 .expectStatus().isCreated()
                 .returnResult(TaskDto.class)
@@ -110,20 +107,21 @@ public class TaskPatchStreamResumeIntegrationTest extends AbstractIntegrationTes
                 .blockFirst();
     }
 
-    private void patchTask(String authorizationHeader, UUID taskId, LocalDateTime dateTime, String newName) {
+    private void patchTask(String authorizationHeader, UUID taskId, Instant dateTime, String newName) {
         webTestClient.post()
                 .uri("/api/task-patches")
                 .header("Authorization", authorizationHeader)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
                         {
+                          "id": "%s",
                           "taskId": "%s",
                           "dateTime": "%s",
                           "changes": {
                             "name": "%s"
                           }
                         }
-                        """.formatted(taskId, dateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), newName))
+                        """.formatted(UUID.randomUUID(), taskId, dateTime, newName))
                 .exchange()
                 .expectStatus().isOk();
     }

@@ -1,0 +1,56 @@
+{
+  "rule": "The server's clock is not the fold's clock. Here the sequence order is the exact reverse of the date-time order, and the fold follows the date-times: a patch written on a train on Monday and uploaded on Wednesday still loses to Tuesday's edit, and still wins over Sunday's.",
+  "taskId": "11111111-0000-0000-0000-000000000013",
+  "patches": [
+    {
+      "id": "aaaaaa13-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000013",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 90,
+      "voids": null,
+      "changes": {
+        "name": "Plan the weekend",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "Personal",
+        "importance": "IMPORTANT",
+        "status": "OPEN",
+        "description": "sunday"
+      }
+    },
+    {
+      "id": "aaaaaa13-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000013",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 80,
+      "voids": null,
+      "changes": {
+        "description": "monday, written offline"
+      }
+    },
+    {
+      "id": "aaaaaa13-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000013",
+      "dateTime": "2026-03-03T08:00:00Z",
+      "sequence": 70,
+      "voids": null,
+      "changes": {
+        "description": "tuesday, written online"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000013",
+    "name": "Plan the weekend",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "Personal",
+    "importance": "IMPORTANT",
+    "description": "tuesday, written online",
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

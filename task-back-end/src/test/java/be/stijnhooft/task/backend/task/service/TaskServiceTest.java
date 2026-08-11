@@ -4,10 +4,11 @@ import be.stijnhooft.task.backend.TestClock;
 import be.stijnhooft.task.backend.task.Task;
 import be.stijnhooft.task.backend.task.TaskStatus;
 import be.stijnhooft.task.backend.task.exception.TaskAlreadyExistsException;
+import be.stijnhooft.task.backend.task.repository.TaskPatchSequence;
 import be.stijnhooft.task.backend.task.repository.TaskRepository;
-import org.instancio.Instancio;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -15,8 +16,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.util.List;
 
+import static be.stijnhooft.task.backend.task.mother.TaskMother.createRandomTask;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -34,12 +37,12 @@ class TaskServiceTest {
     @Mock
     private TaskPatchSseEmitterService taskPatchSseEmitterService;
 
+    @Mock
+    private TaskPatchSequence taskPatchSequence;
+
     @Test
     void findAllActiveTasks() {
-        var tasks = List.of(
-                Instancio.create(Task.class),
-                Instancio.create(Task.class)
-        );
+        var tasks = List.of(createRandomTask(), createRandomTask());
 
         when(taskRepository.findByStatus(TaskStatus.OPEN)).thenReturn(tasks);
 
@@ -50,48 +53,49 @@ class TaskServiceTest {
     }
 
     @Test
-    void create_whenSuccess() {
-        var task = Task.builderForInitialTask(clock).build();
+    void create_stampsTheCreationPatchWithASequence() {
+        var task = Task.builderForInitialTask(clock).name("n").context("c").build();
 
-        when(taskRepository.existsById(task.getId())).thenReturn(false);
-        when(taskRepository.save(task)).thenReturn(task);
+        when(taskRepository.existsById(task.id())).thenReturn(false);
+        when(taskPatchSequence.next()).thenReturn(12L);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = taskService.create(task);
 
-        verify(taskRepository).existsById(task.getId());
-        verify(taskRepository).save(task);
-        verify(taskPatchSseEmitterService).emitNewlyCreatedTaskPatch(task.getCreationPatch());
-        assertThat(result).isEqualTo(task);
+        var saved = ArgumentCaptor.forClass(Task.class);
+        verify(taskRepository).save(saved.capture());
+        assertThat(saved.getValue().getCreationPatch().sequence()).isEqualTo(12L);
+        verify(taskPatchSseEmitterService).emitNewlyCreatedTaskPatch(result.getCreationPatch());
+        assertThat(result.getCreationPatch().sequence()).isEqualTo(12L);
     }
 
     @Test
     void create_whenTaskAlreadyExists() {
-        var taskToSave = Instancio.create(Task.class);
+        var taskToSave = createRandomTask();
 
-        when(taskRepository.existsById(taskToSave.getId())).thenReturn(true);
+        when(taskRepository.existsById(taskToSave.id())).thenReturn(true);
 
         assertThrows(TaskAlreadyExistsException.class, () -> taskService.create(taskToSave));
 
-        verify(taskRepository).existsById(taskToSave.getId());
+        verify(taskRepository).existsById(taskToSave.id());
     }
 
     @Test
     void create_whenList() {
-        var task1 = Task.builderForInitialTask(clock).build();
-        var task2 = Task.builderForInitialTask(clock).build();
+        var task1 = Task.builderForInitialTask(clock).name("one").context("c").build();
+        var task2 = Task.builderForInitialTask(clock).name("two").context("c").build();
 
-        when(taskRepository.existsById(task1.getId())).thenReturn(false);
-        when(taskRepository.existsById(task2.getId())).thenReturn(false);
-        when(taskRepository.save(task1)).thenReturn(task1);
-        when(taskRepository.save(task2)).thenReturn(task2);
+        when(taskRepository.existsById(task1.id())).thenReturn(false);
+        when(taskRepository.existsById(task2.id())).thenReturn(false);
+        when(taskPatchSequence.next()).thenReturn(1L, 2L);
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var result = taskService.create(List.of(task1, task2));
 
-        verify(taskRepository).existsById(task1.getId());
-        verify(taskRepository).save(task1);
-        verify(taskRepository).existsById(task2.getId());
-        verify(taskRepository).save(task2);
-        assertThat(result).containsExactly(task1, task2);
+        assertThat(result).hasSize(2);
+        assertThat(result.getFirst().name()).isEqualTo("one");
+        assertThat(result.getLast().name()).isEqualTo("two");
+        assertThat(result.getFirst().getCreationPatch().sequence()).isEqualTo(1L);
+        assertThat(result.getLast().getCreationPatch().sequence()).isEqualTo(2L);
     }
-
 }

@@ -1,0 +1,56 @@
+{
+  "rule": "Two patches minted in the same millisecond on two devices are ordered by patch id, compared as a string. The tie has to be broken by something both implementations can compute offline - not by sequence, which a client has not been given yet for its own unsent patches. Here the lexicographically larger id (bbb... > aaa...) wins the name, whichever way round they arrive.",
+  "taskId": "11111111-0000-0000-0000-000000000008",
+  "patches": [
+    {
+      "id": "aaaaaaa8-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000008",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Defrost the freezer",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "House",
+        "importance": "IMPORTANT",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "bbbbbbb8-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000008",
+      "dateTime": "2026-03-02T12:00:00Z",
+      "sequence": 3,
+      "voids": null,
+      "changes": {
+        "name": "from the laptop"
+      }
+    },
+    {
+      "id": "aaaaaaa8-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000008",
+      "dateTime": "2026-03-02T12:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "name": "from the phone",
+        "dueDate": "2026-03-15"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000008",
+    "name": "from the laptop",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": "2026-03-15",
+    "context": "House",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

@@ -1,21 +1,24 @@
 package be.stijnhooft.task.backend.task.mother;
 
 import be.stijnhooft.task.backend.task.dto.TaskPatchDto;
-import org.instancio.Instancio;
 
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
-
-import static org.instancio.Select.field;
+import java.util.UUID;
 
 public class TaskPatchDtoMother {
 
     public static TaskPatchDto createRandomTaskPatchDto() {
-        return Instancio.of(TaskPatchDto.class)
-                .create();
+        return createRandomTaskPatchDto(Map.of("name", "name " + UUID.randomUUID()));
     }
-    public static TaskPatchDto createRandomTaskPatchDto(Map<String, Object> changes) {
-        return Instancio.of(TaskPatchDto.class)
-                .set(field("changes"), changes)
-                .create();
+
+    public static TaskPatchDto createRandomTaskPatchDto(Map<String, String> changes) {
+        return new TaskPatchDto(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                LocalDate.of(2026, 3, 1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+                null,
+                changes);
     }
 }

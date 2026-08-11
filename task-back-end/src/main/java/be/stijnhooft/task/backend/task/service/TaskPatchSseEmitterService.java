@@ -16,11 +16,11 @@ public class TaskPatchSseEmitterService {
     private final SseEmitters sseEmitters;
 
     public void emitNewlyCreatedTaskPatch(TaskPatch patch) {
-        sseEmitters.emitToAllListeners(PATCH_EVENT, patch.getId(), patch);
+        sseEmitters.emitToAllListeners(PATCH_EVENT, patch.id(), patch);
     }
 
     public void emitEarlierCreatedTaskPatches(SseEmitter sseEmitter, List<TaskPatch> patches) {
-        patches.forEach(patch -> sseEmitters.emit(sseEmitter, PATCH_EVENT, patch.getId(), patch));
+        patches.forEach(patch -> sseEmitters.emit(sseEmitter, PATCH_EVENT, patch.id(), patch));
     }
 
     public SseEmitter createListener() {

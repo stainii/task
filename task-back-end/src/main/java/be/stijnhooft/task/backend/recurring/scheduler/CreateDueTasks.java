@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -66,7 +66,7 @@ public class CreateDueTasks {
     private Task mapToTask(RecurringTaskTemplate recurringTaskTemplate) {
         return Task.builderForInitialTask(clock)
                 .name(recurringTaskTemplate.getName())
-                .creationDateTime(LocalDateTime.now(clock))
+                .creationDateTime(Instant.now(clock))
                 .dueDate(recurringTaskTemplate.getLastExecutionDateOrCreationDate().plusDays(recurringTaskTemplate.getMaxNumberOfDaysBetweenExecutions()))
                 .importance(recurringTaskTemplate.getImportance())
                 .context(recurringTaskTemplate.getContext())

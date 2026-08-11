@@ -1,0 +1,39 @@
+{
+  "rule": "A change key naming no field changes nothing. The API rejects unknown keys at the door, but the fold also replays years of migrated history it never saw, and a key it cannot place must not stop it.",
+  "taskId": "11111111-0000-0000-0000-000000000009",
+  "patches": [
+    {
+      "id": "aaaaaaa9-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000009",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Renew the insurance",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "Admin",
+        "importance": "IMPORTANT",
+        "status": "OPEN",
+        "expectedDurationInHours": "2",
+        "flowId": "Todo-9f0c",
+        "version": "7",
+        "id": "99999999-9999-9999-9999-999999999999"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000009",
+    "name": "Renew the insurance",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "Admin",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

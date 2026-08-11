@@ -1,0 +1,61 @@
+{
+  "rule": "Undo-of-undo is voiding the void. The second void makes the first inactive, so the first no longer removes anything and the original edit is back.",
+  "taskId": "11111111-0000-0000-0000-000000000006",
+  "patches": [
+    {
+      "id": "aaaaaaa6-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000006",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Sort the recycling",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "House",
+        "importance": "NOT_SO_IMPORTANT",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaaa6-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000006",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "name": "Sort the recycling and take it out"
+      }
+    },
+    {
+      "id": "aaaaaaa6-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000006",
+      "dateTime": "2026-03-03T08:00:00Z",
+      "sequence": 3,
+      "voids": "aaaaaaa6-0000-0000-0000-000000000002",
+      "changes": {}
+    },
+    {
+      "id": "aaaaaaa6-0000-0000-0000-000000000004",
+      "taskId": "11111111-0000-0000-0000-000000000006",
+      "dateTime": "2026-03-04T08:00:00Z",
+      "sequence": 4,
+      "voids": "aaaaaaa6-0000-0000-0000-000000000003",
+      "changes": {}
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000006",
+    "name": "Sort the recycling and take it out",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "House",
+    "importance": "NOT_SO_IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

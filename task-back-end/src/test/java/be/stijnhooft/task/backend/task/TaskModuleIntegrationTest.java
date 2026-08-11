@@ -12,8 +12,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -38,8 +38,8 @@ public class TaskModuleIntegrationTest extends AbstractIntegrationTestCases {
     @Test
     void streamAndCreateAndPatchTasks() {
         var authorizationHeader = getAuthorizationHeaderForUser();
-        var taskCreationDateTime = LocalDateTime.now().minusHours(1).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        var taskPatchCreationDateTime = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        var taskCreationDateTime = Instant.now().minus(1, ChronoUnit.HOURS).toString();
+        var taskPatchCreationDateTime = Instant.now().toString();
 
         AtomicReference<UUID> taskIdRef = new AtomicReference<>();
 
@@ -63,8 +63,12 @@ public class TaskModuleIntegrationTest extends AbstractIntegrationTestCases {
                         taskPatchCreationDateTime
                 ))
 
-                // 4. Ignore noise until our event arrives
-                .thenConsumeWhile(event -> !event.contains(taskIdRef.toString()))
+                // 4. Ignore noise until our event arrives.
+                //    Matching on the patched name rather than on the reference: this line used to
+                //    read `taskIdRef.toString()`, which is the *reference's* toString and renders
+                //    as the literal "null" until the task exists - harmless only for as long as no
+                //    event payload contained the word null, which `"voids": null` now does.
+                .thenConsumeWhile(event -> !event.contains("Patched task"))
 
                 // 5. Assert the actual event
                 .assertNext(event ->
@@ -122,13 +126,14 @@ public class TaskModuleIntegrationTest extends AbstractIntegrationTestCases {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("""
                     {
+                      "id": "%s",
                       "taskId": "%s",
                       "dateTime": "%s",
                       "changes": {
                         "name": "Patched task"
                       }
                     }
-                    """.formatted(taskId, dateTime))
+                    """.formatted(UUID.randomUUID(), taskId, dateTime))
                 .exchange()
                 .expectStatus().isOk();
     }

@@ -1,0 +1,56 @@
+{
+  "rule": "A patch that arrives late does not win a field it should lose. The phone was offline on 2 March and uploaded last; the laptop's 3 March edit still wins the name, while the phone's untouched field still lands.",
+  "taskId": "11111111-0000-0000-0000-000000000003",
+  "patches": [
+    {
+      "id": "aaaaaaa3-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000003",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Book the train",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "Personal",
+        "importance": "IMPORTANT",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaaa3-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000003",
+      "dateTime": "2026-03-03T10:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "name": "Book the train to Paris"
+      }
+    },
+    {
+      "id": "aaaaaaa3-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000003",
+      "dateTime": "2026-03-02T07:00:00Z",
+      "sequence": 3,
+      "voids": null,
+      "changes": {
+        "name": "Book a train",
+        "dueDate": "2026-03-10"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000003",
+    "name": "Book the train to Paris",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": "2026-03-10",
+    "context": "Personal",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

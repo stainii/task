@@ -1,0 +1,54 @@
+{
+  "rule": "Voiding the creation patch completes the task instead of erasing it: a task cannot un-exist, so the creation patch still applies and the status is forced to COMPLETED - even though a later patch set it to OPEN.",
+  "taskId": "11111111-0000-0000-0000-000000000005",
+  "patches": [
+    {
+      "id": "aaaaaaa5-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000005",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Ring the dentist",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "Personal",
+        "importance": "IMPORTANT",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaaa5-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000005",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "status": "OPEN",
+        "dueDate": "2026-03-09"
+      }
+    },
+    {
+      "id": "aaaaaaa5-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000005",
+      "dateTime": "2026-03-03T08:00:00Z",
+      "sequence": 3,
+      "voids": "aaaaaaa5-0000-0000-0000-000000000001",
+      "changes": {}
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000005",
+    "name": "Ring the dentist",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": "2026-03-09",
+    "context": "Personal",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "COMPLETED",
+    "completedOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

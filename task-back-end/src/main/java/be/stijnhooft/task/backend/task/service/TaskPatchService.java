@@ -1,9 +1,9 @@
 package be.stijnhooft.task.backend.task.service;
 
-import be.stijnhooft.task.backend.task.Task;
 import be.stijnhooft.task.backend.task.TaskPatch;
 import be.stijnhooft.task.backend.task.exception.TaskNotFoundException;
 import be.stijnhooft.task.backend.task.repository.TaskPatchRepository;
+import be.stijnhooft.task.backend.task.repository.TaskPatchSequence;
 import be.stijnhooft.task.backend.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,42 +12,46 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Consumer;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
-/// Parked by #10 (docs/quality-bar.md): orElseThrow is called for its side effect only, to
-/// assert the task exists. ADR-0004 replaces this method (the first patch creates the task),
-/// so the check is rewritten rather than restyled.
-@SuppressWarnings("ReturnValueIgnored")
 public class TaskPatchService {
 
     private final TaskPatchRepository taskPatchRepository;
     private final TaskRepository taskRepository;
     private final TaskPatchSseEmitterService taskPatchSseEmitterService;
-    private final Clock clock;
+    private final TaskPatchSequence taskPatchSequence;
 
     public Optional<TaskPatch> findById(UUID id) {
         return taskPatchRepository.findById(id);
     }
 
+    /// Appends a patch to its task and refolds.
+    ///
+    /// A patch id already in the history is a **no-op that burns no sequence number**: the id is
+    /// the idempotency key, so a retry after a lost response must change nothing at all - not the
+    /// task, and not the cursor every client reads by (ADR-0010).
     public void patch(TaskPatch taskPatch) {
-        taskRepository.findById(taskPatch.getTaskId())
-                .orElseThrow(() -> new TaskNotFoundException(taskPatch.getTaskId()));
-        applyToTask(taskPatch, task -> task.patch(taskPatch));
+        var task = taskRepository.findById(taskPatch.taskId())
+                .orElseThrow(() -> new TaskNotFoundException(taskPatch.taskId()));
+
+        if (task.history().stream().anyMatch(existing -> existing.id().equals(taskPatch.id()))) {
+            log.debug("Patch {} is already part of task {}; nothing to do.", taskPatch.id(), task.id());
+            return;
+        }
+
+        var sequenced = taskPatch.withSequence(taskPatchSequence.next());
+        taskRepository.save(task.patch(sequenced));
+
+        taskPatchSseEmitterService.emitNewlyCreatedTaskPatch(sequenced);
     }
 
-    public void undoPatch(TaskPatch taskPatch) {
-        applyToTask(taskPatch, task -> task.undoPatch(taskPatch, clock));
-    }
-
-    public SseEmitter tail(@Nullable LocalDateTime since) {
+    public SseEmitter tail(@Nullable Instant since) {
         // todo: avoid disconnect after 30s (nginx still left)
         var sseEmitter = taskPatchSseEmitterService.createListener();
 
@@ -56,15 +60,5 @@ public class TaskPatchService {
         }
 
         return sseEmitter;
-    }
-
-    private void applyToTask(TaskPatch taskPatch, Consumer<Task> patchAction) {
-        var task = taskRepository.findById(taskPatch.getTaskId())
-                .orElseThrow(() -> new TaskNotFoundException(taskPatch.getTaskId()));
-
-        patchAction.accept(task);
-        taskRepository.save(task);
-
-        taskPatchSseEmitterService.emitNewlyCreatedTaskPatch(taskPatch);
     }
 }

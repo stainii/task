@@ -31,8 +31,8 @@ class TaskEventListenersTest extends AbstractIntegrationTestCases {
         eventPublisher.publishEvent(taskCreationRequestedEvent);
 
         assertThat(taskRepository.count()).isEqualTo(amountOfTasksBeforeTest + 2);
-        assertThat(taskRepository.existsById(tasks.getFirst().getId())).isTrue();
-        assertThat(taskRepository.existsById(tasks.getLast().getId())).isTrue();
+        assertThat(taskRepository.existsById(tasks.getFirst().id())).isTrue();
+        assertThat(taskRepository.existsById(tasks.getLast().id())).isTrue();
     }
 
 }
