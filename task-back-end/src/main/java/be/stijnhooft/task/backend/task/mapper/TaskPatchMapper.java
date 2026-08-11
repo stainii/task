@@ -1,6 +1,6 @@
 package be.stijnhooft.task.backend.task.mapper;
 
-import be.stijnhooft.task.backend.task.TaskPatch;
+import be.stijnhooft.task.backend.task.domain.TaskPatch;
 import be.stijnhooft.task.backend.task.dto.TaskPatchDto;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;

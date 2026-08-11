@@ -35,7 +35,7 @@ actually running rather than merely configured.
 
 ### Tests and the modulith check
 
-`./mvnw verify` — currently 138 tests in about 0:38. `ApplicationModules.verify()` runs as a test
+`./mvnw verify` — currently 178 tests in about 0:40. `ApplicationModules.verify()` runs as a test
 and enforces [ADR-0003](adr/0003-two-modules-with-package-visibility-as-the-boundary.md)'s module
 boundaries.
 
@@ -104,8 +104,9 @@ The existing violations are parked, not fixed, because most of that code is dele
 what resolves it, so `grep -rn "Parked by #10" task-back-end/src` is the live list of debt and it
 shrinks to nothing as the backlog lands. **Delete the suppression as part of the rewrite, not after.**
 
-One of them suppresses D1 itself, loudly, in `RecurringTaskTemplate` — read the comment there
-before touching that class.
+One of them used to suppress D1 itself, loudly, in `RecurringTaskTemplate`. That class is gone
+([#47](https://github.com/stainii/task/issues/47)) and D1 with it, so **one parked suppression
+remains**, in `JsonToMapConverter`.
 
 > A caution learned the hard way: the file that carried `@SuppressWarnings("SuspiciousDateFormat")`
 > was suppressing a check that does not fire there. For the life of that file it suppressed nothing,

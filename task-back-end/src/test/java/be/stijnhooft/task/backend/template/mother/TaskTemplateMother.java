@@ -1,11 +1,11 @@
 package be.stijnhooft.task.backend.template.mother;
 
 import be.stijnhooft.task.backend.task.Importance;
-import be.stijnhooft.task.backend.template.CalendarRule;
-import be.stijnhooft.task.backend.template.StoredTrigger;
-import be.stijnhooft.task.backend.template.TaskDefinition;
-import be.stijnhooft.task.backend.template.TaskTemplate;
-import be.stijnhooft.task.backend.template.Trigger;
+import be.stijnhooft.task.backend.template.domain.CalendarRule;
+import be.stijnhooft.task.backend.template.domain.StoredTrigger;
+import be.stijnhooft.task.backend.template.domain.TaskDefinition;
+import be.stijnhooft.task.backend.template.domain.TaskTemplate;
+import be.stijnhooft.task.backend.template.domain.Trigger;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;

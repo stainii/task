@@ -2,7 +2,11 @@
 |===
 |Base package
 |`be.stijnhooft.task.backend.task`
+|Spring components
+|_Services_
+
+* `b.s.t.b.t.TaskOccurrences` (via `b.s.t.b.t.service.TaskOccurrencesService`)
 |Events listened to
-|* `b.s.t.b.t.TaskCreationRequestedEvent` 
+|* `b.s.t.b.t.TaskTemplateFired` 
 * `org.springframework.context.event.ContextClosedEvent` 
 |===

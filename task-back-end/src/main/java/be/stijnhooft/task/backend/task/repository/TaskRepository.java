@@ -1,7 +1,7 @@
 package be.stijnhooft.task.backend.task.repository;
 
-import be.stijnhooft.task.backend.task.Task;
-import be.stijnhooft.task.backend.task.TaskStatus;
+import be.stijnhooft.task.backend.task.domain.Task;
+import be.stijnhooft.task.backend.task.domain.TaskStatus;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 

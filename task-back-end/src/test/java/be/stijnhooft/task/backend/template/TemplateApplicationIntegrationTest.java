@@ -2,6 +2,8 @@ package be.stijnhooft.task.backend.template;
 
 import be.stijnhooft.task.backend.AbstractIntegrationTestCases;
 import be.stijnhooft.task.backend.task.Importance;
+import be.stijnhooft.task.backend.template.domain.StoredTrigger;
+import be.stijnhooft.task.backend.template.domain.Trigger;
 import be.stijnhooft.task.backend.template.dto.TaskDefinitionDto;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateDto;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateEntry;

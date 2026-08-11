@@ -1,8 +1,8 @@
 package be.stijnhooft.task.backend.task.service;
 
 import be.stijnhooft.task.backend.TestClock;
-import be.stijnhooft.task.backend.task.Task;
-import be.stijnhooft.task.backend.task.TaskStatus;
+import be.stijnhooft.task.backend.task.domain.Task;
+import be.stijnhooft.task.backend.task.domain.TaskStatus;
 import be.stijnhooft.task.backend.task.exception.TaskAlreadyExistsException;
 import be.stijnhooft.task.backend.task.repository.SyncEpoch;
 import be.stijnhooft.task.backend.task.repository.TaskPatchSequence;

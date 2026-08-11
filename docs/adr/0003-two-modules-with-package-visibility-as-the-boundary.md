@@ -173,3 +173,36 @@ scheduler, a public registration endpoint, an outbound internet call and BouncyC
 
 No second application event is minted: the rule *queries go direct, facts go by event* puts this on
 the query side.
+
+### `TaskOccurrences` asks three questions, and the firing date is where the third one reads
+
+Amended by [The module boundary edit](https://github.com/stainii/task/issues/48), 2026-08-11, which
+enacted the deferred package moves.
+
+This ADR named the port's two methods — `lastCompletionOf` and `hasOpenOccurrence` — and
+[ADR-0011](0011-completion-is-a-task-fact-the-template-reads.md) then split the anchors it was
+written against. *When did I last actually do this?* and *when should I next be asked?* are two
+questions, and answering both with the completion refires a cancelled min/max template every day
+until something is completed. So the port has a **third** method, `lastClosureOf`: the firing date
+of the template's most recently **closed** task, cancellations included.
+
+`hasOpenOccurrence` keeps its name. ADR-0011 reads it at task level and says so; the name is in two
+ADRs and renaming it would be a decision this ticket had no business making.
+
+**The event's `firingDate` is written to the task's `creationDateTime`.** ADR-0002 put a firing date
+on `TaskTemplateFired` without saying where it lands, and `CONTEXT.md` already defines an
+occurrence's date as the creation date of its tasks — so the two meet here rather than in a new
+column. It is load-bearing for
+[ADR-0017](0017-a-calendar-template-fires-for-its-latest-unclosed-date.md)'s rule 3: a calendar
+template catching up on a date it slept through must produce a task dated for the date it was *for*,
+or the predicate compares today against today and fires again tomorrow. A day becomes an instant in
+the `Clock` bean's zone, which is the conversion ADR-0005's importer already makes for a portal
+execution — a migrated firing and a live one are the same rows.
+
+Two consequences fall out of it, both narrowings of behaviour that was previously silent:
+
+- **A definition with no start offset starts on the firing date**, where it used to start "today".
+  The same date for a template run by hand, the wrong one for a catch-up.
+- **A manual run's tasks are created at midnight** rather than at the moment the button was pressed.
+  Deliberate: `creationDateTime` is a firing's date, and a same-day precision that only some tasks
+  carry is a fallback branch nobody tests.

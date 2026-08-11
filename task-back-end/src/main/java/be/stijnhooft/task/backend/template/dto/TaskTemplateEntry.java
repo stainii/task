@@ -13,7 +13,7 @@ import java.util.Map;
 /// of the template, not something to re-decide at each workshop
 /// ([ADR-0013 §104](../../../../../../../../docs/adr/0013-one-anchor-and-a-trigger-that-shapes-the-form.md)).
 ///
-/// The anchor's *wording* is the template's, on its [be.stijnhooft.task.backend.template.Trigger.Manual].
+/// The anchor's *wording* is the template's, on its [be.stijnhooft.task.backend.template.domain.Trigger.Manual].
 public record TaskTemplateEntry(
         Map<String, String> variables,
         @Nullable LocalDate anchorDate) {

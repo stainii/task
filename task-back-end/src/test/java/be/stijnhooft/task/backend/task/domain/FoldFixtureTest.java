@@ -1,5 +1,6 @@
-package be.stijnhooft.task.backend.task;
+package be.stijnhooft.task.backend.task.domain;
 
+import be.stijnhooft.task.backend.task.Importance;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;

@@ -1,6 +1,6 @@
 package be.stijnhooft.task.backend.task.mother;
 
-import be.stijnhooft.task.backend.task.TaskPatch;
+import be.stijnhooft.task.backend.task.domain.TaskPatch;
 
 import java.time.Instant;
 import java.time.LocalDate;

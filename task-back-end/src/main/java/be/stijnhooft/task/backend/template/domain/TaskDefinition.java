@@ -1,4 +1,4 @@
-package be.stijnhooft.task.backend.template;
+package be.stijnhooft.task.backend.template.domain;
 
 import be.stijnhooft.task.backend.task.Importance;
 import org.jspecify.annotations.Nullable;

@@ -1,6 +1,6 @@
 package be.stijnhooft.task.backend.template.dto;
 
-import be.stijnhooft.task.backend.template.StoredTrigger;
+import be.stijnhooft.task.backend.template.domain.StoredTrigger;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;

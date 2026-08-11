@@ -1,7 +1,7 @@
 package be.stijnhooft.task.backend.template.mapper;
 
-import be.stijnhooft.task.backend.template.TaskDefinition;
-import be.stijnhooft.task.backend.template.TaskTemplate;
+import be.stijnhooft.task.backend.template.domain.TaskDefinition;
+import be.stijnhooft.task.backend.template.domain.TaskTemplate;
 import be.stijnhooft.task.backend.template.dto.TaskDefinitionDto;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateDto;
 import org.springframework.stereotype.Component;

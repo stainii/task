@@ -1,4 +1,4 @@
-package be.stijnhooft.task.backend.template;
+package be.stijnhooft.task.backend.template.domain;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

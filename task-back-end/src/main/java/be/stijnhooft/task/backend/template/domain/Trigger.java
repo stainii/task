@@ -1,4 +1,4 @@
-package be.stijnhooft.task.backend.template;
+package be.stijnhooft.task.backend.template.domain;
 
 import org.jspecify.annotations.Nullable;
 

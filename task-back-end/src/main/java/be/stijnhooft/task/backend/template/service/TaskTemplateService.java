@@ -1,9 +1,8 @@
 package be.stijnhooft.task.backend.template.service;
 
-import be.stijnhooft.task.backend.task.Task;
-import be.stijnhooft.task.backend.task.TaskCreationRequestedEvent;
-import be.stijnhooft.task.backend.template.TaskDefinition;
-import be.stijnhooft.task.backend.template.TaskTemplate;
+import be.stijnhooft.task.backend.task.TaskTemplateFired;
+import be.stijnhooft.task.backend.template.domain.TaskDefinition;
+import be.stijnhooft.task.backend.template.domain.TaskTemplate;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateEntry;
 import be.stijnhooft.task.backend.template.exception.TaskTemplateAlreadyExistsException;
 import be.stijnhooft.task.backend.template.exception.TaskTemplateNotFoundException;
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -68,52 +66,66 @@ public class TaskTemplateService {
         taskTemplateRepository.deleteById(id);
     }
 
-    /// Renders a template into tasks and hands them over. One firing, one `occurrenceId`: an
-    /// occurrence is not stored anywhere, so this group key is all that remains of it.
+    /// Runs a template by hand: it fires **today**, anchored on whatever date the person typed.
     ///
-    /// Every definition's dates come from **one anchor** — the date typed for a manual template,
-    /// the firing date for a scheduled one — and each definition's own two offsets.
-    public List<Task> createTasksWithTemplate(TaskTemplate taskTemplate, TaskTemplateEntry entry) {
-        var tasks = renderTasks(taskTemplate, entry.variables(), entry.anchorDate(), null);
-        eventPublisher.publishEvent(new TaskCreationRequestedEvent(tasks));
-        return tasks;
+    /// Firing date and anchor are two different dates and this is the case that shows it. The
+    /// anchor is the workshop, the trip, the thing the tasks are *about*, and it can be months out;
+    /// the firing date is when the template came round, which for a manual run is now.
+    public void createTasksWithTemplate(TaskTemplate taskTemplate, TaskTemplateEntry entry) {
+        eventPublisher.publishEvent(
+                render(taskTemplate, entry.variables(), LocalDate.now(clock), entry.anchorDate(), null));
     }
 
-    /// Renders a firing's tasks without publishing them, so a caller that already knows the anchor
-    /// and the due date — the scheduler — can use the same renderer.
+    /// Renders a firing into the fact that it happened: `${…}` substituted, offsets resolved to
+    /// real dates, nothing left for the listener to look up.
     ///
-    /// The name is rendered **before any task is built**: a template whose name resolves to nothing
-    /// fails loudly and creates none of its tasks, rather than part of them (TODO-022).
-    public List<Task> renderTasks(TaskTemplate taskTemplate, Map<String, String> variables,
-                                  @Nullable LocalDate anchor, @Nullable LocalDate defaultDueDate) {
-        var occurrenceId = UUID.randomUUID();
+    /// **Rendering lives here, in the publisher**, because `TaskDefinition` owns the placeholders
+    /// and the offsets (ADR-0002). What crosses the module boundary is the result, never a `Task` —
+    /// building one of those is `task`'s own business, and it was `template` constructing them that
+    /// kept `Task` in the exposed base package.
+    ///
+    /// The template's **name** is rendered before any definition is: a template whose name resolves
+    /// to nothing fails loudly and produces no tasks at all, rather than some of them (TODO-022).
+    ///
+    /// @param firingDate  the date the template came round — today for a manual run, the rule's
+    ///                    date for a scheduled one, which after an outage is in the past
+    /// @param anchor  the date the firing's tasks are measured from, or null when a manual template
+    ///                was run without one
+    /// @param defaultDueDate  the due date a definition with no due offset falls back to — a
+    ///                        `MinMax` trigger's `max`, and null for every other shape
+    public TaskTemplateFired render(TaskTemplate taskTemplate, Map<String, String> variables,
+                                    LocalDate firingDate, @Nullable LocalDate anchor,
+                                    @Nullable LocalDate defaultDueDate) {
         var context = fillInVariables(taskTemplate.context(), variables)
+                .filter(rendered -> !rendered.isBlank())
                 .orElseThrow(() -> new IllegalStateException(
                         "Template " + taskTemplate.id() + " renders to an empty context."));
 
-        return taskTemplate.taskDefinitions().stream()
-                .map(definition -> render(taskTemplate, definition, variables, context, anchor, defaultDueDate, occurrenceId))
+        var definitions = taskTemplate.taskDefinitions().stream()
+                .map(definition -> render(taskTemplate, definition, variables, firingDate, anchor, defaultDueDate))
                 .toList();
+
+        return new TaskTemplateFired(taskTemplate.id(), UUID.randomUUID(), firingDate, context, definitions);
     }
 
-    private Task render(TaskTemplate taskTemplate, TaskDefinition definition, Map<String, String> variables,
-                        String context, @Nullable LocalDate anchor, @Nullable LocalDate defaultDueDate,
-                        UUID occurrenceId) {
+    private TaskTemplateFired.RenderedDefinition render(TaskTemplate taskTemplate, TaskDefinition definition,
+                                                       Map<String, String> variables, LocalDate firingDate,
+                                                       @Nullable LocalDate anchor,
+                                                       @Nullable LocalDate defaultDueDate) {
         var name = fillInVariables(definition.name(), variables)
                 .filter(rendered -> !rendered.isBlank())
                 .orElseThrow(() -> new IllegalStateException(
                         "Definition " + definition.id() + " of template " + taskTemplate.id()
                                 + " renders to an empty name."));
 
-        return Task.builderForInitialTask(clock)
-                .name(name)
-                .context(context)
-                .description(fillInVariables(definition.description(), variables).orElse(null))
-                .importance(definition.importance())
-                .startDate(definition.startDateFrom(anchor).orElse(null))
-                .dueDate(definition.dueDateFrom(anchor).orElse(defaultDueDate))
-                .taskTemplateId(taskTemplate.id())
-                .occurrenceId(occurrenceId)
-                .build();
+        return new TaskTemplateFired.RenderedDefinition(
+                name,
+                fillInVariables(definition.description(), variables).orElse(null),
+                definition.importance(),
+                // No start offset means the task starts the day the template came round. It used to
+                // mean "today", which is the same date for a manual run and the wrong one for a
+                // calendar template catching up on a date it slept through.
+                definition.startDateFrom(anchor).orElse(firingDate),
+                definition.dueDateFrom(anchor).orElse(defaultDueDate));
     }
 }

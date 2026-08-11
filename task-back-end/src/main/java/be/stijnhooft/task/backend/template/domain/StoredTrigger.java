@@ -1,6 +1,6 @@
-package be.stijnhooft.task.backend.template;
+package be.stijnhooft.task.backend.template.domain;
 
-import be.stijnhooft.task.backend.template.CalendarRule.Ordinal;
+import be.stijnhooft.task.backend.template.domain.CalendarRule.Ordinal;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.relational.core.mapping.Column;
 

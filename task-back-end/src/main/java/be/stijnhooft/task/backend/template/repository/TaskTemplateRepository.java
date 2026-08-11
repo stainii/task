@@ -1,6 +1,6 @@
 package be.stijnhooft.task.backend.template.repository;
 
-import be.stijnhooft.task.backend.template.TaskTemplate;
+import be.stijnhooft.task.backend.template.domain.TaskTemplate;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 

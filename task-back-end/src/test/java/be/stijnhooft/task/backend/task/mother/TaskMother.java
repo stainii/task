@@ -1,10 +1,13 @@
 package be.stijnhooft.task.backend.task.mother;
 
 import be.stijnhooft.task.backend.TestClock;
-import be.stijnhooft.task.backend.task.Task;
-import be.stijnhooft.task.backend.task.TaskPatch;
+import be.stijnhooft.task.backend.task.domain.Task;
+import be.stijnhooft.task.backend.task.domain.TaskPatch;
+import be.stijnhooft.task.backend.task.domain.TaskStatus;
+import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -29,6 +32,10 @@ public class TaskMother {
     private static final AtomicLong SEQUENCES =
             new AtomicLong(ThreadLocalRandom.current().nextLong(-1_000_000_000_000L, -1_000_000L));
 
+    /// Long enough that a query reading the closing patch's date instead of the firing date cannot
+    /// accidentally agree with one that reads the right one.
+    private static final int CLOSED_AFTER_DAYS = 20;
+
     /// A task with a creation patch and two later patches, all uniquely identified, so a test can
     /// assert on its own data by id.
     public static Task createRandomTask() {
@@ -43,6 +50,39 @@ public class TaskMother {
                 .patch(patchOn(task.id(), 1, "name", "renamed " + UUID.randomUUID()))
                 .patch(patchOn(task.id(), 2, "dueDate", "2026-03-09"))
                 .withSequencesFrom(SEQUENCES::getAndIncrement);
+    }
+
+    /// A task a template fired, in the state it ended up in - the shape `TaskOccurrences` is asked
+    /// about.
+    ///
+    /// The firing date **is** the creation date, so it is set rather than defaulted, and the closing
+    /// patch is dated well after it: what the port answers with must be the date the template came
+    /// round, never the day someone got to it.
+    ///
+    /// @param completedOn  the day the work happened, for a completion; null for a cancellation,
+    ///                     which is a closure and not a completion
+    public static Task firedTask(UUID templateId, LocalDate firingDate, TaskStatus status,
+                                 @Nullable LocalDate completedOn) {
+        var task = Task.builderForInitialTask(CLOCK)
+                .name("task " + UUID.randomUUID())
+                .context("context " + UUID.randomUUID())
+                .creationDateTime(firingDate.atTime(LocalTime.NOON).atZone(TestClock.ZONE).toInstant())
+                .startDate(firingDate)
+                .taskTemplateId(templateId)
+                .occurrenceId(UUID.randomUUID())
+                .build();
+
+        if (status != TaskStatus.OPEN) {
+            var closing = TaskPatch.builder()
+                    .taskId(task.id())
+                    .dateTime(task.creationDateTime().plus(CLOSED_AFTER_DAYS, ChronoUnit.DAYS))
+                    .change("status", status)
+                    .change("completedOn", completedOn)
+                    .build();
+            task = task.patch(closing);
+        }
+
+        return task.withSequencesFrom(SEQUENCES::getAndIncrement);
     }
 
     private static TaskPatch patchOn(UUID taskId, int daysAfterCreation, String field, String value) {

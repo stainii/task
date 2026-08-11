@@ -1,8 +1,8 @@
 package be.stijnhooft.task.backend.task.service;
 
 import be.stijnhooft.task.backend.TestClock;
-import be.stijnhooft.task.backend.task.Task;
-import be.stijnhooft.task.backend.task.TaskPatch;
+import be.stijnhooft.task.backend.task.domain.Task;
+import be.stijnhooft.task.backend.task.domain.TaskPatch;
 import be.stijnhooft.task.backend.task.exception.CursorWithoutEpochException;
 import be.stijnhooft.task.backend.task.exception.InvalidPatchException;
 import be.stijnhooft.task.backend.task.exception.OrphanPatchException;

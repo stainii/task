@@ -1,6 +1,6 @@
 package be.stijnhooft.task.backend.task.mapper;
 
-import be.stijnhooft.task.backend.task.Task;
+import be.stijnhooft.task.backend.task.domain.Task;
 import be.stijnhooft.task.backend.task.dto.TaskDto;
 import org.mapstruct.Mapper;
 import org.springframework.stereotype.Component;

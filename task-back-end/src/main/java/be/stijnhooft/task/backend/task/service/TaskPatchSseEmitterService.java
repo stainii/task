@@ -1,7 +1,7 @@
 package be.stijnhooft.task.backend.task.service;
 
-import be.stijnhooft.task.backend.task.SyncCursor;
-import be.stijnhooft.task.backend.task.TaskPatch;
+import be.stijnhooft.task.backend.task.domain.SyncCursor;
+import be.stijnhooft.task.backend.task.domain.TaskPatch;
 import be.stijnhooft.task.backend.task.mapper.TaskPatchMapper;
 import be.stijnhooft.task.backend.task.repository.SyncEpoch;
 import be.stijnhooft.task.backend.task.service.helper.SseEmitters;

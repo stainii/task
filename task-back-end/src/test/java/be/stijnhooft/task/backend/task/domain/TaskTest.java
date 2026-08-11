@@ -1,6 +1,7 @@
-package be.stijnhooft.task.backend.task;
+package be.stijnhooft.task.backend.task.domain;
 
 import be.stijnhooft.task.backend.TestClock;
+import be.stijnhooft.task.backend.task.Importance;
 import be.stijnhooft.task.backend.task.exception.IncompleteTaskHistoryException;
 import org.junit.jupiter.api.Test;
 

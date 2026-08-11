@@ -1,8 +1,8 @@
 package be.stijnhooft.task.backend.template.mother;
 
 import be.stijnhooft.task.backend.task.Importance;
-import be.stijnhooft.task.backend.template.StoredTrigger;
-import be.stijnhooft.task.backend.template.Trigger;
+import be.stijnhooft.task.backend.template.domain.StoredTrigger;
+import be.stijnhooft.task.backend.template.domain.Trigger;
 import be.stijnhooft.task.backend.template.dto.TaskDefinitionDto;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateDto;
 

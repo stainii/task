@@ -1,6 +1,10 @@
 package be.stijnhooft.task.backend.template;
 
 import be.stijnhooft.task.backend.AbstractIntegrationTestCases;
+import be.stijnhooft.task.backend.template.domain.CalendarRule;
+import be.stijnhooft.task.backend.template.domain.StoredTrigger;
+import be.stijnhooft.task.backend.template.domain.TaskTemplate;
+import be.stijnhooft.task.backend.template.domain.Trigger;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateDto;
 import be.stijnhooft.task.backend.template.mother.TaskTemplateDtoMother;
 import be.stijnhooft.task.backend.template.mother.TaskTemplateMother;

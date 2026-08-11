@@ -404,6 +404,12 @@ Low cost, but the failure mode is the map's usual one. A diff that is *usually* 
 
 The direct consequence for CI: **the build cannot gate on "the committed diagram matches a fresh run"**, because that check would flake. `docs/ci.md` §5 records why no such gate exists. The fix is to sort the `Documenter` output before writing it; it belongs with whoever next touches `TaskBackEndApplicationTests`, and [ADR-0003](adr/0003-two-modules-with-package-visibility-as-the-boundary.md)'s moves in #11 will touch that file anyway.
 
+> **FIXED by [#48](https://github.com/stainii/task/issues/48) (2026-08-11), as prescribed.** `Documenter`'s output is sorted after it is written — the `Rel(...)` arrows of a diagram and the `* ` bullets of a table cell, each run sorted where it sits, so nothing else moves. `docs/modules/` then regenerated **byte-identically across ten consecutive runs**.
+>
+> Two things the fix had to be careful about, both of the shape this map keeps finding. A file already in order is **not rewritten at all**, including its missing final newline: adding one `Documenter` did not write would have been a diff on every other run, which is the defect wearing the fix's clothes. And with two modules there is exactly **one** arrow, so nothing in the real output is out of order and the sort cannot be seen to work — dormant until [#51](https://github.com/stainii/task/issues/51)'s third module arrives. It therefore lives in `ModuleDocumentation` with a test of its own rather than inside the test that calls it, because an unproven dormant mechanism is how this project's suppressions came to suppress nothing.
+>
+> The CI gate `docs/ci.md` §5 had to leave out is now buildable; [#23](https://github.com/stainii/task/issues/23) owns whether to add it.
+
 ### Test-quality observations
 
 - 82 back-end tests, ~2,410 lines of test code, 17 test classes. No `@Disabled`, no `@Ignore`, no assertion-free tests found. Density is reasonable (e.g. `TaskTest`: 8 tests / 46 assertions; `RecurringTaskTemplateModuleIntegrationTest`: 10 / 55).

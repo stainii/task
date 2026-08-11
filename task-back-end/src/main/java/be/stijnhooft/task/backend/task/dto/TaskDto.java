@@ -1,7 +1,7 @@
 package be.stijnhooft.task.backend.task.dto;
 
 import be.stijnhooft.task.backend.task.Importance;
-import be.stijnhooft.task.backend.task.TaskStatus;
+import be.stijnhooft.task.backend.task.domain.TaskStatus;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

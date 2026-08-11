@@ -1,5 +1,6 @@
-package be.stijnhooft.task.backend.task;
+package be.stijnhooft.task.backend.task.domain;
 
+import be.stijnhooft.task.backend.task.Importance;
 import be.stijnhooft.task.backend.task.exception.IncompleteTaskHistoryException;
 import be.stijnhooft.task.backend.task.util.ObjectUtils;
 import com.fasterxml.jackson.annotation.JsonIgnore;
