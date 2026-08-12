@@ -1,0 +1,7 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`be.stijnhooft.task.backend.notification`
+|Bean references
+|* `b.s.t.b.t.DueTasks` (in Task)
+|===

@@ -389,3 +389,21 @@ guaranteed to *restart* at night, so a restart could simply *be* the due check. 
 recreates a container only when the image or its configuration changed, so on any night with no push
 to `main`, nothing restarts. Startup-only due-checking would have gone silent for as long as `main`
 sat still. Recorded because the claim reads plausibly and is repeated in #40's body.
+
+### `.env` gains the VAPID key pair
+
+Amended by [Web Push: the `notification` module](https://github.com/stainii/task/issues/51),
+2026-08-12.
+
+Two more variables for the table above, both required — the application refuses to start without
+them, deliberately, because a push client that quietly fails every morning is ADR-0009's
+`echo "Backup completed"`:
+
+| Variable | Why |
+| --- | --- |
+| `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` | ADR-0012's application server identity. **Losing the pair invalidates every existing subscription** — the concrete artifact behind [#26](https://github.com/stainii/task/issues/26)'s *restore config, not just data*. |
+| `PUSH_VAPID_SUBJECT` | the `mailto:` a push service complains to; several reject a token without one |
+
+The committed values in `application.yml` are a throwaway keypair that has never signed anything, per
+[#31](https://github.com/stainii/task/issues/31). There is still **no client secret anywhere**: the
+VAPID private key is ours, not a credential issued to us, and it authenticates nothing to Keycloak.

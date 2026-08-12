@@ -17,6 +17,24 @@ task:
     # obligation - proxy_read_timeout must sit outside this window, or the stream dies silently.
     heartbeat-interval: 15s
 
+  push:
+    # ADR-0012: the application server's VAPID identity. The private half signs the token that says
+    # this traffic is ours; the public half is what the browser subscribes with, which is why losing
+    # the pair invalidates every existing subscription (#26's "restore config, not just data" - the
+    # re-subscribe-on-open rule is what makes that survivable rather than a manual repair).
+    #
+    # These are DELIBERATELY WORTHLESS dev values (#31): a throwaway keypair that has never signed
+    # anything real. Production supplies its own from the gitignored .env as PUSH_VAPID_PUBLIC_KEY
+    # and PUSH_VAPID_PRIVATE_KEY. There is no default and no empty fallback - a missing or malformed
+    # key stops the application, because a push client that quietly fails every morning is
+    # `echo "Backup completed"` in a nicer font (ADR-0009).
+    vapid:
+      public-key: ${PUSH_VAPID_PUBLIC_KEY:BE2TkyY-KsWvY92lkWsYuukA2VReHxYVPnN6v4Z7IvQrcfLLFcfqQw3qbqxMFsvzM0tH70wdGt3-eD_0zi3BZlw}
+      private-key: ${PUSH_VAPID_PRIVATE_KEY:PSDi2974w9NN8OGV437Ec-IO8R7jNVoD1ChmpoD6uqc}
+      # Who a push service complains to about our traffic. Not authentication, and not optional -
+      # several services reject a token without one.
+      subject: ${PUSH_VAPID_SUBJECT:mailto:stijnhooft@hotmail.com}
+
 # ADR-0009: health is the only management endpoint, and it exists for compose's healthcheck,
 # not for a monitoring stack. Details stay hidden — up or down is all anything needs.
 management:

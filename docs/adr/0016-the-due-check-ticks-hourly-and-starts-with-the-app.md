@@ -234,3 +234,13 @@ So the same-date rule is **deleted, not kept alongside**. #11 implements one pre
 covering one condition is how two implementations come to disagree at an edge — and here the edge is
 a date boundary, which is where [#10](https://github.com/stainii/task/issues/10)'s convention says
 the bugs are.
+
+### `@EnableScheduling` moves out of `DueCheckSchedule`
+
+Amended by [Web Push: the `notification` module](https://github.com/stainii/task/issues/51),
+2026-08-12. See [ADR-0012](0012-one-push-at-0730-derived-not-stored.md)'s amendments.
+
+The tick, the interval and the knob are unchanged. What moved to `config/SchedulingConfig` is
+`@EnableScheduling` and the pool, because ADR-0012's 07:30 push is the second scheduled job this
+application has — and while `@EnableScheduling` sat behind `task.due-check.enabled`, switching the
+due check off switched off *scheduling*, silently taking the other module's job with it.

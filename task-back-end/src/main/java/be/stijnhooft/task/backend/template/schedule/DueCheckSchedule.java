@@ -3,20 +3,18 @@ package be.stijnhooft.task.backend.template.schedule;
 import be.stijnhooft.task.backend.template.service.DueTemplateChecker;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.TaskScheduler;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.scheduling.annotation.SchedulingConfigurer;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
 import java.util.concurrent.TimeUnit;
 
 /// **The tick, and nothing else.** All of the *when*, none of the *what*
 /// ([ADR-0016 §137](../../../../../../../../docs/adr/0016-the-due-check-ticks-hourly-and-starts-with-the-app.md)):
 /// the check itself is `DueTemplateChecker`, a plain service a test can drive directly.
+///
+/// `@EnableScheduling` and the pool this runs on used to live here; [#51](https://github.com/stainii/task/issues/51)
+/// moved them to `config/SchedulingConfig` when a second module started scheduling — the knob below
+/// was switching off *scheduling*, not one schedule.
 ///
 /// ### One annotation does both jobs
 ///
@@ -47,14 +45,13 @@ import java.util.concurrent.TimeUnit;
 ///
 /// `initialDelay = 0` otherwise fires in **every** integration test context against the shared
 /// Postgres, which is [#10](https://github.com/stainii/task/issues/10)'s isolation problem. So the
-/// whole schedule — annotation, scheduler and all — is switched off by
+/// whole schedule is switched off by
 /// `task.due-check.enabled=false` in `src/test/resources/application.properties`, and exactly one
 /// test switches it back on to prove the startup fire happens. Production never sets the property.
 @Configuration
-@EnableScheduling
 @ConditionalOnProperty(name = "task.due-check.enabled", matchIfMissing = true)
 @RequiredArgsConstructor
-public class DueCheckSchedule implements SchedulingConfigurer {
+public class DueCheckSchedule {
 
     private final DueTemplateChecker dueTemplateChecker;
 
@@ -63,19 +60,4 @@ public class DueCheckSchedule implements SchedulingConfigurer {
         dueTemplateChecker.check();
     }
 
-    /// Its own thread, named, rather than whichever `TaskScheduler` bean happens to be unique on
-    /// the classpath — today that would silently be the SSE pool, and an hourly sweep sharing a
-    /// pool with every connected client's heartbeat is a coupling nobody chose.
-    @Bean
-    public TaskScheduler dueCheckScheduler() {
-        var scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(1);
-        scheduler.setThreadNamePrefix("due-check-");
-        return scheduler;
-    }
-
-    @Override
-    public void configureTasks(ScheduledTaskRegistrar registrar) {
-        registrar.setTaskScheduler(dueCheckScheduler());
-    }
 }

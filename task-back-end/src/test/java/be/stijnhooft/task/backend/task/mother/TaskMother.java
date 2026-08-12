@@ -1,6 +1,7 @@
 package be.stijnhooft.task.backend.task.mother;
 
 import be.stijnhooft.task.backend.TestClock;
+import be.stijnhooft.task.backend.task.Importance;
 import be.stijnhooft.task.backend.task.domain.Task;
 import be.stijnhooft.task.backend.task.domain.TaskPatch;
 import be.stijnhooft.task.backend.task.domain.TaskStatus;
@@ -80,6 +81,30 @@ public class TaskMother {
                     .change("completedOn", completedOn)
                     .build();
             task = task.patch(closing);
+        }
+
+        return task.withSequencesFrom(SEQUENCES::getAndIncrement);
+    }
+
+    /// A hand-made task with a due date and an importance - what `DueTasks` reads at 07:30.
+    ///
+    /// The name carries a UUID so a test can pick its own rows out of a shared database, and the
+    /// caller supplies the due date, because *which day* is the entire question being asked.
+    public static Task taskDueOn(LocalDate dueDate, Importance importance, TaskStatus status) {
+        var task = Task.builderForInitialTask(CLOCK)
+                .name("task " + UUID.randomUUID())
+                .context("context " + UUID.randomUUID())
+                .startDate(dueDate.minusDays(1))
+                .dueDate(dueDate)
+                .importance(importance)
+                .build();
+
+        if (status != TaskStatus.OPEN) {
+            task = task.patch(TaskPatch.builder()
+                    .taskId(task.id())
+                    .dateTime(task.creationDateTime().plus(1, ChronoUnit.DAYS))
+                    .change("status", status)
+                    .build());
         }
 
         return task.withSequencesFrom(SEQUENCES::getAndIncrement);

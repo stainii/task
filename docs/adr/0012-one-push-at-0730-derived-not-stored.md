@@ -268,3 +268,47 @@ Note on ADR-0003: its *three or more modules* alternative was rejected, but what
 **splitting existing concerns** — firing out of `template`, patch/SSE out of `task`. This adds a
 module for a new aggregate that did not exist when that was written. The reasoning is extended, not
 contradicted.
+
+## Amendments
+
+### The library is dropped; the encryption is written out and pinned to the RFC's own example
+
+Amended by [Web Push: the `notification` module](https://github.com/stainii/task/issues/51),
+2026-08-12.
+
+This ADR named `nl.martijndwars:web-push` 5.1.2, "actively maintained". It was measured before it
+was taken, and it costs **26 jars** to send one HTTPS `POST` a day: Netty 4.1.60 and
+async-http-client 2.12.4 (both 2021), Apache `httpasyncclient`, `jcommander`, `jose4j`, an explicit
+BouncyCastle provider — and **`slf4j-api` 1.7.30** on the runtime classpath of an application that
+runs slf4j 2. 5.1.2 is also its last release.
+
+Against the standing *prefer fewer moving parts*, and against [#25](https://github.com/stainii/task/issues/25)'s
+Renovate setup — which would offer bumps a pinned 2022 library cannot take, on transitive
+dependencies nothing here calls — that is a bad trade for ~150 lines of JDK.
+
+So RFC 8291's `aes128gcm` encryption and RFC 8292's VAPID signing are written out in
+`notification/webpush/`, on `javax.crypto`, `java.security` and `java.net.http.HttpClient`. **No
+BouncyCastle, no provider registration, no new dependency at all.**
+
+What makes that defensible is not the line count, it is the fixture: **[RFC 8291 §5](https://www.rfc-editor.org/rfc/rfc8291#section-5)
+publishes a complete worked example** — receiver key, auth secret, sender key, salt, plaintext and
+the exact body on the wire — and `WebPushEncryptionTest` reproduces it **byte for byte**. The rule
+exists in two places, here and in every push service on the internet, and it is pinned by a fixture
+rather than by a reading, which is `/fold-fixtures/`'s argument with the IETF supplying the file.
+
+Nothing else in the ADR changes: still self-hosted, still no service in between.
+
+### Where `@EnableScheduling` lives
+
+`@EnableScheduling` and the scheduler pool sat on `template`'s `DueCheckSchedule`, behind that
+class's `@ConditionalOnProperty`. [#49](https://github.com/stainii/task/issues/49) said in as many
+words that resolving the unique `TaskScheduler` was safe *"only until a second such bean"*, and the
+07:30 push is it.
+
+Moved to `config/SchedulingConfig`, and the reason is sharper than tidiness: setting
+`task.due-check.enabled=false` — which the whole test suite does — did not disable one schedule, it
+disabled **scheduling**. A second module's job would silently never have run, in a context that
+starts cleanly and logs nothing. This map's *guarantee broken by something outside the code* shape,
+pre-installed rather than found, and deleted rather than documented. See
+[ADR-0016](0016-the-due-check-ticks-hourly-and-starts-with-the-app.md), whose one-annotation rule is
+otherwise untouched.

@@ -13,6 +13,10 @@ include::module-goal.adoc[]
 plantuml::module-task.puml[,,format=svg]
 include::module-task.adoc[]
 
+== Notification
+plantuml::module-notification.puml[,,format=svg]
+include::module-notification.adoc[]
+
 == Template
 plantuml::module-template.puml[,,format=svg]
 include::module-template.adoc[]

@@ -1,5 +1,5 @@
 @startuml
-title <size:24>TaskBackEndApplication</size>
+title <size:24>Notification</size>
 
 set separator none
 top to bottom direction
@@ -19,13 +19,11 @@ System_Boundary("TaskBackEndApplication_boundary", "TaskBackEndApplication", $ta
   Container_Boundary("TaskBackEndApplication.TaskBackEndApplication_boundary", "TaskBackEndApplication", $tags="") {
     Component(TaskBackEndApplication.TaskBackEndApplication.Task, "Task", $techn="Module", $descr="", $tags="", $link="")
     Component(TaskBackEndApplication.TaskBackEndApplication.Notification, "Notification", $techn="Module", $descr="", $tags="", $link="")
-    Component(TaskBackEndApplication.TaskBackEndApplication.Template, "Template", $techn="Module", $descr="", $tags="", $link="")
   }
 
 }
 
 Rel(TaskBackEndApplication.TaskBackEndApplication.Notification, TaskBackEndApplication.TaskBackEndApplication.Task, "uses", $techn="", $tags="", $link="")
-Rel(TaskBackEndApplication.TaskBackEndApplication.Template, TaskBackEndApplication.TaskBackEndApplication.Task, "uses", $techn="", $tags="", $link="")
 
 SHOW_LEGEND(true)
 hide stereotypes
