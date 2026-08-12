@@ -1,0 +1,49 @@
+{
+  "rule": "A min/max trigger's window is the fallback due date: created at min, due at max (REC-006), so the old reminder-then-urgent escalation is one task going overdue. A definition that names its own due offset keeps it.",
+  "template": {
+    "name": "Beddengoed wassen",
+    "context": "house",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MIN_MAX", "minDays": 10, "maxDays": 13 },
+    "taskDefinitions": [
+      {
+        "name": "Beddengoed wassen",
+        "description": null,
+        "startDateOffsetDays": null,
+        "dueDateOffsetDays": null,
+        "importance": "IMPORTANT"
+      },
+      {
+        "name": "Bed stofzuigen",
+        "description": null,
+        "startDateOffsetDays": null,
+        "dueDateOffsetDays": 1,
+        "importance": "NOT_SO_IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-11",
+    "anchor": "2026-03-11",
+    "variables": {}
+  },
+  "expected": {
+    "context": "house",
+    "definitions": [
+      {
+        "name": "Beddengoed wassen",
+        "description": null,
+        "importance": "IMPORTANT",
+        "startDate": "2026-03-11",
+        "dueDate": "2026-03-14"
+      },
+      {
+        "name": "Bed stofzuigen",
+        "description": null,
+        "importance": "NOT_SO_IMPORTANT",
+        "startDate": "2026-03-11",
+        "dueDate": "2026-03-12"
+      }
+    ]
+  }
+}

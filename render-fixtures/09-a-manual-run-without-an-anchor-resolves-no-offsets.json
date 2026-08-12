@@ -1,0 +1,35 @@
+{
+  "rule": "With no anchor there is nothing to measure an offset from, so both dates fall back: the start date to the firing date, the due date to the trigger's default, which a manual trigger does not have.",
+  "template": {
+    "name": "Iets doen",
+    "context": "personal",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": null },
+    "taskDefinitions": [
+      {
+        "name": "Iets doen",
+        "description": null,
+        "startDateOffsetDays": -3,
+        "dueDateOffsetDays": 5,
+        "importance": "IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-06",
+    "anchor": null,
+    "variables": {}
+  },
+  "expected": {
+    "context": "personal",
+    "definitions": [
+      {
+        "name": "Iets doen",
+        "description": null,
+        "importance": "IMPORTANT",
+        "startDate": "2026-03-06",
+        "dueDate": null
+      }
+    ]
+  }
+}

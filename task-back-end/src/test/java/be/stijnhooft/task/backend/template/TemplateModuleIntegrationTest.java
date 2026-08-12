@@ -6,6 +6,7 @@ import be.stijnhooft.task.backend.template.domain.CalendarRule;
 import be.stijnhooft.task.backend.template.domain.StoredTrigger;
 import be.stijnhooft.task.backend.template.domain.TaskTemplate;
 import be.stijnhooft.task.backend.template.domain.Trigger;
+import be.stijnhooft.task.backend.template.dto.TaskDefinitionDto;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateDto;
 import be.stijnhooft.task.backend.template.mother.TaskTemplateDtoMother;
 import be.stijnhooft.task.backend.template.mother.TaskTemplateMother;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -26,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
 @ApplicationModuleTest(extraIncludes = "config", webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases {
@@ -135,7 +138,7 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
 
         var reRuled = new TaskTemplateDto(stored.id(), stored.name(), stored.context(), true, null,
                 StoredTrigger.of(new Trigger.Calendar(new CalendarRule.Weeks(1, Set.of(DayOfWeek.THURSDAY)))),
-                List.of());
+                definitionsOf(stored));
 
         restTestClient.put()
                 .uri("/api/task-templates/" + stored.id())
@@ -206,6 +209,145 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
         assertThat(taskTemplateRepository.findById(stored.id())).isEmpty();
     }
 
+    /// A template with no definitions renders no tasks, and `TaskTemplateFired` refuses an empty
+    /// firing - so before this validation it threw once an hour for as long as the row existed, and
+    /// the only trace was an ERROR line. #49 left five such rows in this suite's shared database.
+    @Test
+    void refusesATemplateThatCouldNeverProduceATask() {
+        var withoutDefinitions = new TaskTemplateDto(UUID.randomUUID(), "Empty", "house", true, null,
+                StoredTrigger.of(new Trigger.Manual("When?")), List.of());
+
+        create(withoutDefinitions).expectStatus().isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(taskTemplateRepository.findById(withoutDefinitions.id())).isEmpty();
+    }
+
+    /// Variables are manual-only (ADR-0013). Nothing is present at 04:00 to answer a `${…}`, so a
+    /// scheduled template carrying one renders a task literally named `${who}`.
+    @Test
+    void refusesAVariableInAScheduledTemplate() {
+        var scheduled = TaskTemplateDtoMother.templateDtoWith(
+                Trigger.MinMax.ofIntervalAndWindow(10, 3), "Beddengoed wassen ${who}");
+
+        create(scheduled).expectStatus().isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(taskTemplateRepository.findById(scheduled.id())).isEmpty();
+    }
+
+    /// The other half of the same rule, asserted beside it: a manual template is exactly where a
+    /// variable belongs, because someone is standing there to answer it.
+    @Test
+    void acceptsAVariableInAManualTemplate() {
+        var manual = TaskTemplateDtoMother.manualTemplateDtoWithVariables();
+
+        create(manual).expectStatus().isEqualTo(HttpStatus.CREATED);
+
+        assertThat(taskTemplateRepository.findById(manual.id())).isPresent();
+    }
+
+    /// `@Valid`, the fourth of D4's four fixes. A blank name renders to a blank task name, which the
+    /// firing refuses loudly - this turns that into a `400` on the screen that caused it.
+    @Test
+    void refusesABlankDefinitionName() {
+        var blank = TaskTemplateDtoMother.templateDtoWith(new Trigger.Manual("When?"), "  ");
+
+        create(blank).expectStatus().isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    /// D4's first fix, asserted rather than assumed: portal's `@RequestMapping("/{id}")` carried no
+    /// verb, so a `PATCH` silently returned the template with a `200` instead of refusing it.
+    @Test
+    void answersOnlyTheVerbsItDeclares() {
+        var stored = taskTemplateRepository.save(TaskTemplateMother.manualTemplate());
+
+        restTestClient.method(HttpMethod.PATCH)
+                .uri("/api/task-templates/" + stored.id())
+                .header("Authorization", getAuthorizationHeaderForUser())
+                .body(dtoOf(stored, stored.name()))
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    @Test
+    void deactivatingStopsATemplateAndMovesActiveSince() {
+        var stored = taskTemplateRepository.save(TaskTemplateMother.calendarTemplate());
+
+        restTestClient.post()
+                .uri("/api/task-templates/" + stored.id() + "/deactivation")
+                .header("Authorization", getAuthorizationHeaderForUser())
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.OK);
+
+        assertThat(taskTemplateRepository.findById(stored.id()))
+                .get()
+                .satisfies(template -> {
+                    assertThat(template.active()).isFalse();
+                    assertThat(template.activeSince()).isNotEqualTo(TaskTemplateMother.ACTIVE_SINCE);
+                });
+    }
+
+    /// **Reactivation starts today, never where it left off.** Without the `activeSince` write, a
+    /// calendar template switched back on after months away catches up on a date it spent the pause
+    /// deliberately not firing for (ADR-0013's amendment).
+    @Test
+    void reactivatingStartsFromTodayRatherThanWhereItLeftOff() {
+        var stored = taskTemplateRepository.save(
+                TaskTemplateMother.calendarTemplate().deactivated(TaskTemplateMother.ACTIVE_SINCE));
+
+        restTestClient.post()
+                .uri("/api/task-templates/" + stored.id() + "/reactivation")
+                .header("Authorization", getAuthorizationHeaderForUser())
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.OK);
+
+        assertThat(taskTemplateRepository.findById(stored.id()))
+                .get()
+                .satisfies(template -> {
+                    assertThat(template.active()).isTrue();
+                    assertThat(template.activeSince()).isAfter(TaskTemplateMother.ACTIVE_SINCE);
+                });
+    }
+
+    /// The reason activation has its own endpoints at all: an edit that could flip `active` would be
+    /// a second path to reactivation, and that path does not move `activeSince`.
+    @Test
+    void anEditCannotSwitchATemplateBackOn() {
+        var stored = taskTemplateRepository.save(
+                TaskTemplateMother.calendarTemplate().deactivated(TaskTemplateMother.ACTIVE_SINCE));
+
+        var claimingActive = new TaskTemplateDto(stored.id(), stored.name(), stored.context(), true, null,
+                stored.storedTrigger(), definitionsOf(stored));
+
+        restTestClient.put()
+                .uri("/api/task-templates/" + stored.id())
+                .header("Authorization", getAuthorizationHeaderForUser())
+                .body(claimingActive)
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.OK);
+
+        assertThat(taskTemplateRepository.findById(stored.id()))
+                .get()
+                .extracting(TaskTemplate::active)
+                .isEqualTo(false);
+    }
+
+    /// `taskTemplateId` is the only provenance a task has now that an occurrence is derived, and #35
+    /// measured what deleting costs: 49% of portal's recurring tasks point at nothing. History is
+    /// enough to refuse - the tasks here need not be open.
+    @Test
+    void refusesToDeleteATemplateThatHasTasks() {
+        var stored = taskTemplateRepository.save(TaskTemplateMother.manualTemplate());
+        when(taskOccurrences.hasAnyOccurrence(stored.id())).thenReturn(true);
+
+        restTestClient.delete()
+                .uri("/api/task-templates/" + stored.id())
+                .header("Authorization", getAuthorizationHeaderForUser())
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.CONFLICT);
+
+        assertThat(taskTemplateRepository.findById(stored.id())).isPresent();
+    }
+
     private RestTestClient.ResponseSpec create(TaskTemplateDto dto) {
         return restTestClient.post()
                 .uri("/api/task-templates")
@@ -216,6 +358,17 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
 
     private TaskTemplateDto dtoOf(TaskTemplate template, String name) {
         return new TaskTemplateDto(template.id(), name, template.context(), template.active(),
-                template.activeSince(), template.storedTrigger(), List.of());
+                template.activeSince(), template.storedTrigger(), definitionsOf(template));
+    }
+
+    /// A `PUT` carries the definitions it means to keep. Sending none used to be accepted and left a
+    /// template that throws every time it fires - five of them are still in this suite's shared
+    /// database, put there by exactly this call before #50 refused it.
+    private static List<TaskDefinitionDto> definitionsOf(TaskTemplate template) {
+        return template.taskDefinitions().stream()
+                .map(definition -> new TaskDefinitionDto(definition.id(), definition.name(),
+                        definition.startDateOffsetDays(), definition.dueDateOffsetDays(),
+                        definition.importance(), definition.description()))
+                .toList();
     }
 }

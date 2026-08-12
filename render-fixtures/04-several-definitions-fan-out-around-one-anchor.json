@@ -1,0 +1,49 @@
+{
+  "rule": "One firing, several tasks, all measured from the same anchor: preparation before it, follow-up after it. Negative offsets are days before the anchor.",
+  "template": {
+    "name": "Opvolgen workshop",
+    "context": "work",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When is the workshop?" },
+    "taskDefinitions": [
+      {
+        "name": "Voorbereidingsmail",
+        "description": null,
+        "startDateOffsetDays": -14,
+        "dueDateOffsetDays": -7,
+        "importance": "IMPORTANT"
+      },
+      {
+        "name": "Feedback nagevraagd?",
+        "description": null,
+        "startDateOffsetDays": 1,
+        "dueDateOffsetDays": 7,
+        "importance": "NOT_SO_IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-02",
+    "anchor": "2026-04-15",
+    "variables": {}
+  },
+  "expected": {
+    "context": "work",
+    "definitions": [
+      {
+        "name": "Voorbereidingsmail",
+        "description": null,
+        "importance": "IMPORTANT",
+        "startDate": "2026-04-01",
+        "dueDate": "2026-04-08"
+      },
+      {
+        "name": "Feedback nagevraagd?",
+        "description": null,
+        "importance": "NOT_SO_IMPORTANT",
+        "startDate": "2026-04-16",
+        "dueDate": "2026-04-22"
+      }
+    ]
+  }
+}

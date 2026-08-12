@@ -1,5 +1,8 @@
 package be.stijnhooft.task.backend.template.domain;
 
+import be.stijnhooft.task.backend.task.TaskTemplateFired;
+import be.stijnhooft.task.backend.template.exception.TaskTemplateInvalidException;
+import be.stijnhooft.task.backend.template.util.VariableUtils;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
@@ -10,8 +13,13 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
+
+import static be.stijnhooft.task.backend.template.util.VariableUtils.fillInVariables;
 
 /// **One template, one trigger.** The single generator of tasks in this application: a name, a
 /// context, one or more [TaskDefinition]s, and exactly one [Trigger] saying when it comes round
@@ -143,5 +151,134 @@ public record TaskTemplate(
     /// would otherwise find no task on any Thursday and immediately fire a backdated one.
     public TaskTemplate withTrigger(Trigger trigger, LocalDate today) {
         return new TaskTemplate(id, name, context, active, today, StoredTrigger.of(trigger), taskDefinitions, version);
+    }
+
+    /// **Switched off**: it stops firing, and drops out of the authoring list. Its tasks stay where
+    /// they are, still pointing at something real — which is the whole reason this exists instead of
+    /// a delete ([#35](https://github.com/stainii/task/issues/35) measured 49% of portal's recurring
+    /// tasks pointing at a template that had been deleted out from under them).
+    ///
+    /// It moves [#activeSince] too, though nothing reads it while the template is off. That is not
+    /// belt-and-braces: it collapses the field's rule from a list of cases to one sentence —
+    /// **anything that changes whether or how this template fires moves `activeSince`** — and a rule
+    /// with one clause is a rule two implementations cannot half-agree on. ADR-0017's three cases
+    /// fall out of it unchanged.
+    public TaskTemplate deactivated(LocalDate today) {
+        return new TaskTemplate(id, name, context, false, today, storedTrigger, taskDefinitions, version);
+    }
+
+    /// **Switched back on, from today.** The date matters: a calendar template reactivated after
+    /// three months away would otherwise catch up on a date it slept through on purpose
+    /// ([ADR-0013's amendment](../../../../../../../../docs/adr/0013-one-anchor-and-a-trigger-that-shapes-the-form.md)),
+    /// and a min/max template would fire the instant it came back, its round having started before
+    /// the pause.
+    public TaskTemplate reactivated(LocalDate today) {
+        return new TaskTemplate(id, name, context, true, today, storedTrigger, taskDefinitions, version);
+    }
+
+    /// Every variable this template asks for, inferred from the `${…}` in its context and in every
+    /// definition's name and description. There is no declared list (ADR-0013).
+    @JsonIgnore
+    public Set<String> variables() {
+        var texts = Stream.concat(
+                        Stream.of(context),
+                        taskDefinitions.stream()
+                                .flatMap(definition -> Stream.of(definition.name(), definition.description())))
+                .toArray(String[]::new);
+        return VariableUtils.variablesIn(texts);
+    }
+
+    /// **Save-time validation, and deliberately not an unrepresentable state**
+    /// ([ADR-0013 §188](../../../../../../../../docs/adr/0013-one-anchor-and-a-trigger-that-shapes-the-form.md)).
+    ///
+    /// The weaker guarantee is chosen on purpose, and the reason is where the check *cannot* go: a
+    /// compact constructor runs on every read as well as every write, so one bad row would throw out
+    /// of `findAll()` and take the whole due check's sweep with it — the failure `DueTemplateChecker`
+    /// already catches per template, moved somewhere nothing can catch it. Validation belongs on the
+    /// way in.
+    ///
+    /// Two rules:
+    ///
+    /// - **A template must be able to render something.** A template with no definitions fires an
+    ///   event with no tasks, which `TaskTemplateFired` refuses — so today it throws once an hour,
+    ///   for ever, and the only trace is an ERROR line.
+    ///   [#49](https://github.com/stainii/task/issues/49) left five such rows in the shared test
+    ///   database by `PUT`ting exactly this.
+    /// - **`${…}` is manual-only.** Nobody is present to answer a placeholder when a template fires
+    ///   at 04:00, so a scheduled template containing one renders a task literally named `${school}`.
+    ///
+    /// @throws TaskTemplateInvalidException when this template could not usefully fire
+    public void validateForSaving() {
+        if (taskDefinitions.isEmpty()) {
+            throw new TaskTemplateInvalidException(
+                    "Template " + id + " has no task definitions, so it could never produce a task.");
+        }
+
+        var variables = variables();
+        if (!variables.isEmpty() && !(trigger() instanceof Trigger.Manual)) {
+            throw new TaskTemplateInvalidException(
+                    "Template " + id + " is scheduled, so nothing can answer its variables "
+                            + variables + ". Variables are manual-only.");
+        }
+    }
+
+    /// **Renders a firing into the fact that it happened**: `${…}` substituted, offsets resolved to
+    /// real dates, nothing left for the listener to look up.
+    ///
+    /// It lives on the aggregate, not in a service, because everything it reads is the template's
+    /// own — the placeholders, the offsets, and the trigger that supplies the fallback due date.
+    /// That also makes it callable without a Spring context, which is what lets `/render-fixtures/`
+    /// pin it the way `/fold-fixtures/` pins the fold ([ADR-0011](../../../../../../../../docs/adr/0011-completion-is-a-task-fact-the-template-reads.md)):
+    /// **no rendering rule without a fixture**, because this rule exists twice — here and in the
+    /// front-end's preview.
+    ///
+    /// What crosses the module boundary is the result, never a `Task`: building one of those is
+    /// `task`'s own business (ADR-0002).
+    ///
+    /// The template's **context** is rendered before any definition is, so a template whose text
+    /// resolves to nothing fails loudly and produces **no tasks at all** rather than some of them
+    /// (TODO-022, over portal's silent `"No name"` fallback).
+    ///
+    /// @param variables   the answers to [#variables]. A scheduled firing has none, which is what
+    ///                    [#validateForSaving] guarantees is enough.
+    /// @param firingDate  the date the template came round — today for a manual run, the rule's date
+    ///                    for a scheduled one, which after an outage is in the past
+    /// @param anchor      the date this firing's tasks are measured from, or null when a manual
+    ///                    template was run without one
+    public TaskTemplateFired render(Map<String, String> variables, LocalDate firingDate, @Nullable LocalDate anchor) {
+        var renderedContext = fillInVariables(context, variables)
+                .filter(rendered -> !rendered.isBlank())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Template " + id + " renders to an empty context."));
+
+        // The trigger's own arithmetic, asked here rather than passed in: a caller that computed it
+        // itself is a caller that can compute it differently, and the manual-run path used to pass a
+        // hard null that only agreed with `Manual` by luck.
+        var defaultDueDate = trigger().defaultDueDateFor(firingDate).orElse(null);
+
+        var rendered = taskDefinitions.stream()
+                .map(definition -> render(definition, variables, firingDate, anchor, defaultDueDate))
+                .toList();
+
+        return new TaskTemplateFired(id, UUID.randomUUID(), firingDate, renderedContext, rendered);
+    }
+
+    private TaskTemplateFired.RenderedDefinition render(TaskDefinition definition, Map<String, String> variables,
+                                                        LocalDate firingDate, @Nullable LocalDate anchor,
+                                                        @Nullable LocalDate defaultDueDate) {
+        var renderedName = fillInVariables(definition.name(), variables)
+                .filter(rendered -> !rendered.isBlank())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Definition " + definition.id() + " of template " + id + " renders to an empty name."));
+
+        return new TaskTemplateFired.RenderedDefinition(
+                renderedName,
+                fillInVariables(definition.description(), variables).orElse(null),
+                definition.importance(),
+                // No start offset means the task starts the day the template came round. It used to
+                // mean "today", which is the same date for a manual run and the wrong one for a
+                // calendar template catching up on a date it slept through.
+                definition.startDateFrom(anchor).orElse(firingDate),
+                definition.dueDateFrom(anchor).orElse(defaultDueDate));
     }
 }

@@ -1,0 +1,31 @@
+{
+  "rule": "A definition whose name renders to nothing throws, and the firing produces no tasks at all rather than some of them (TODO-022). Portal named it \"No name\" and carried on.",
+  "template": {
+    "name": "Opvolgen workshop",
+    "context": "work",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When is the workshop?" },
+    "taskDefinitions": [
+      {
+        "name": "Voorbereiding",
+        "description": null,
+        "startDateOffsetDays": 0,
+        "dueDateOffsetDays": 1,
+        "importance": "IMPORTANT"
+      },
+      {
+        "name": "${school}",
+        "description": null,
+        "startDateOffsetDays": 0,
+        "dueDateOffsetDays": 1,
+        "importance": "IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-02",
+    "anchor": "2026-03-02",
+    "variables": { "school": "" }
+  },
+  "expectedError": "renders to an empty name"
+}

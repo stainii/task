@@ -20,28 +20,38 @@ import java.util.stream.StreamSupport;
 public class TaskTemplateMapper {
 
     /// A template as the client asked for it, with the server owning identity and the clock.
-    /// `activeSince` is *today* on creation, never whatever the payload said.
+    /// `activeSince` is *today* on creation, never whatever the payload said — and a new template is
+    /// **active**, whatever the payload said, because deactivating something that has never fired is
+    /// a way of writing "no".
     public TaskTemplate toNewDomain(TaskTemplateDto dto, LocalDate today) {
         return new TaskTemplate(
                 dto.id() == null ? UUID.randomUUID() : dto.id(),
                 dto.name(),
                 dto.context(),
-                dto.active(),
+                true,
                 today,
                 dto.trigger(),
                 toDefinitions(dto.taskDefinitions()),
                 0L);
     }
 
-    /// Applies an edit to an existing template, keeping `id`, `version` and `activeSince` — the
-    /// three values a client does not own. Whether the new trigger *moves* `activeSince` is the
-    /// service's call, not this one's, because that depends on comparing the two.
+    /// Applies an edit to an existing template, keeping `id`, `version`, `active` and `activeSince` —
+    /// the four values a client does not own.
+    ///
+    /// **`active` is kept deliberately**, and it is the field this mapper exists for. Taking it from
+    /// the payload would make a `PUT` a second path to reactivation, and that path does not write
+    /// `activeSince` — so a calendar template switched back on by an edit would immediately catch up
+    /// on a date it spent the pause not firing for. Activation has its own two endpoints so that
+    /// changing it and moving `activeSince` cannot come apart.
+    ///
+    /// Whether the new trigger *moves* `activeSince` is the service's call, not this one's, because
+    /// that depends on comparing the two.
     public TaskTemplate applyEdit(TaskTemplateDto dto, TaskTemplate existing) {
         return new TaskTemplate(
                 existing.id(),
                 dto.name(),
                 dto.context(),
-                dto.active(),
+                existing.active(),
                 existing.activeSince(),
                 dto.trigger(),
                 toDefinitions(dto.taskDefinitions()),

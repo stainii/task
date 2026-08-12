@@ -27,6 +27,11 @@ public class TaskOccurrencesService implements TaskOccurrences {
     }
 
     @Override
+    public boolean hasAnyOccurrence(UUID templateId) {
+        return queries.hasAnyTask(templateId);
+    }
+
+    @Override
     public Optional<LocalDate> lastCompletionOf(UUID templateId) {
         return queries.latestCompletedOn(templateId);
     }

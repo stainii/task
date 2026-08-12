@@ -1,0 +1,24 @@
+{
+  "rule": "The context is rendered before any definition is, so a template that cannot say which context its tasks belong to fails before it has rendered a single one.",
+  "template": {
+    "name": "Bezoek ${wie}",
+    "context": "${wie}",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When?" },
+    "taskDefinitions": [
+      {
+        "name": "Bezoek ${wie}",
+        "description": null,
+        "startDateOffsetDays": 0,
+        "dueDateOffsetDays": 1,
+        "importance": "IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-02",
+    "anchor": "2026-03-02",
+    "variables": { "wie": "   " }
+  },
+  "expectedError": "renders to an empty context"
+}

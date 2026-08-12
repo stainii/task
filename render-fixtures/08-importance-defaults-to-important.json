@@ -1,0 +1,35 @@
+{
+  "rule": "A definition that names no importance produces an IMPORTANT task. The default lives in the model, so no null ever reaches a task that must have one.",
+  "template": {
+    "name": "Planten water geven",
+    "context": "house",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When?" },
+    "taskDefinitions": [
+      {
+        "name": "Planten water geven",
+        "description": null,
+        "startDateOffsetDays": 0,
+        "dueDateOffsetDays": 0,
+        "importance": null
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-04",
+    "anchor": "2026-03-04",
+    "variables": {}
+  },
+  "expected": {
+    "context": "house",
+    "definitions": [
+      {
+        "name": "Planten water geven",
+        "description": null,
+        "importance": "IMPORTANT",
+        "startDate": "2026-03-04",
+        "dueDate": "2026-03-04"
+      }
+    ]
+  }
+}

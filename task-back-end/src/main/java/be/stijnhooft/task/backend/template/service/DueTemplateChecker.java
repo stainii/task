@@ -42,12 +42,11 @@ import java.util.Map;
 public class DueTemplateChecker {
 
     /// A scheduled firing has no one to answer a `${…}`, so there is nothing to substitute. Keeping
-    /// a placeholder out of a scheduled template is a save-time validation
-    /// ([#50](https://github.com/stainii/task/issues/50)), not something to paper over here.
+    /// a placeholder out of a scheduled template is `TaskTemplate#validateForSaving`'s job, not
+    /// something to paper over here.
     private static final Map<String, String> NO_VARIABLES = Map.of();
 
     private final TaskTemplateRepository taskTemplateRepository;
-    private final TaskTemplateService taskTemplateService;
     private final TaskOccurrences taskOccurrences;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
@@ -84,9 +83,7 @@ public class DueTemplateChecker {
     /// **The anchor is the firing date.** For a scheduled template the date the rule named is the
     /// date its tasks are measured from; only a manual run has an anchor of its own to type.
     private void fire(TaskTemplate template, LocalDate firingDate) {
-        var defaultDueDate = template.trigger().defaultDueDateFor(firingDate).orElse(null);
-        eventPublisher.publishEvent(
-                taskTemplateService.render(template, NO_VARIABLES, firingDate, firingDate, defaultDueDate));
+        eventPublisher.publishEvent(template.render(NO_VARIABLES, firingDate, firingDate));
 
         // The firing date is logged even when it is today, because a date in the past is the
         // catch-up path and the only visible trace that the app was down across a date the

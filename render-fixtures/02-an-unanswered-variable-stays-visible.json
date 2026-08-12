@@ -1,0 +1,35 @@
+{
+  "rule": "A variable nobody answered is left standing as ${...} rather than blanked. The task is then named for the mistake, which is how you find it; substituting it away would produce a plausible name nobody typed.",
+  "template": {
+    "name": "Opvolgen workshop",
+    "context": "work",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When is the workshop?" },
+    "taskDefinitions": [
+      {
+        "name": "Voorbereidingsmail ${school}",
+        "description": "Vraag ${lector} om de slides.",
+        "startDateOffsetDays": 0,
+        "dueDateOffsetDays": 1,
+        "importance": "IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-02",
+    "anchor": "2026-03-02",
+    "variables": { "school": "Sint-Jan" }
+  },
+  "expected": {
+    "context": "work",
+    "definitions": [
+      {
+        "name": "Voorbereidingsmail Sint-Jan",
+        "description": "Vraag ${lector} om de slides.",
+        "importance": "IMPORTANT",
+        "startDate": "2026-03-02",
+        "dueDate": "2026-03-03"
+      }
+    ]
+  }
+}

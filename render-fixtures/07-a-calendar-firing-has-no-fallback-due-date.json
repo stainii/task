@@ -1,0 +1,35 @@
+{
+  "rule": "A calendar rule names a date and nothing else, so a definition with no due offset produces a task with no due date at all. Only min/max has a window to fall back on.",
+  "template": {
+    "name": "Glasbak",
+    "context": "house",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "CALENDAR", "calendarRule": "WEEKS", "calendarInterval": 1, "calendarWeekdays": "TUESDAY" },
+    "taskDefinitions": [
+      {
+        "name": "Glasbak",
+        "description": null,
+        "startDateOffsetDays": null,
+        "dueDateOffsetDays": null,
+        "importance": "IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-03",
+    "anchor": "2026-03-03",
+    "variables": {}
+  },
+  "expected": {
+    "context": "house",
+    "definitions": [
+      {
+        "name": "Glasbak",
+        "description": null,
+        "importance": "IMPORTANT",
+        "startDate": "2026-03-03",
+        "dueDate": null
+      }
+    ]
+  }
+}

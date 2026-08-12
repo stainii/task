@@ -226,3 +226,22 @@ nearest thing that would restore it — reporting / task history — is out of s
 **A stated limit follows.** This ADR sold `completedOn` partly on *"correcting it later is just
 another patch"*. That promise is withdrawn: the correction path is undo-then-recomplete inside the
 toast's ~8 seconds, and after that a wrong completion date is permanent.
+
+### The sibling fixture directory is `/render-fixtures/`, and rendering moved onto the aggregate
+
+Amended by [Template CRUD v2](https://github.com/stainii/task/issues/50), 2026-08-12.
+
+This ADR predicted "a sibling fixture directory holding template + inputs → expected tasks". It
+exists, as [`/render-fixtures/`](../../render-fixtures/README.md), with eleven fixtures and the same
+enumerate-and-assert-non-empty contract as `/fold-fixtures/`.
+
+Building it moved one thing. **Rendering now lives on `TaskTemplate`, not in `TaskTemplateService`**
+— everything it reads is the template's own (the placeholders, the offsets, and the trigger that
+supplies the fallback due date), and on the aggregate it is callable with no Spring context, which is
+what keeps the fixture runner a plain unit test. The same move deleted a parameter: the fallback due
+date used to be computed by each caller and passed in, and the manual-run path passed a hard `null`
+that agreed with `Manual`'s answer only by luck. The trigger is now asked, always.
+
+One fixture pins a rule this ADR did not state: **a variable nobody answered is left standing as
+`${…}`** rather than blanked. The task is then named for the mistake, which is how it is found;
+substituting it away would produce a plausible name nobody typed.

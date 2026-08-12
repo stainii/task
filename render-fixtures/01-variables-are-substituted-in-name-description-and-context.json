@@ -1,0 +1,35 @@
+{
+  "rule": "Every ${...} is filled in, in the definition's name, in its description, and in the template's context.",
+  "template": {
+    "name": "Opvolgen workshop ${school}",
+    "context": "work-${school}",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When is the workshop?" },
+    "taskDefinitions": [
+      {
+        "name": "Voorbereidingsmail ${school}",
+        "description": "Stuur de mail naar ${contact} van ${school}.",
+        "startDateOffsetDays": -14,
+        "dueDateOffsetDays": -7,
+        "importance": "IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-02",
+    "anchor": "2026-04-15",
+    "variables": { "school": "Sint-Jan", "contact": "Els" }
+  },
+  "expected": {
+    "context": "work-Sint-Jan",
+    "definitions": [
+      {
+        "name": "Voorbereidingsmail Sint-Jan",
+        "description": "Stuur de mail naar Els van Sint-Jan.",
+        "importance": "IMPORTANT",
+        "startDate": "2026-04-01",
+        "dueDate": "2026-04-08"
+      }
+    ]
+  }
+}

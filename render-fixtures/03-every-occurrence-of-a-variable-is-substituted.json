@@ -1,0 +1,35 @@
+{
+  "rule": "A variable used twice in one text is filled in twice.",
+  "template": {
+    "name": "Reis ${bestemming}",
+    "context": "personal",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When do you leave?" },
+    "taskDefinitions": [
+      {
+        "name": "${bestemming}: inpakken voor ${bestemming}",
+        "description": null,
+        "startDateOffsetDays": -2,
+        "dueDateOffsetDays": -1,
+        "importance": "VERY_IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-02",
+    "anchor": "2026-05-20",
+    "variables": { "bestemming": "Rome" }
+  },
+  "expected": {
+    "context": "personal",
+    "definitions": [
+      {
+        "name": "Rome: inpakken voor Rome",
+        "description": null,
+        "importance": "VERY_IMPORTANT",
+        "startDate": "2026-05-18",
+        "dueDate": "2026-05-19"
+      }
+    ]
+  }
+}

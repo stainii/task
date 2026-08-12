@@ -1,0 +1,35 @@
+{
+  "rule": "A definition with no start offset starts on the firing date, not on the anchor and not on today. For a calendar template catching up on a date it slept through, those are three different dates.",
+  "template": {
+    "name": "Vuilnis buitenzetten",
+    "context": "house",
+    "activeSince": "2026-03-01",
+    "trigger": { "type": "MANUAL", "anchorLabel": "When?" },
+    "taskDefinitions": [
+      {
+        "name": "Vuilnis buitenzetten",
+        "description": null,
+        "startDateOffsetDays": null,
+        "dueDateOffsetDays": 3,
+        "importance": "IMPORTANT"
+      }
+    ]
+  },
+  "firing": {
+    "firingDate": "2026-03-05",
+    "anchor": "2026-03-20",
+    "variables": {}
+  },
+  "expected": {
+    "context": "house",
+    "definitions": [
+      {
+        "name": "Vuilnis buitenzetten",
+        "description": null,
+        "importance": "IMPORTANT",
+        "startDate": "2026-03-05",
+        "dueDate": "2026-03-23"
+      }
+    ]
+  }
+}

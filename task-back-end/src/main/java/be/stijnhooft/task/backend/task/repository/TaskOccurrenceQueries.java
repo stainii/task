@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
-/// The three questions `TaskOccurrences` answers, as SQL over the task table.
+/// The four questions `TaskOccurrences` answers, as SQL over the task table.
 ///
 /// Aggregates rather than rows, so they are read with `JdbcClient` the way the sequence's watermark
 /// is: loading a template's whole history to take a maximum from it would grow without bound and
@@ -30,6 +30,15 @@ public class TaskOccurrenceQueries {
                 .sql("SELECT EXISTS(SELECT 1 FROM task WHERE task_template_id = :templateId AND status = :status)")
                 .param("templateId", templateId)
                 .param("status", TaskStatus.OPEN.name())
+                .query(Boolean.class)
+                .single());
+    }
+
+    /// Any task at all, whatever its status. Deletion is refused on history, not on open work.
+    public boolean hasAnyTask(UUID templateId) {
+        return Boolean.TRUE.equals(jdbcClient
+                .sql("SELECT EXISTS(SELECT 1 FROM task WHERE task_template_id = :templateId)")
+                .param("templateId", templateId)
                 .query(Boolean.class)
                 .single());
     }

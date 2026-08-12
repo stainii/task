@@ -379,3 +379,43 @@ a second discriminator waiting to disagree with the first.
 
 `Manual` therefore has exactly one component and no behaviour: it is the trigger that answers *when
 do you next come round?* with **never**.
+
+### Deactivation writes `active_since` too, so the rule has one clause instead of three
+
+Amended by [Template CRUD v2](https://github.com/stainii/task/issues/50), 2026-08-12.
+
+This ADR's earlier amendment lists three writing events — creation, reactivation, and a trigger
+change — and calls them "not three rules; they are what that one sentence means". Building the
+endpoints showed the sentence is cheaper to hold if **deactivation writes the field as well**.
+
+Nothing reads it while a template is off: rule 1 of the firing predicate stops a deactivated template
+before any date arithmetic happens, and reactivation overwrites the value anyway. The write is
+therefore invisible in behaviour, and that is exactly why it is worth making — it collapses the field
+to **anything that changes whether or how this template fires moves `active_since`**, one clause with
+no list to keep in step. The three cases still fall out of it unchanged.
+
+The same reasoning kills a second path rather than adding one. **`active` is read-only on the wire.**
+Accepting it on a `PUT` would give reactivation two routes, and the `PUT` route does not move
+`active_since` — so a calendar template switched back on by an edit would come back catching up on a
+date it spent the pause deliberately not firing for, which is the failure this amendment's parent
+exists to prevent. Activation gets `POST /{id}/deactivation` and `POST /{id}/reactivation`, and
+`TaskTemplateMapper#applyEdit` keeps the server's value.
+
+### Save-time validation, and the two things it refuses
+
+Amended by [Template CRUD v2](https://github.com/stainii/task/issues/50), 2026-08-12.
+
+This ADR made *`${…}` is manual-only* "deliberately a validation and not an unrepresentable state".
+Building it added a second rule of the same kind and a reason the pair cannot move up into the model.
+
+The second rule: **a template must have at least one task definition.** A template with none renders
+an empty firing, which `TaskTemplateFired` refuses — so before this it threw once an hour for as long
+as the row existed, and the only trace was an ERROR line.
+[#49](https://github.com/stainii/task/issues/49) left five such rows in the shared test database by
+`PUT`ting exactly that, and they are what proved its per-template catch works.
+
+The reason both stay validations: **a compact constructor runs on every read as well as every
+write.** One bad row would then throw out of `findAll()` and take the whole due-check sweep with it —
+the per-template failure `DueTemplateChecker` catches, moved somewhere nothing can catch it. So the
+guarantee is the weaker one, on the way in, and the sweep's catch stays the backstop for whatever is
+already stored.

@@ -191,18 +191,32 @@ From [#32](https://github.com/stainii/task/issues/32), and the labour is now spl
 Aimed at what the backlog is about to build: the sorted fold, the three `Trigger` implementations,
 and [ADR-0005](adr/0005-migration-by-replay-into-one-history.md)'s importer.
 
-### Shared golden fixtures for the fold
+### Shared golden fixtures for anything implemented twice
 
-[ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md): **no fold rule without a fixture.**
-The fold exists twice — Java and TypeScript — and drift between them would be silent.
+Two rules in this app exist in both Java and TypeScript, and drift between them would be silent:
 
-- Fixtures live in `/fold-fixtures/` at the repo root, as plain JSON: input patches plus the
-  expected task.
+- **the fold** — [ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md): *no fold rule
+  without a fixture*, in [`/fold-fixtures/`](../fold-fixtures/README.md);
+- **template rendering** — [ADR-0011](adr/0011-completion-is-a-task-fact-the-template-reads.md):
+  *no rendering rule without a fixture*, in [`/render-fixtures/`](../render-fixtures/README.md),
+  added by [#50](https://github.com/stainii/task/issues/50).
+
+Both directories work the same way, and the mechanism is the point:
+
+- Fixtures live at the repo root, as plain JSON: the inputs plus the expected output, with **every
+  field named including the nulls**.
 - **Both suites enumerate the directory dynamically** — a JUnit `@ParameterizedTest` over the files,
   vitest over the same glob. Adding a file adds a test on both sides, with nothing to register.
 - **Both suites assert they ran a non-zero count**, so a broken path fails loudly instead of quietly
   testing nothing. That is exactly how #32's pitest run came to measure its own exclusion for four
   months.
+- **The rule under test is callable without a Spring context.** `Task.foldOf` and
+  `TaskTemplate#render` are both on the aggregate, which is what keeps the fixture runner a plain
+  unit test rather than something that needs a database to say what a date should be.
+
+**A third implementation of anything gets the same treatment.** The test is not "is this logic
+complicated" — rendering is a `String.replace` loop and some `plusDays` — it is "does this rule exist
+in more than one place".
 
 ### Testing SSE
 

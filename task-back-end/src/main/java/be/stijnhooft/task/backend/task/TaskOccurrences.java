@@ -12,7 +12,7 @@ import java.util.UUID;
 /// answer, so it is asked here rather than pushed as a `TaskClosed` event nobody would be waiting
 /// for.
 ///
-/// It is a purpose-built port, not a window onto the repository: three questions, all of them
+/// It is a purpose-built port, not a window onto the repository: four questions, all of them
 /// derived from tasks and their patch history, because [ADR-0001](../../../../../../../../docs/adr/0001-one-task-aggregate-with-triggered-templates.md)
 /// deleted `Execution` and `activeTask` and made an occurrence something you compute rather than
 /// something you store.
@@ -30,6 +30,18 @@ public interface TaskOccurrences {
     /// *any* open task of the template suppresses it, and a firing whose tasks ended differently
     /// needs no rule to adjudicate.
     boolean hasOpenOccurrence(UUID templateId);
+
+    /// *Has this template ever produced a task?* — the one question deletion turns on
+    /// ([#50](https://github.com/stainii/task/issues/50)).
+    ///
+    /// A template with tasks is **deactivated, never deleted**: `taskTemplateId` is load-bearing now
+    /// that an occurrence is derived, and portal measured what deleting costs — 49% of its recurring
+    /// tasks point at a template that no longer exists
+    /// ([#35](https://github.com/stainii/task/issues/35)). So deletion survives only for the case
+    /// where nothing can be orphaned, and that is **a count, not a judgement** — which is why it is
+    /// asked here rather than inferred from the other three. A template whose every task was
+    /// cancelled years ago still has history; [#hasOpenOccurrence] would say it is free to delete.
+    boolean hasAnyOccurrence(UUID templateId);
 
     /// ***When did I last actually do this?*** — history, and the only honest answer to it.
     ///

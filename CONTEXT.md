@@ -110,15 +110,21 @@ This is available to every trigger, not only to manual runs, which is what lets 
 say "wash the bedding *and* hoover the bed" as two tasks rather than one name with "en" in it.
 
 A template is never deleted once it has tasks; it is **deactivated**, which stops it firing and
-hides it from the list. Its tasks keep pointing at something real.
+hides it from the list. Its tasks keep pointing at something real. The server refuses the delete
+outright — *has* tasks, not *has open* tasks, so a template whose every task was completed years ago
+is exactly the one that is protected.
+
+Templates are **online-write-only**: plain CRUD, no patches and no outbox. Patching works for tasks
+precisely because a task is inert; a template is a rule that keeps running in your absence.
 
 ### Active since
 
 **The date a task template began firing under its current rule.**
 
-Written on creation, on reactivation, and whenever the **trigger** changes — editing a task
-definition's name or description does not touch it. Those three cases are not three rules; they are
-what that one sentence means.
+**Anything that changes whether or how this template fires moves it** — creation, deactivation,
+reactivation, and a change of **trigger**. Editing a task definition's name or description does not.
+That is one clause rather than a list of cases, which is why deactivation writes it too even though
+nothing reads it while a template is off.
 
 It does two jobs. It is the floor for a **calendar** trigger, which never looks for missed dates
 before it — so a template made today with a backdated **anchor**, or switched back on after months

@@ -346,6 +346,21 @@ This also collides with offline-first: a disconnected client cannot mint patch i
 - It injects `RecurringTaskTemplateRepository` **directly into the controller**, bypassing the service layer that `task` and `template` use.
 - No `@Valid` on its request bodies (`TaskController` and `TaskPatchController` do validate).
 
+> **Resolved in [#47](https://github.com/stainii/task/issues/47) and
+> [#50](https://github.com/stainii/task/issues/50).** The class itself went with
+> `RecurringTaskTemplate`; #50 rebuilt the surviving surface and closed all four points — every
+> mapping names its verb (asserted: a `PATCH` on `/{id}` is a `405`), no trailing slashes, the
+> service layer is the only thing the controller talks to, and both bodies are `@Valid`.
+>
+> **The fourth point was the one with teeth.** Missing validation is not a tidiness complaint here:
+> without it a `PUT` carrying no task definitions was accepted, and the resulting template throws
+> every time it fires — once an hour, for as long as the row exists, with an ERROR line as the only
+> trace. [#49](https://github.com/stainii/task/issues/49) left five such rows in the shared test
+> database by doing exactly that, and they are what proved its per-template catch works.
+>
+> All four points are now project-wide rules in [`quality-bar.md`](quality-bar.md) §6 rather than a
+> correction to one controller.
+
 **D5 (`HEALTH-05`) — a null `changes` map yields a 500, not a 400.**
 
 > **Resolved in [#46](https://github.com/stainii/task/issues/46).** `TaskPatchDto` carries
