@@ -18,6 +18,12 @@ and editing a trigger all write `active_since`.
 
 Nothing is enacted, on ADR-0016's precedent. See *Consequences*.
 
+**Enacted by [#49](https://github.com/stainii/task/issues/49)** — the predicate as one rule on
+`TaskTemplate`, the min/max seed, and boundary tests either side of every comparison in it. See the
+amendment at the foot of this file: **the min/max round starts at the later of the last closure and
+`active_since`**, without which the reset this ADR introduced would freeze a re-ruled template
+permanently.
+
 ## Context
 
 ADR-0001 introduced `Calendar` as a third trigger precisely because it **never drifts** — its clock
@@ -214,3 +220,32 @@ This is a **stated limit, not an oversight**.
   walk died when rule 3 turned it into arithmetic. Both were in the recommendation that opened the
   session; both were wrong for the same reason, which is that they were sized against an outage
   nobody had measured instead of against what the model already guaranteed.
+
+## Amendments
+
+### A min/max round starts at the later of the last closure and `active_since`
+
+Amended by [The firing engine: an hourly tick and one predicate](https://github.com/stainii/task/issues/49),
+2026-08-12.
+
+This ADR gave `active_since` two jobs — the floor of the predicate, and the seed *"a brand-new
+min/max template has no closed task, so `active_since` answers it"* — and building the predicate
+showed the second sentence is one word too narrow. **Read as *only* when there is no closure, the
+reset this ADR introduced becomes permanent silence.**
+
+A min/max template last closed on 10 March and re-ruled on 1 June computes its round from the
+closure: 15 March, five days after a date three months gone. Rule 3's floor then refuses it for
+sitting below `active_since` — and it will compute the same March date on the next tick, and on
+every tick after that, for the rest of the template's life. Nothing is open, nothing is overdue, and
+nothing appears: `activeTask`'s freeze bug, arriving through the very field added to prevent this
+class of thing, and the **third** time this map has found it inverted.
+
+Deactivate-and-reactivate takes the same path, so the same freeze was waiting for
+[#50](https://github.com/stainii/task/issues/50)'s endpoints.
+
+The rule: **the round starts at whichever of the last closure and `active_since` is later.** It is
+this ADR's own stated direction for a reset — *it can only ever prevent a firing, never lose one* —
+applied to the arithmetic rather than only to the predicate. It also makes rule 3's floor
+unreachable for every trigger shape that exists, since a calendar rule already enumerates from the
+anchor; the floor stays written down as the predicate's own guarantee, so a fourth shape cannot fire
+below `active_since` by omission.

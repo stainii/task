@@ -2,4 +2,6 @@
 |===
 |Base package
 |`be.stijnhooft.task.backend.template`
+|Bean references
+|* `b.s.t.b.t.TaskOccurrences` (in Task)
 |===

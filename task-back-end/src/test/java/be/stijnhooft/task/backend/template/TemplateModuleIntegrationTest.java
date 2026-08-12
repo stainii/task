@@ -1,6 +1,7 @@
 package be.stijnhooft.task.backend.template;
 
 import be.stijnhooft.task.backend.AbstractIntegrationTestCases;
+import be.stijnhooft.task.backend.task.TaskOccurrences;
 import be.stijnhooft.task.backend.template.domain.CalendarRule;
 import be.stijnhooft.task.backend.template.domain.StoredTrigger;
 import be.stijnhooft.task.backend.template.domain.TaskTemplate;
@@ -16,6 +17,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.modulith.test.ApplicationModuleTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import java.time.DayOfWeek;
@@ -33,6 +35,12 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
 
     @Autowired
     private TaskTemplateRepository taskTemplateRepository;
+
+    /// `template` bootstraps alone here, and since #49 it reads `task`'s query port to decide
+    /// whether a template has come round. Nothing in this class fires anything - the mock is what
+    /// keeps the module test standalone, which is the point of it.
+    @MockitoBean
+    private TaskOccurrences taskOccurrences;
 
     private RestTestClient restTestClient;
 

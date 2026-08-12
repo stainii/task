@@ -45,6 +45,17 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
     ///                     ([ADR-0011](../../../../../../../../docs/adr/0011-completion-is-a-task-fact-the-template-reads.md)).
     Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure);
 
+    /// The due date a definition with no due offset falls back to, for a firing on `firingDate`.
+    ///
+    /// Only [MinMax] has one — its `max` is *the day this stops being a suggestion* (REC-006), and
+    /// the old reminder→urgent escalation is exactly that task going overdue. A calendar firing
+    /// names a date and nothing else, so a definition that sets no due offset produces a task with
+    /// no due date.
+    ///
+    /// Asked of the trigger rather than switched on by the caller, for the same reason
+    /// [#latestFiringDateOn] is: adding a fourth shape must not compile until it has answered both.
+    Optional<LocalDate> defaultDueDateFor(LocalDate firingDate);
+
     /// Run by hand. It never comes round on its own, so it never fires: someone opens the template
     /// and types the anchor date.
     ///
@@ -64,6 +75,11 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
 
         @Override
         public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<LocalDate> defaultDueDateFor(LocalDate firingDate) {
             return Optional.empty();
         }
     }
@@ -111,13 +127,25 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
 
         /// Created at `min`, due at `max` — both measured from the same round start, so the due
         /// date is the firing date plus the window.
-        public LocalDate dueDateFor(LocalDate firingDate) {
-            return firingDate.plusDays(window());
+        @Override
+        public Optional<LocalDate> defaultDueDateFor(LocalDate firingDate) {
+            return Optional.of(firingDate.plusDays(window()));
         }
 
+        /// The round starts at **the later of the last closure and `active_since`**, and the
+        /// `active_since` half is not a formality.
+        ///
+        /// Reading the closure alone freezes a re-ruled or reactivated template *permanently*: a
+        /// template last closed in March and re-ruled in June computes a firing date in March,
+        /// which the predicate then refuses for being below `active_since` — and it will compute
+        /// the same March date on every tick for the rest of its life. `activeTask`'s freeze bug,
+        /// arriving through the field ADR-0017 added to prevent exactly this class of thing.
+        ///
+        /// Taking the later of the two is also ADR-0017's stated direction for a reset: it can only
+        /// ever *prevent* a firing, never lose one.
         @Override
         public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure) {
-            var roundStarted = lastClosure == null ? activeSince : lastClosure;
+            var roundStarted = lastClosure == null || lastClosure.isBefore(activeSince) ? activeSince : lastClosure;
             var firingDate = roundStarted.plusDays(min);
             return firingDate.isAfter(today) ? Optional.empty() : Optional.of(firingDate);
         }
@@ -131,6 +159,13 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
         @Override
         public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure) {
             return rule.latestOccurrenceOnOrBefore(today, activeSince);
+        }
+
+        /// A calendar rule names a date, not a window. A definition with no due offset produces a
+        /// task with no due date.
+        @Override
+        public Optional<LocalDate> defaultDueDateFor(LocalDate firingDate) {
+            return Optional.empty();
         }
     }
 }

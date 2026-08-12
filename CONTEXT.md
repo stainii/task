@@ -224,6 +224,25 @@ judge.
 
 A scheduled template does not fire again while it has an **open task**.
 
+### Due check
+
+**The hourly sweep that asks every task template whether it has come round**, and the only thing
+that ever fires one on its own.
+
+It runs **every hour, and starting the app is one of the runs** — the same code path either way,
+which is why the startup case needs no trust of its own. So a task can appear at any hour, not just
+overnight: that is the point rather than a side effect, since a **min/max** template with a window
+of 0 exists precisely so a chore can come back the same day. Anything that becomes due at the date
+boundary exists by 01:00, always ahead of the morning push.
+
+It is a **state comparison, not a calendar event**, so it cannot be missed: a check that never ran
+is re-derived by the next one, and the server has no reason to be awake at any particular hour.
+
+A check that fires says so; a check that finds nothing is silent.
+
+Resolved in [#40](https://github.com/stainii/task/issues/40),
+[ADR-0016](docs/adr/0016-the-due-check-ticks-hourly-and-starts-with-the-app.md).
+
 ### Context
 
 **A label you filter your tasks by** — "housagotchi", "setlist", "health", "social", "work".

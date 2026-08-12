@@ -98,7 +98,7 @@ class TriggerTest {
             assertThat(trigger.min()).isEqualTo(5);
             assertThat(trigger.max()).isEqualTo(5);
             assertThat(trigger.window()).isZero();
-            assertThat(trigger.dueDateFor(ACTIVE_SINCE)).isEqualTo(ACTIVE_SINCE);
+            assertThat(trigger.defaultDueDateFor(ACTIVE_SINCE)).contains(ACTIVE_SINCE);
         }
 
         /// Created at `min`, due at `max` (REC-006): the final warning is just a task going overdue,
@@ -108,7 +108,7 @@ class TriggerTest {
             var trigger = Trigger.MinMax.ofIntervalAndWindow(10, 11);
 
             assertThat(trigger.max()).isEqualTo(21);
-            assertThat(trigger.dueDateFor(ACTIVE_SINCE.plusDays(10))).isEqualTo(ACTIVE_SINCE.plusDays(21));
+            assertThat(trigger.defaultDueDateFor(ACTIVE_SINCE.plusDays(10))).contains(ACTIVE_SINCE.plusDays(21));
         }
 
         @Test

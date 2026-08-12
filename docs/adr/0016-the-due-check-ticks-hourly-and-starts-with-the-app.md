@@ -21,6 +21,13 @@ does not carry over, so `docs/portal-inventory.md` and
 Nothing is enacted. This ADR is a constraint on
 [#11](https://github.com/stainii/task/issues/11)'s rebuild; see *Consequences*.
 
+**Enacted by [#49](https://github.com/stainii/task/issues/49)**, which built all five obligations:
+`DueCheckSchedule` (the `fixedDelay`/`initialDelay` pair, its own thread, the checker/wrapper split),
+`DueTemplateChecker` (silent when idle), `TaskTemplate#firingDateOn` (the single predicate, with the
+same-date rule subsumed per the amendment below), scheduling off in `src/test/resources/application.properties`
+with `DueCheckStartupIntegrationTest` turning it back on, and the cron property — already gone with
+`RecurringTaskTemplate` in [#47](https://github.com/stainii/task/issues/47).
+
 ## Context
 
 [#9](https://github.com/stainii/task/issues/9) found that **the server never needed to be up at

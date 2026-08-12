@@ -35,7 +35,7 @@ actually running rather than merely configured.
 
 ### Tests and the modulith check
 
-`./mvnw verify` — currently 178 tests in about 0:40. `ApplicationModules.verify()` runs as a test
+`./mvnw verify` — currently 215 tests in about 0:50. `ApplicationModules.verify()` runs as a test
 and enforces [ADR-0003](adr/0003-two-modules-with-package-visibility-as-the-boundary.md)'s module
 boundaries.
 

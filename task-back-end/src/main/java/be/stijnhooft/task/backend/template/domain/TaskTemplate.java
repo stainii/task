@@ -1,6 +1,7 @@
 package be.stijnhooft.task.backend.template.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Embedded;
@@ -9,6 +10,7 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /// **One template, one trigger.** The single generator of tasks in this application: a name, a
@@ -88,6 +90,52 @@ public record TaskTemplate(
     @JsonIgnore
     public Trigger trigger() {
         return storedTrigger.toTrigger();
+    }
+
+    /// **The firing predicate — one rule, not several**
+    /// ([ADR-0017 §105](../../../../../../../../docs/adr/0017-a-calendar-template-fires-for-its-latest-unclosed-date.md)).
+    ///
+    /// The template fires for `D`, its trigger's latest occurrence on or before `today`, when all
+    /// of these hold:
+    ///
+    /// 1. the template is **active**;
+    /// 2. it has **no open task** — ADR-0001's suppression rule;
+    /// 3. `D >= activeSince`, and `D` is strictly after `lastClosure`.
+    ///
+    /// ADR-0016's *"a calendar trigger fires for a date only once"* is **subsumed here, not
+    /// implemented beside this**: a task already carrying today's date is either open, and rule 2
+    /// stops it, or closed at `D`, and rule 3 stops it. Two rules over one condition is how two
+    /// implementations come to disagree at a date boundary — and a date boundary is where
+    /// `docs/quality-bar.md` says the bugs are.
+    ///
+    /// Rule 3 reads the most recent **closed** task rather than any task, which is what makes dates
+    /// that passed *while a task was open* satisfied by closing it: suppression pauses the rhythm
+    /// and the dates never move. Otherwise completing a three-week-old bin task instantly hands you
+    /// another.
+    ///
+    /// A missed date therefore comes back as **exactly one** firing, anchored on the most recent
+    /// date missed, however long the outage — `latestFiringDateOn` names one date and there is no
+    /// walk behind it.
+    ///
+    /// Rule 3's floor is currently unreachable, and stays written down: every [Trigger] is handed
+    /// `activeSince` and applies it — a calendar rule enumerates from it, and `MinMax` starts its
+    /// round at it — so no shape can return a date below it today. It is kept because the floor is
+    /// the predicate's guarantee rather than a trigger's courtesy, and a fourth shape that forgot
+    /// to apply it would otherwise fire below `activeSince` by omission.
+    ///
+    /// @param today        the application's notion of today, from the `Clock` bean
+    /// @param hasOpenTask  whether any task of this template is still open
+    ///                     (`TaskOccurrences#hasOpenOccurrence`)
+    /// @param lastClosure  the firing date of the most recently closed task
+    ///                     (`TaskOccurrences#lastClosureOf`), or null when nothing has closed
+    /// @return the date to fire for, or empty when this template must not fire
+    public Optional<LocalDate> firingDateOn(LocalDate today, boolean hasOpenTask, @Nullable LocalDate lastClosure) {
+        if (!active || hasOpenTask) {
+            return Optional.empty();
+        }
+        return trigger().latestFiringDateOn(today, activeSince, lastClosure)
+                .filter(firingDate -> !firingDate.isBefore(activeSince))
+                .filter(firingDate -> lastClosure == null || firingDate.isAfter(lastClosure));
     }
 
     /// A trigger change is one of the three things that rewrites [#activeSince], so the two move
