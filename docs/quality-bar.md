@@ -170,6 +170,15 @@ None of this is theoretical. Instancio mints dates decades ahead, and a stream t
 time window received a patch from another test class dated 2071. Test *order* would have changed
 the result.
 
+**A test that cannot obey these rules gets its own container, and says why.** There is exactly one:
+`PortalArchiveImportIntegrationTest`, which drives [ADR-0005](adr/0005-migration-by-replay-into-one-history.md)'s
+importer — its first act is `TRUNCATE task_patch, task CASCADE` and its last is 12,483 tasks and
+39,450 patches, so it both deletes what other classes created and leaves behind a hundred times more
+than any of them expects to sweep. Against the shared container it made
+`DueTemplateCheckerIntegrationTest` hang for **31 minutes** and die on a closed connection. **Reach
+for a private container only when the test's whole point is incompatible with sharing** — not
+because isolation would be tidier, since a container per class is what made the old suite slow.
+
 The third rule cost [#46](https://github.com/stainii/task/issues/46) an afternoon. `TaskMother`
 stamped its patches with sequences drawn from far *above* the real one, to avoid the unique
 constraint — so mother data held the highest `sequence` in the shared database, the server's own

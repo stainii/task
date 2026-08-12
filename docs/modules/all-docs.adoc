@@ -21,3 +21,7 @@ include::module-notification.adoc[]
 plantuml::module-template.puml[,,format=svg]
 include::module-template.adoc[]
 
+== Migration
+plantuml::module-migration.puml[,,format=svg]
+include::module-migration.adoc[]
+

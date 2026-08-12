@@ -385,3 +385,87 @@ choice with a visible product consequence, not a theoretical one.
 Amended by the same ticket. [ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md)
 makes `importance` non-nullable. The importer maps a missing importance to `NOT_SO_IMPORTANT`.
 17 hand-made tasks in the archive are affected.
+
+### What the first real import found
+
+Established by [The importer, part 1](https://github.com/stainii/task/issues/52), 2026-08-12, by
+building the importer and running it against the frozen archive. Six corrections, every one measured
+rather than reasoned, and every one a value this ADR states or implies.
+
+**Portal wrote dates in two shapes, and this ADR only ever saw one.** *Blobs are translated, not
+copied* treats `startDateTime`/`dueDateTime` as `LocalDateTime` strings and prescribes truncation.
+**9,662 of them carry a trailing `Z`** — they are instants, written by the browser — and **99.7% sit
+at exactly 22:00 or 23:00 UTC**, which is midnight in `Europe/Brussels` on either side of the
+daylight-saving boundary. Truncating those *as written* yields **the day before, for every one of
+them**. So the rule is now: **a value that names an instant is converted to the application's zone
+before its date is taken; a value that names a local time already is one.** §248's "truncation is
+applied at import" was right about the loss of time-of-day and wrong about the day.
+
+**"Everything else is already a UUID" is false.** §241 predicted that undo patches carry Mongo
+`ObjectId`s and need minting, then exempted everything else. **115 patch ids are `ObjectId`s** — the
+shape was right, the reason was not: they are ordinary `name`, `dueDateTime` and `status` edits, not
+undos — and **11 task ids are not UUIDs at all**. Those eleven are portal's earliest generated tasks,
+from before the UUID scheme, and their **id is the flow id** (`Health-1`, `Housagotchi-52`, plus one
+stray `Healthy`). All 126 are minted **deterministically** from the portal id, because a random id
+would make two dry runs disagree and this ADR's *re-runnable and idempotent* is the property the diff
+report rests on.
+
+**Ten tasks have provenance that a count of the `flowId` field cannot see.** [#35](https://github.com/stainii/task/issues/35)
+measured 8,086 deployment-generated tasks by reading the field. Ten of the eleven above name a real
+deployment and a real recurring task *in their id*, and **four of them still have a surviving
+template**. The corrected split is **8,096 deployment-generated / 3,013 hand-made**, and 3,960 rather
+than 3,954 import with a null link.
+
+**49 patches are in no task's `history` array**, which this ADR never contemplated. 32 name a task
+that really exists; 17 name two task ids that exist nowhere. The importer therefore groups patches by
+their own **`taskId`**, not by portal's array: the array is the same document *A task is what its
+history folds to* discards, while a patch naming a real task is real history. That recovers the 32.
+The 17 are the live API's orphan case, and are **dropped and counted**.
+
+**Four tasks had their start date cleared, and `startDate` is not nullable.** `Task.foldOf` throws
+rather than produce a task without one, so four real tasks could not be represented as they stand.
+They are **translated, not dropped**: a cleared start date meant *no constraint on when this starts*,
+which the new model expresses as **starting the day it was created** — exactly what
+`Task.builderForInitialTask` defaults to. This is the only value the importer invents, and it is
+counted and listed in the report.
+
+**One task's name is 286 characters, and `task.name` was `VARCHAR(255)`.** Widened to `TEXT` by
+`V8__task_text_columns.sql`, along with `context`. The limit was undefended — `description` beside it
+is already `TEXT` and #47 gave `task_template.name` `TEXT` without comment — and the inconsistency
+was a **latent production defect independent of this migration**: a template name is `TEXT` and the
+task it produces was `VARCHAR(255)`, so a template whose *rendered* name crossed 255 characters would
+throw inside the hourly firing job, once an hour, forever, with an ERROR line as the only trace.
+
+Two things the archive confirmed rather than corrected: **every one of the 11,855 tasks has a
+creation patch carrying all four fields the fold requires**, so *fails loudly on a missing creation
+patch* has zero occurrences; and the four deployment prefixes reconcile against the four databases
+with **no orphans in either direction**, so step 2's abort signal is checkable and clean.
+
+The arithmetic of the first full dry run: **11,855 tasks and 38,211 patches in; 12,483 tasks and
+39,450 patches out** — 38,211 less the 17 orphans, plus two patches for each of **628 synthesised
+executions**. Of 5,620 executions, 3,619 are matched by a migrated task and **1,373 match more than
+one**; those are reported and not synthesised, and are the largest thing
+[#53](https://github.com/stainii/task/issues/53) inherits.
+
+### `context` is normalised, and the deployment name wins
+
+Also #52. REC-011 turns `deployment-name` into `context`, but all **8,086** recurring tasks already
+carry a `context` of `Personal`, hardcoded by the four subscriptions' `mappingOfContext`. The
+deployment name **overwrites** it, or housagotchi, setlist, health and social collapse into one card
+in [ADR-0006](0006-one-overview-grouped-by-a-swappable-axis.md)'s overview and the `flowId` that
+could have told them apart is gone the moment the import finishes.
+
+The 3,013 hand-made tasks carry 24 further values, and three are one context spelled two ways. They
+are **trimmed and folded** — `Personal ` into `Personal`, `Scholencoordinatie` (1,293) and
+`Scholencoordinatie ` into `Scholencoördinatie`, `Medisch huis` into `Medisch Huis` — because each
+would otherwise become a second card. The accented spelling is kept over the 1,293-strong majority
+because a card label is read by a person and that is the correct Dutch. Every fold is a named entry
+in a table, never a general rule that rewrites labels it was not told about, and the other 21 values
+pass through exactly as written.
+
+One more thing read from a subscription before it dies: **`mappingOfImportance` is the only record of
+which deployment's tasks were urgent.** `recurring_task` has no importance column, and three of the
+four subscriptions map a plain quoted literal — `Setlist` produced `NOT_SO_IMPORTANT` tasks and the
+other three `IMPORTANT`, for years. The importer honours a simple quoted literal and evaluates
+nothing else; without it every migrated setlist template would start producing more urgent tasks than
+it ever did.

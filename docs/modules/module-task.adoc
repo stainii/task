@@ -6,6 +6,7 @@
 |_Services_
 
 * `b.s.t.b.t.DueTasks` (via `b.s.t.b.t.service.DueTasksService`)
+* `b.s.t.b.t.TaskImport` (via `b.s.t.b.t.service.TaskImportService`)
 * `b.s.t.b.t.TaskOccurrences` (via `b.s.t.b.t.service.TaskOccurrencesService`)
 |Events listened to
 |* `b.s.t.b.t.TaskTemplateFired` 

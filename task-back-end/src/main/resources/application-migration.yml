@@ -1,0 +1,53 @@
+# ADR-0005 / #52: where the restored portal archive is, for a dry run.
+#
+# Active ONLY under the `migration` profile, which is never set on the server. Everything in this
+# file addresses throwaway containers on this machine - the archive itself lives outside the repo at
+# ~/portal-archive/2026-08-04/ and is restored per that directory's README. Nothing here is a
+# production value and nothing here can reach production (#31).
+#
+#     docker run -d --name portal-pg    -e POSTGRES_PASSWORD=portal -p 55432:5432 postgres:12
+#     docker run -d --name portal-mongo -p 57017:27017 mongo:4.2.1
+#     ./mvnw spring-boot:run -Dspring-boot.run.profiles=migration
+#
+# The import TRUNCATES tasks, patches and templates before it writes. That is deliberate - ADR-0005
+# requires it to be re-runnable and idempotent, so a dry run is free - and it is the reason this
+# whole module is behind a profile rather than a property.
+task:
+  migration:
+    mongo-uri: ${PORTAL_MONGO_URI:mongodb://localhost:57017}
+
+    # `todo`, not `portal-todo`. DB-001 inferred the latter and #35 measured the former: the Mongo
+    # database is the only one in the corpus whose name is not its container's.
+    mongo-database: ${PORTAL_MONGO_DATABASE:todo}
+
+    # `name` is the DEPLOYMENT name as `todo.subscription.origin` spells it, which is not the
+    # database name - three are capitalised, one is not, and none equals its database. Getting this
+    # wrong does not fail loudly; it silently orphans a whole deployment's history, which is why
+    # PortalImporter reconciles the two sets before it writes anything.
+    deployments:
+      - name: Housagotchi
+        url: ${PORTAL_HOUSAGOTCHI_URL:jdbc:postgresql://localhost:55432/portal-housagotchi}
+        username: ${PORTAL_PG_USER:postgres}
+        password: ${PORTAL_PG_PASSWORD:portal}
+      - name: Setlist
+        url: ${PORTAL_SETLIST_URL:jdbc:postgresql://localhost:55432/portal-setlist}
+        username: ${PORTAL_PG_USER:postgres}
+        password: ${PORTAL_PG_PASSWORD:portal}
+      - name: Health
+        url: ${PORTAL_HEALTH_URL:jdbc:postgresql://localhost:55432/portal-health}
+        username: ${PORTAL_PG_USER:postgres}
+        password: ${PORTAL_PG_PASSWORD:portal}
+      - name: social-recurring-tasks
+        url: ${PORTAL_SOCIAL_URL:jdbc:postgresql://localhost:55432/portal-social-recurring-tasks}
+        username: ${PORTAL_PG_USER:postgres}
+        password: ${PORTAL_PG_PASSWORD:portal}
+
+    # Neither schedule may fire during an import. The due check would see freshly written templates
+    # with years of history behind them and start creating tasks in the middle of a
+    # truncate-and-rebuild; the 07:30 push would announce them. Both are switched off by their own
+    # property rather than by disabling scheduling, which is the trap SchedulingConfig was created
+    # to remove - `task.due-check.enabled=false` used to disable scheduling itself.
+  due-check:
+    enabled: false
+  daily-push:
+    enabled: false

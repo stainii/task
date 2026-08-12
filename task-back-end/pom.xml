@@ -83,6 +83,19 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
         </dependency>
+        <!--
+            ADR-0005's one-shot importer reads portal's `todo` database, which is Mongo. The plain
+            sync driver rather than spring-boot-starter-data-mongodb: the importer reads four
+            collections of loosely-typed documents and maps them by hand, so repositories, auto
+            configuration and a second conversion layer would all be apparatus with no reader.
+
+            It ships in the production image and connects to nothing: the `migration` module is
+            gated on the `migration` profile, which is never active on the server.
+        -->
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongodb-driver-sync</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>

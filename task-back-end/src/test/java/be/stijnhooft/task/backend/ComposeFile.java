@@ -22,7 +22,7 @@ import java.util.Map;
  * impossible. ADR-0007's *no staging* decision rests on these agreeing — it justified itself on
  * "#20's pins keep dev-compose and the test suite on the same images".
  */
-final class ComposeFile {
+public final class ComposeFile {
 
     /** Tests run with {@code task-back-end} as the working directory. */
     private static final Path COMPOSE_FILE = Path.of("compose.yaml");
@@ -37,7 +37,7 @@ final class ComposeFile {
      *                               fallback to a hard-coded default would reintroduce exactly the
      *                               duplication this class exists to remove.
      */
-    static String imageOf(String service) {
+    public static String imageOf(String service) {
         Map<String, Object> services = services();
         Object definition = services.get(service);
         if (!(definition instanceof Map<?, ?> fields)) {
