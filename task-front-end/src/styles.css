@@ -1,1 +1,77 @@
-/* You can add global styles to this file, and also import other style files */
+/*
+ * Global tokens and base styles.
+ *
+ * Dark mode is here from the first component (ADR-0015): one set of tokens, each written as
+ * `light-dark(light, dark)`, resolved by the `color-scheme` declared below. There is no toggle and
+ * no `.dark` class — `prefers-color-scheme` decides, and every component styles itself once.
+ *
+ * The values are the ones driven in the prototypes (`prototypes/PROTOTYPE-visual-language.html`,
+ * which was built in both themes precisely so this file could be written from evidence).
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* text and chrome */
+  --app-ink: light-dark(#1c1b1f, #e6e1e5);
+  --app-muted: light-dark(#5f6368, #a8a2ab);
+  --app-line: light-dark(#e3e3e6, #3a3840);
+  --app-surface: light-dark(#fff, #1e1c22);
+  --app-bg: light-dark(#f6f6f8, #141317);
+  --app-chip: light-dark(#eceef7, #2b2934);
+  --app-accent: light-dark(#3f51b5, #aab4ff);
+
+  /* verbs and states — facts stay words, but these colours back them up (ADR-0019) */
+  --app-overdue: light-dark(#c62828, #ff8a80);
+  --app-complete: light-dark(#2e7d32, #8bd18e);
+  --app-cancel: light-dark(#c62828, #ff8a80);
+
+  /*
+   * The four importance buckets (ADR-0006). Client-side only: computed from importance ×
+   * remaining time, never stored. `long-game` is not `goals` — CONTEXT.md reserves that word for
+   * a standing theme.
+   */
+  --app-focus: light-dark(#e53935, #ff6b66);
+  --app-long-game: light-dark(#7cb342, #9ccc65);
+  --app-fit-in: light-dark(#fb8c00, #ffa726);
+  --app-back-burner: light-dark(#9e9e9e, #8e8a94);
+
+  /* the 10px left edge on every task panel (FE-005) */
+  --app-stripe-width: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-ink);
+  font:
+    15px/1.45 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+/*
+ * The glyph vocabulary is inline SVG on `currentColor` (ADR-0019): one asset serves both themes,
+ * there is no font to load, no FOUT and nothing to cache offline.
+ */
+.app-glyph {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}

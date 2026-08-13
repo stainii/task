@@ -2,17 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>TaskFrontEnd</title>
+    <title>Tasks</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Dark mode follows the system, with no toggle (ADR-0015). -->
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
-      rel="stylesheet"
-    />
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+    <!--
+      No web fonts and no icon font, deliberately. ADR-0019 spends four inline SVG glyphs on the
+      four verbs, so there is nothing to fetch; the type is the system stack. Both used to be
+      loaded from fonts.googleapis.com, which an installed PWA (RES-013) cannot rely on and which
+      ADR-0010's one-origin rule would have to route around.
+    -->
   </head>
   <body>
     <app-root></app-root>

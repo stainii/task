@@ -1,6 +1,11 @@
 {
+  "//": "Dev's stand-in for ADR-0010's nginx allowlist: one origin, so `/api` and `/realms` are same-origin here exactly as they are in production. `/realms/**` is proxied wholesale — it is the login, and Keycloak's account console lives under it. Keycloak is compose's `8081`.",
   "/api/**": {
     "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/realms/**": {
+    "target": "http://localhost:8081",
     "secure": false
   }
 }

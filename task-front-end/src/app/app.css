@@ -1,0 +1,88 @@
+:host {
+  display: block;
+  min-height: 100%;
+  background: var(--app-bg);
+}
+
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.omnibox-slot {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--app-chip);
+  color: var(--app-muted);
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.more {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--app-muted);
+  font-size: 18px;
+  letter-spacing: 2px;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.more:hover {
+  background: var(--app-chip);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-line);
+}
+
+.tabs a {
+  padding: 10px 14px;
+  color: var(--app-muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs a.active {
+  color: var(--app-accent);
+  border-bottom-color: var(--app-accent);
+}
+
+main {
+  padding: 16px;
+}
+
+/* One continuum: density scales, functionality does not (ADR-0006). */
+@media (min-width: 780px) {
+  .appbar {
+    padding: 12px 26px;
+  }
+
+  .tabs {
+    padding: 0 22px;
+  }
+
+  main {
+    padding: 20px 26px;
+  }
+}

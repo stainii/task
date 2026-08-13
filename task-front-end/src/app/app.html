@@ -1,1 +1,38 @@
-<router-outlet />
+<header class="appbar">
+  <!--
+    The omnibox: "Add, find, or say what you did…" (ADR-0014). It is a control on the appbar and
+    never a route, so typing does not change the URL and Escape returns you where you were.
+    Inert until #60 makes it live — the slot is here because the shell's proportions depend on it.
+  -->
+  <div class="omnibox-slot">Add, find, or say what you did…</div>
+
+  <button
+    type="button"
+    class="more"
+    aria-label="More"
+    matTooltip="More"
+    [matMenuTriggerFor]="moreMenu"
+  >
+    ⋯
+  </button>
+
+  <mat-menu #moreMenu>
+    <a mat-menu-item routerLink="/status">Status &amp; settings</a>
+    <!-- Log out is the whole of FE-030 (ADR-0014). It arrives with auth, in #56. -->
+    <button mat-menu-item type="button" disabled>Log out</button>
+  </mat-menu>
+</header>
+
+<!--
+  Two destinations, no sidenav, no bottom bar and no rail: the phone and desktop shells differ only
+  in density (ADR-0006's one continuum, holding at the navigation layer). FE-026's module menu is
+  dropped.
+-->
+<nav class="tabs" aria-label="Destinations">
+  <a routerLink="/" [class.active]="destination() === 'tasks'">Tasks</a>
+  <a routerLink="/templates" [class.active]="destination() === 'templates'">Templates</a>
+</nav>
+
+<main>
+  <router-outlet />
+</main>
