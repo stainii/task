@@ -88,6 +88,7 @@ export class PatchStream {
       return;
     }
     this.running = true;
+    // The loop is deliberately not awaited by anyone, so it may never reject: `run()` catches.
     this.loop = this.run();
   }
 
@@ -106,6 +107,18 @@ export class PatchStream {
   }
 
   private async run(): Promise<void> {
+    try {
+      await this.reconnectForever();
+    } catch (error) {
+      // Only the store throws this far — a dead server is an *outcome* below, not an exception —
+      // and nothing above this frame is awaiting the loop, so letting it out would produce an
+      // unhandled rejection and no other effect at all.
+      this.running = false;
+      this.status.storeFailed(error);
+    }
+  }
+
+  private async reconnectForever(): Promise<void> {
     let backoff = PatchStream.MIN_BACKOFF_MS;
 
     while (this.running) {

@@ -116,6 +116,10 @@ describe('the sync service', () => {
     } as unknown as IDBFactory;
 
     await expect(sync.record(CREATED)).rejects.toThrow();
+
+    // And the drain it kicked off must not reject into nothing. Nobody awaits the pump, so an
+    // escaping rejection is an unhandled one and no other effect — the state has to be *reported*.
+    await until(() => sync.storeUnavailable());
   });
 
   it('sends what was recorded without being asked twice', async () => {

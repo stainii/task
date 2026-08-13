@@ -40,6 +40,16 @@ export class SyncStatus {
   readonly lastSyncedAt = signal<string | null>(null);
 
   /**
+   * The local store could not be reached at all — a private window, a quota refusal, a corrupt
+   * database.
+   *
+   * Nothing works in that state: this app *is* its store. It lives here rather than on the service
+   * that noticed, because **both loops touch the store** and either can be the first to find it
+   * gone; a flag only one of them could raise would be false for whichever failed first.
+   */
+  readonly storeUnavailable = signal(false);
+
+  /**
    * Bumped whenever sync changed what is in the local store.
    *
    * A revision rather than the tasks themselves: the store is the source of truth and re-reading
@@ -67,5 +77,18 @@ export class SyncStatus {
 
   changed(): void {
     this.revision.update((revision) => revision + 1);
+  }
+
+  /**
+   * The store itself failed, which is not a sync problem and cannot be retried around.
+   *
+   * Reported rather than thrown: both callers are fire-and-forget loops, so a throw here is an
+   * unhandled rejection and nothing else — and swallowing it silently is the failure ADR-0009
+   * exists to refuse. The guarantee that still holds is the one that matters: `record()` rejects,
+   * so a write is never acknowledged that was not stored.
+   */
+  storeFailed(error: unknown): void {
+    this.storeUnavailable.set(true);
+    console.error('The local store could not be reached, so nothing can sync.', error);
   }
 }

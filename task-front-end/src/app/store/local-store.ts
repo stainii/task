@@ -80,7 +80,12 @@ export class LocalStore {
     // Every store is created only if it is missing, so a browser holding version 1 gains version
     // 2's two stores and keeps its history. An upgrade that recreates unconditionally throws on
     // the first store it meets, and the tab that hits it has an outbox in it.
-    this.db ??= open(LocalStore.DATABASE, LocalStore.VERSION, (db) => {
+    this.db ??= this.openDatabase();
+    return this.db;
+  }
+
+  private openDatabase(): Promise<IDBDatabase> {
+    const opening = open(LocalStore.DATABASE, LocalStore.VERSION, (db) => {
       if (!db.objectStoreNames.contains('patches')) {
         db.createObjectStore('patches', { keyPath: 'id' }).createIndex('taskId', 'taskId');
       }
@@ -111,7 +116,15 @@ export class LocalStore {
         db.createObjectStore('failures', { keyPath: 'patchId' });
       }
     });
-    return this.db;
+
+    // A failed open is forgotten rather than remembered as the answer. Caching the rejection would
+    // make one bad moment — a version-change race, a transient quota refusal — permanent for the
+    // life of the tab, and the caller's retry would get the old failure back without ever asking
+    // the browser again.
+    return opening.catch((error: unknown) => {
+      this.db = null;
+      throw error;
+    });
   }
 
   private async requestPersistence(): Promise<void> {

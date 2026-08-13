@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable } from '@angular/core';
 
 import { LocalStore } from '../store/local-store';
 import { Task, TaskPatch } from '../domain/task';
@@ -54,19 +54,23 @@ export class SyncService {
   readonly loginRequired = this.auth.loginRequired;
 
   /**
-   * The local store could not be opened at all — a private window, a quota refusal, a corrupt
-   * database.
-   *
-   * Nothing works in that state: this app *is* its store. It is a signal rather than a thrown
-   * error because there is no caller who could do anything with the throw, and swallowing it
-   * silently is the failure mode ADR-0009 exists to refuse. #63 has the screen for it.
+   * The local store could not be reached at all — a private window, a quota refusal, a corrupt
+   * database. Nothing works in that state: this app *is* its store. #63 has the screen for it.
    */
-  readonly storeUnavailable = signal(false);
+  readonly storeUnavailable = this.status.storeUnavailable;
 
   private pumping = false;
   private pump: Promise<void> | null = null;
   private wake: (() => void) | null = null;
   private started = false;
+
+  /**
+   * Unregisters the browser listeners on {@link stop}.
+   *
+   * Not tidiness: a stopped service that still reacts to `online` keeps draining an outbox nobody
+   * asked it to drain, and every `start()` after a `stop()` adds another listener beside the last.
+   */
+  private listeners: AbortController | null = null;
 
   /**
    * Opens the store, restores what was known before the tab, and starts both loops.
@@ -85,8 +89,7 @@ export class SyncService {
       await this.status.restore();
       await this.outbox.restore();
     } catch (error) {
-      this.storeUnavailable.set(true);
-      console.error('The local store could not be opened, so nothing can sync.', error);
+      this.status.storeFailed(error);
       return;
     }
     this.status.changed();
@@ -95,12 +98,20 @@ export class SyncService {
       // The browser's own answer about the radio. It is not a promise that the server is up, which
       // is why `reachable` exists beside it — but going *offline* is worth knowing at once, because
       // it is the difference between waiting quietly and reporting a fault.
-      window.addEventListener('online', () => {
-        this.status.online.set(true);
-        this.stream.nudge();
-        this.send();
+      const listeners = new AbortController();
+      this.listeners = listeners;
+      window.addEventListener(
+        'online',
+        () => {
+          this.status.online.set(true);
+          this.stream.nudge();
+          this.send();
+        },
+        { signal: listeners.signal },
+      );
+      window.addEventListener('offline', () => this.status.online.set(false), {
+        signal: listeners.signal,
       });
-      window.addEventListener('offline', () => this.status.online.set(false));
     }
 
     this.stream.start();
@@ -143,6 +154,8 @@ export class SyncService {
   }
 
   async stop(): Promise<void> {
+    this.listeners?.abort();
+    this.listeners = null;
     this.pumping = false;
     this.wake?.();
     await this.pump;
@@ -172,7 +185,17 @@ export class SyncService {
   private async drainUntilEmpty(): Promise<void> {
     let backoff = SyncService.MIN_BACKOFF_MS;
     while (this.pumping) {
-      if ((await this.outbox.drain()) === 'drained') {
+      let outcome;
+      try {
+        outcome = await this.outbox.drain();
+      } catch (error) {
+        // Nothing above this frame is awaiting the pump, so an escaping rejection is an unhandled
+        // one and no more. The only thing that reaches here is the store failing — a `5xx` is an
+        // outcome, not a throw — and no amount of backoff fixes that.
+        this.status.storeFailed(error);
+        return;
+      }
+      if (outcome === 'drained') {
         return;
       }
       await this.sleep(backoff);
