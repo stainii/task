@@ -572,3 +572,37 @@ sequence generator's own position leaves the generator *behind its data*, and th
 `setval`, so the chosen mechanism is already safe; it is written down here because nothing else says
 so, and this is the fifth time on this map that a guarantee living in code turned out to depend on
 something living outside it.
+
+### The one-day horizon never discards a task with an unsent patch
+
+Amended by [The local store: IndexedDB and the fold in TypeScript](https://github.com/stainii/task/issues/55),
+2026-08-13.
+
+This ADR says the client keeps closed tasks and their history for **1 day**, then discards them
+locally. Written that way it is unconditional, and building it exposed the case it does not cover:
+a task completed offline and never synced is a *closed* task, so on day two the sweep deletes it —
+including the patches sitting in the outbox, whose bodies **are** the request that has not been
+made yet.
+
+The rule everything else in this ADR turns on is that an evicted store is not data loss, because
+the hard-reset path refetches it — **only an undrained outbox is.** A prune that takes the outbox
+with it is that same loss, self-inflicted on a timer, and it would be worst on exactly the device
+that has been offline longest.
+
+So the horizon carries one exception: **a task with any patch still in the outbox is never pruned,
+however old.** It becomes prunable the moment its last queued patch is acknowledged, which is the
+first moment the server can hand it back.
+
+### A history that cannot fold yet produces no task, not an error
+
+Amended by the same ticket.
+
+The client stores patches and materialises tasks from them. A patch whose task has no creation
+patch — the first arrival of a resync landing out of step, or a prune that raced a late edit —
+cannot fold into a whole task, since the fold replays *from* the creation patch and every required
+field comes from it.
+
+The client keeps the patches and simply produces **no row** for that task. It is neither an error
+nor an empty task: the history is incomplete, not wrong, and the row appears by itself when the
+missing patch lands. Rendering a partial task would be worse than rendering nothing, because a task
+with no name is indistinguishable from a task somebody named badly.
