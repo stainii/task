@@ -3,7 +3,13 @@
 |Base package
 |`be.stijnhooft.task.backend.config`
 |Spring components
-|* `b.s.t.b.c.JdbcConfig`
+|_Controllers_
+
+* `b.s.t.b.c.ClientConfigController`
+
+_Others_
+
+* `b.s.t.b.c.JdbcConfig`
 * `b.s.t.b.c.SchedulingConfig`
 * `b.s.t.b.c.SpringSecurityConfig`
 * `b.s.t.b.c.TimeConfig`

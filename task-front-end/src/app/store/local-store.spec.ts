@@ -174,6 +174,48 @@ describe('the local store', () => {
     });
   });
 
+  describe('the sync state it holds for #56', () => {
+    it('remembers the cursor and the last successful sync across a connection', async () => {
+      await store.setCursor({ epoch: 3, sequence: 41 });
+      await store.setLastSyncedAt('2026-03-05T09:00:00Z');
+      await store.close();
+
+      expect(await store.cursor()).toEqual({ epoch: 3, sequence: 41 });
+      expect(await store.lastSyncedAt()).toBe('2026-03-05T09:00:00Z');
+    });
+
+    it('has no cursor before the first sync, which is what makes first run first run', async () => {
+      expect(await store.cursor()).toBeNull();
+    });
+
+    describe('a resync', () => {
+      it('drops what came from the server', async () => {
+        await store.receivePatches([CREATED, RENAMED]);
+        await store.setCursor({ epoch: 3, sequence: 41 });
+
+        await store.resetForResync();
+
+        expect(await store.tasks()).toEqual([]);
+        // No cursor, so the next connection takes a snapshot — in the server's new lineage.
+        expect(await store.cursor()).toBeNull();
+      });
+
+      it('keeps the outbox, and keeps the task its patches fold into visible', async () => {
+        await store.recordLocalPatch(CREATED);
+        await store.receivePatches([RENAMED]);
+
+        await store.resetForResync();
+
+        // The unsent creation survives with its task: a resync is caused by the *server* losing
+        // history, and it may not take this device's unsent work with it.
+        expect(await store.pending()).toEqual([CREATED]);
+        expect((await store.task(TASK))?.name).toBe('Buy bread');
+        // The server's own patch went, so the rename is gone until the snapshot brings it back.
+        expect((await store.task(TASK))?.history).toHaveLength(1);
+      });
+    });
+  });
+
   it('empties everything on a hard reset', async () => {
     await store.recordLocalPatch(CREATED);
 
@@ -182,6 +224,7 @@ describe('the local store', () => {
     expect(await store.tasks()).toEqual([]);
     expect(await store.pending()).toEqual([]);
     expect(await store.task(TASK)).toBeNull();
+    expect(await store.cursor()).toBeNull();
   });
 
   it('records whether the browser granted persistent storage', async () => {

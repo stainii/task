@@ -324,18 +324,6 @@
           "attributes": {}
         }
       ],
-      "dummy-client": [],
-      "portal-client": [
-        {
-          "id": "4b86c5d5-00b2-42b2-900a-f7dc196e4f07",
-          "name": "full-access",
-          "description": "",
-          "composite": false,
-          "clientRole": true,
-          "containerId": "7b57d4b5-f36a-4a6f-85ba-bb3fc3e77393",
-          "attributes": {}
-        }
-      ],
       "account": [
         {
           "id": "ecc643be-3236-4581-92f9-43377f50b9c9",
@@ -426,21 +414,7 @@
       ]
     }
   },
-  "groups": [
-    {
-      "id": "d9f30855-a4ab-49b9-bda1-60b3fcbe8611",
-      "name": "admin",
-      "path": "/admin",
-      "subGroups": [],
-      "attributes": {},
-      "realmRoles": [],
-      "clientRoles": {
-        "portal-client": [
-          "full-access"
-        ]
-      }
-    }
-  ],
+  "groups": [],
   "defaultRole": {
     "id": "c38aa696-1d88-45d3-ace4-c1e0df563f0d",
     "name": "default-roles-stijnhooft-realm",
@@ -833,7 +807,9 @@
         "https://task.stijnhooft.be/*",
         "http://localhost:4200/*"
       ],
-      "webOrigins": [],
+      "webOrigins": [
+        "+"
+      ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "+",

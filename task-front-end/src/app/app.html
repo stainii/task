@@ -18,10 +18,22 @@
 
   <mat-menu #moreMenu>
     <a mat-menu-item routerLink="/status">Status &amp; settings</a>
-    <!-- Log out is the whole of FE-030 (ADR-0014). It arrives with auth, in #56. -->
-    <button mat-menu-item type="button" disabled>Log out</button>
+    <!-- Log out is the whole of FE-030 (ADR-0014). No profile, no account screen. -->
+    <button mat-menu-item type="button" (click)="logOut()">Log out</button>
   </mat-menu>
 </header>
+
+<!--
+  The stall prompt, raised *because a sync needs it* and never at boot (ADR-0004). It is a bar
+  rather than a redirect: the app underneath keeps working, showing and accepting edits, and the
+  queue drains in order behind the login. Offline it never appears — there is nothing to prompt for.
+-->
+@if (loginRequired()) {
+  <div class="login-prompt" role="status">
+    <span>Sign in to sync your changes. Nothing is lost in the meantime.</span>
+    <button type="button" (click)="logIn()">Sign in</button>
+  </div>
+}
 
 <!--
   Two destinations, no sidenav, no bottom bar and no rail: the phone and desktop shells differ only

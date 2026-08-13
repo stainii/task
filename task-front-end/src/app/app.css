@@ -46,6 +46,33 @@
   background: var(--app-chip);
 }
 
+.login-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--app-chip);
+  border-bottom: 1px solid var(--app-line);
+  font-size: 14px;
+}
+
+.login-prompt span {
+  flex: 1;
+  min-width: 0;
+}
+
+.login-prompt button {
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--app-bg);
+  background: var(--app-accent);
+  cursor: pointer;
+}
+
 .tabs {
   display: flex;
   gap: 4px;
@@ -80,6 +107,10 @@ main {
 
   .tabs {
     padding: 0 22px;
+  }
+
+  .login-prompt {
+    padding: 12px 26px;
   }
 
   main {

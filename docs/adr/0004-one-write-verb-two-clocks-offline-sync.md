@@ -606,3 +606,74 @@ The client keeps the patches and simply produces **no row** for that task. It is
 nor an empty task: the history is incomplete, not wrong, and the row appears by itself when the
 missing patch lands. Rendering a partial task would be worse than rendering nothing, because a task
 with no name is indistinguishable from a task somebody named badly.
+
+### A resync keeps the outbox, and refolds what it keeps
+
+Amended by [Sync: the outbox, the stream client and the auth stall](https://github.com/stainii/task/issues/56),
+2026-08-13.
+
+This ADR defines **resync** as the server telling a client to "drop local state and re-snapshot —
+the server pulling the hard-reset lever the user already has". Building it made the equivalence
+untenable. The hard reset is a human deciding the local copy is the problem. A resync is issued
+because the *server* cannot serve a cursor, and by far the likeliest reason is
+[ADR-0007](0007-the-box-pulls-nightly-behind-a-dump.md)'s restored backup — which is precisely the
+moment a device is most likely to be holding patches the server has never seen.
+
+Dropping them there is **the one loss this ADR calls real**: an evicted store is not data loss
+because the snapshot recovers it, and only an undrained outbox is. A resync that takes the outbox
+with it inflicts that loss on the user *because* the server lost some of its own history.
+
+So a resync clears the tasks and the patches that came from the server, keeps the outbox and every
+patch it names, and clears the cursor so the next connection snapshots. A kept patch whose task did
+not survive the restore is answered `404` and lands in the visible failed-to-sync list, which is the
+mechanism this ADR already has for saying so out loud.
+
+**And the kept patches are refolded immediately**, rather than left for the snapshot to restore. A
+task created offline exists *only* in the outbox, so clearing the task rows and waiting would take
+it off the screen until the server echoed it back — which on a device that is still offline is
+never. It would look lost while being perfectly safe, which is the same lie as the opposite case.
+
+### Authentication is initialised lazily, and `check-sso` is an iframe
+
+Amended by the same ticket.
+
+*Authenticate to sync, not to see* was written as a rule about tokens. Building it made it a rule
+about **when the auth adapter runs at all**, because three ordinary ways of wiring Keycloak into an
+Angular app each break the cold start offline:
+
+- **`provideKeycloak` in an `APP_INITIALIZER`** gates the first paint on the auth server being
+  reachable. Deleting `onLoad: 'login-required'` (which [#14](https://github.com/stainii/task/issues/14)
+  did) is not enough on its own — the initialiser itself is the gate.
+- **`onLoad: 'check-sso'` without a silent redirect URI** sends the whole page to the auth server
+  and back. On a device with no signal that is a browser error page instead of an app.
+- **`silentCheckSsoFallback`** (on by default) turns the iframe back into that navigation whenever
+  the iframe cannot be used, reintroducing the failure on exactly the browsers most likely to block
+  third-party frames.
+
+So the adapter is constructed on **first use by something that needs a token**, `check-sso` runs
+through a `silent-check-sso.html` iframe on the app's own origin, and the fallback is off. A failed
+initialisation is remembered as *not now* rather than as a verdict: the usual cause is that the
+network was not there yet.
+
+`keycloak-angular` is dropped as a dependency in the same move. What it adds over `keycloak-js` is
+the bootstrap provider and interceptor helpers, and the provider is the one thing this design cannot
+use.
+
+### One reconnect path, resuming from the persisted cursor
+
+Amended by the same ticket.
+
+`@microsoft/fetch-event-source` has a retry of its own, and it is switched **off** (its `onerror`
+throws). It retries in memory with the `Last-Event-ID` it happens to hold; this client resumes from
+the cursor it *persisted*, which is the same cursor a cold boot uses and the only one that survives
+a browser kill. Two mechanisms implementing one rule is how the two drift, and this ADR already has
+six amendments about rules that turned out to exist in two places.
+
+Two consequences worth writing down, both of which the library's shape makes easy to get wrong:
+
+- **A clean close is not the end.** The library resolves its promise when the response body ends,
+  which for this server is the *normal* case, several times an hour by design. The reconnect after a
+  bounded-lifetime close is therefore the client's own job, not the library's.
+- **`defaultOnOpen` does not check the status.** It checks the content type only, so a `401` arrives
+  as *expected content-type to be text/event-stream* rather than as an authentication failure. The
+  stall and the login prompt need `response.status`, which means supplying an `onopen`.

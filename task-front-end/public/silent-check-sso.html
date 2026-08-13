@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Checking your session</title>
+  </head>
+  <body>
+    <!--
+      Keycloak's silent SSO check lands here, inside a hidden iframe, and posts the resulting URL
+      back to the app. Nobody ever sees this page.
+
+      It exists so that "are you still logged in?" is an iframe rather than a page navigation. A
+      navigation to an unreachable auth server is a browser error page instead of an app, and this
+      app is expected to start with no signal at all (ADR-0004: authenticate to sync, not to see).
+
+      `location.origin` as the target, never `*`: the message carries an authorization code.
+    -->
+    <script>
+      parent.postMessage(location.href, location.origin);
+    </script>
+  </body>
+</html>

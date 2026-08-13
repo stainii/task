@@ -72,10 +72,16 @@ than reordering around it.
 
 ### Resync
 
-**The server telling a client to throw its local state away and start from a fresh snapshot** —
-issued when a client resumes from a sequence the server cannot serve, or from a previous **epoch**.
+**The server telling a client to throw away what came *from the server* and start from a fresh
+snapshot** — issued when a client resumes from a sequence the server cannot serve, or from a
+previous **epoch**.
 
-It is the same lever as the user's own hard reset, pulled by the server.
+It is nearly the same lever as the user's own hard reset, pulled by the server, and the difference
+is the whole of it: **a resync keeps the outbox.** The commonest cause is a restored backup, which
+is exactly when a device is most likely to be holding work the server has never seen, and discarding
+it would delete the user's edits because the server lost some of its own. A kept patch whose task
+did not survive the restore comes back as a `404` and lands in the failed-to-sync list — a visible
+answer rather than a silent one.
 
 ### Epoch
 

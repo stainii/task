@@ -5,6 +5,8 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
+import { SyncService } from './sync/sync';
+
 /** The two destinations (ADR-0014). Everything else is somewhere you are *sent*. */
 type Destination = 'tasks' | 'templates' | 'elsewhere';
 
@@ -23,6 +25,30 @@ type Destination = 'tasks' | 'templates' | 'elsewhere';
 })
 export class App {
   private readonly router = inject(Router);
+  private readonly sync = inject(SyncService);
+
+  /**
+   * Whether a sync is waiting on a human — ADR-0004's stall prompt.
+   *
+   * Distinct from Keycloak's deleted `onLoad: 'login-required'`, which gates the app at boot and
+   * makes an offline cold start impossible. This one is raised *because a sync needs it*, at the
+   * moment it is needed, and never while the device is offline: there is nothing to prompt for.
+   */
+  protected readonly loginRequired = this.sync.loginRequired;
+
+  constructor() {
+    // Started here rather than in an initialiser, because nothing in it may gate the first paint:
+    // the store renders this device's tasks with no token and no network (ADR-0004).
+    void this.sync.start();
+  }
+
+  protected logIn(): void {
+    void this.sync.login();
+  }
+
+  protected logOut(): void {
+    void this.sync.logout();
+  }
 
   private readonly url = toSignal(
     this.router.events.pipe(

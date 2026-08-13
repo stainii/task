@@ -124,6 +124,12 @@ remains**, in `JsonToMapConverter`.
 Node is pinned to 26 in `.nvmrc`; run `nvm use` first. On an older Node the CLI refuses to run,
 which is the front-end's version of the `~/.mavenrc` trap in `task-back-end/README.md`.
 
+**`now()` goes through the `NOW` token** (`src/app/clock.ts`), the counterpart to the back-end's
+`Clock` bean and there for the same reason: a date-boundary decision taken by calling `new Date()`
+inline can only be tested by waiting for the calendar. Nothing enforces it — there is no Error Prone
+here — so it is a convention, and the band arithmetic
+[#57](https://github.com/stainii/task/issues/57) is about to write is exactly what it is for.
+
 ---
 
 ## 4. End-to-end tests (Playwright)

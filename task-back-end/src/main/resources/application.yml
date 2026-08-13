@@ -5,6 +5,13 @@
 task:
   time-zone: Europe/Brussels
 
+  keycloak:
+    # ADR-0007: the front-end fetches this from GET /api/config at runtime rather than having it
+    # baked into its image. Only the client id lives here — the URL and the realm are derived from
+    # `issuer-uri` below, so the browser cannot obtain a token from somewhere this application does
+    # not validate against. One public client, no secret anywhere (#31).
+    client-id: ${KEYCLOAK_CLIENT_ID:task}
+
   sse:
     # ADR-0004: the server closes a stream after this long and the client reconnects. Bounded partly
     # so an expired token cannot keep streaming, but mostly so that reconnect-and-resume - the most

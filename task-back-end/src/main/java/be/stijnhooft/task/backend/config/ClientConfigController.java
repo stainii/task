@@ -1,0 +1,56 @@
+package be.stijnhooft.task.backend.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/// What a cold client needs to know before it can authenticate: where the auth server is.
+///
+/// **Unauthenticated on purpose** ([ADR-0010](../../../../../../../docs/adr/0010-a-tunnel-an-allowlist-and-a-role.md)
+/// exempts it in `SpringSecurityConfig`): a client that has to present a token to find out where
+/// tokens come from can never obtain one.
+///
+/// **Fetched at runtime rather than baked into the front-end image**
+/// ([ADR-0007](../../../../../../../docs/adr/0007-the-box-pulls-nightly-behind-a-dump.md)). A realm
+/// URL compiled into the bundle makes the image environment-specific, and the image is the thing
+/// both environments are supposed to share.
+///
+/// **And its failure is not fatal to the client.** ADR-0004's *authenticate to sync, not to see*
+/// means a cold boot offline renders from IndexedDB with no token and no config; the app simply
+/// cannot sync until it reaches the network.
+///
+/// [#63](https://github.com/stainii/task/issues/63) adds the back-end's build date here — one
+/// public endpoint rather than two, and the reason `/actuator/info` needs no exposure.
+@RestController
+@RequestMapping("/api/config")
+public class ClientConfigController {
+
+    private final ClientConfigDto config;
+
+    /// The Keycloak URL and realm are **derived from `issuer-uri`, never configured beside it.**
+    ///
+    /// That is the whole point of deriving them: the browser must obtain its token from exactly
+    /// the issuer this application validates against, and two properties that are supposed to
+    /// agree are two properties that can disagree. In production `KEYCLOAK_ISSUER_URI` is the one
+    /// value that must never be baked into an image (ADR-0007), so it is also the only one that
+    /// can be trusted to name the realm a client can actually reach.
+    public ClientConfigController(
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuerUri,
+            @Value("${task.keycloak.client-id}") String clientId) {
+        var separator = issuerUri.lastIndexOf("/realms/");
+        if (separator < 0) {
+            throw new IllegalStateException("The issuer URI '" + issuerUri
+                    + "' does not name a Keycloak realm, so no client can be told where to log in.");
+        }
+        config = new ClientConfigDto(new KeycloakConfigDto(
+                issuerUri.substring(0, separator),
+                issuerUri.substring(separator + "/realms/".length()),
+                clientId));
+    }
+
+    @GetMapping
+    public ClientConfigDto config() {
+        return config;
+    }
+}

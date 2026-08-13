@@ -1,4 +1,7 @@
 import { TestBed } from '@angular/core/testing';
+import { IDBFactory } from 'fake-indexeddb';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
@@ -11,8 +14,15 @@ import { routes } from './app.routes';
  */
 describe('App', () => {
   beforeEach(() => {
+    // The shell starts sync, and sync opens the store. A fresh factory per test, so nothing shares
+    // a database with anything else.
+    globalThis.indexedDB = new IDBFactory();
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes, withComponentInputBinding())],
+      providers: [
+        provideRouter(routes, withComponentInputBinding()),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+      ],
     });
   });
 
