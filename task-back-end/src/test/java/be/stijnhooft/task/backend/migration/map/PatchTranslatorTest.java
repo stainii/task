@@ -1,6 +1,8 @@
 package be.stijnhooft.task.backend.migration.map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -105,6 +107,27 @@ class PatchTranslatorTest {
                 changes("context", "Personal"), "Housagotchi", null, CREATED);
 
         assertThat(translated.changes()).containsEntry("context", "Housagotchi");
+    }
+
+    /// **A hand-made task's own context is normalised on the way through.** #53's rehearsal found
+    /// this missing: `Contexts` was written, tested and recorded in ADR-0005, and then only ever
+    /// called for deployment names that were already canonical — so 1,302 tasks imported as
+    /// `Scholencoordinatie`, `Medisch huis` and `Personal ` beside their real spellings, and
+    /// ADR-0006 gives every stray one its own card in the overview.
+    ///
+    /// The stored-versus-folded report is structurally blind to it, because portal's document and
+    /// the fold agree: they are wrong in the same way. Which is why it needs a test here.
+    @ParameterizedTest(name = "{0} → {1}")
+    @CsvSource({
+            "Scholencoordinatie, Scholencoördinatie",
+            "'Personal ', Personal",
+            "'Medisch huis', Medisch Huis",
+            "Baby, Baby"})
+    void aHandMadeTasksOwnContextIsNormalised(String portal, String expected) {
+        var translated = translator.translate(UUID.randomUUID(), WHEN,
+                changes("context", portal), null, null, CREATED);
+
+        assertThat(translated.changes()).containsEntry("context", expected);
     }
 
     /// The override applies to a context the patch already carries, and does not invent one — a

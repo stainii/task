@@ -45,7 +45,7 @@ public class TaskImportService implements TaskImport {
 
     @Override
     @Transactional
-    public void importTask(UUID taskId, List<ImportedPatch> patches) {
+    public FoldedTask importTask(UUID taskId, List<ImportedPatch> patches) {
         if (patches.isEmpty()) {
             throw new IllegalArgumentException("Task " + taskId + " has no patches, so nothing can be folded.");
         }
@@ -70,6 +70,18 @@ public class TaskImportService implements TaskImport {
         }
 
         taskRepository.save(task.withSequencesFrom(taskPatchSequence::next));
+
+        // Reported from the folded aggregate, not from the row just saved: #53 is asking what the
+        // fold computed, and a round trip through the database would answer a different question.
+        return new FoldedTask(
+                task.name(),
+                task.creationDateTime(),
+                task.startDate(),
+                task.dueDate(),
+                task.context(),
+                task.importance(),
+                task.description(),
+                task.status().name());
     }
 
     @Override
@@ -80,6 +92,11 @@ public class TaskImportService implements TaskImport {
     @Override
     public long patchCount() {
         return count("task_patch");
+    }
+
+    @Override
+    public long openTaskCount() {
+        return jdbcClient.sql("SELECT COUNT(*) FROM task WHERE status = 'OPEN'").query(Long.class).single();
     }
 
     private long count(String table) {

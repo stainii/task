@@ -111,8 +111,16 @@ public final class PatchTranslator {
                     : value);
         });
 
-        if (context != null && translated.containsKey("context")) {
-            translated.put("context", context);
+        // A deployment's name wins outright (REC-011); everything else is portal's own value, and it
+        // is **normalised on the way through**. Passing it straight out was the hole #53's rehearsal
+        // found: `Contexts` was written, tested and recorded in ADR-0005, and then only ever called
+        // for values that were already canonical - so 1,302 hand-made tasks imported as
+        // `Scholencoordinatie`, `Medisch huis` and `Personal ` beside their real spellings, and
+        // ADR-0006 gives each stray one its own card. The diff report cannot catch this, because
+        // stored and folded agree: they are wrong in the same way.
+        var portalContext = translated.get("context");
+        if (translated.containsKey("context") && portalContext != null) {
+            translated.put("context", context != null ? context : Contexts.normalise(portalContext));
         }
 
         // The creation patch is the one carrying creationDateTime - the same discriminator the live

@@ -1,6 +1,8 @@
 package be.stijnhooft.task.backend.migration;
 
 import be.stijnhooft.task.backend.ComposeFile;
+import be.stijnhooft.task.backend.migration.diff.Cause;
+import be.stijnhooft.task.backend.migration.diff.Difference;
 import be.stijnhooft.task.backend.migration.portal.RecurringTasksReader;
 import be.stijnhooft.task.backend.migration.portal.TodoReader;
 import be.stijnhooft.task.backend.task.TaskImport;
@@ -25,6 +27,7 @@ import java.time.Clock;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 /// **The dry run.** [#52](https://github.com/stainii/task/issues/52)'s *done when*, asserted against
 /// the real frozen corpus rather than a fixture.
@@ -225,6 +228,59 @@ class PortalArchiveImportIntegrationTest {
         assertThat(read).isEqualTo(report.get("executions matched by a migrated task")
                 + report.get("executions matching several tasks (reported, not synthesised)")
                 + report.get("executions synthesised into tasks"));
+    }
+
+    /// **Four differences the archive cannot explain**, out of 9,421 — [#53](https://github.com/stainii/task/issues/53)'s
+    /// whole output, and the number a person actually reads.
+    ///
+    /// All four are portal being wrong rather than the fold. Three are stored values **not derivable
+    /// from any patch in the task's own history** — ADR-0005's thesis arriving as a measurement
+    /// rather than an argument — and the fourth is a due-date edit portal's `history` array dropped
+    /// and the fold recovers.
+    ///
+    /// Pinned as an exact number on purpose. A fifth appearing is the report doing its job, and it
+    /// has to be looked at rather than absorbed into a threshold.
+    @Test
+    void onlyFourDifferencesAreUnexplained() {
+        assertThat(report.unexplained()).hasSize(4);
+        assertThat(report.escalated()).isEmpty();
+    }
+
+    /// Every other difference is one of ADR-0005's named causes, in the proportions the mapping
+    /// decisions predict: REC-011 overwrites a context for every generated task, `Contexts` folds
+    /// four near-duplicate spellings, ADR-0018 defaults seventeen importances.
+    @Test
+    void everyOtherDifferenceIsANamedCause() {
+        var byCause = report.differences().stream()
+                .collect(java.util.stream.Collectors.groupingBy(Difference::cause, java.util.stream.Collectors.counting()));
+
+        assertThat(byCause).containsOnly(
+                entry(Cause.CONTEXT_OVERWRITTEN_BY_DEPLOYMENT, 8_096L),
+                entry(Cause.CONTEXT_NORMALISED, 1_302L),
+                entry(Cause.IMPORTANCE_DEFAULTED, 17L),
+                entry(Cause.CLEARED_START_DATE_DEFAULTED, 2L),
+                entry(Cause.UNEXPLAINED, 4L));
+    }
+
+    /// **D2's mechanism is present in the corpus and never corrupted anything.** Twelve tasks have a
+    /// `history` array out of clock order and 81 carry a duplicated entry, so the preconditions are
+    /// real — but in none of them did the mis-ordering change one of the eight compared fields.
+    ///
+    /// Asserted as zero rather than left unstated: if a future change to the fold's order made these
+    /// fire, that would be the single most important thing about the run, and silence would hide it.
+    @Test
+    void noDifferenceIsCausedByPortalsMergeOrder() {
+        assertThat(report.differences())
+                .extracting(Difference::cause)
+                .doesNotContain(Cause.OUT_OF_ORDER_ARRIVAL, Cause.DUPLICATED_HISTORY_ENTRY);
+    }
+
+    /// What [#39](https://github.com/stainii/task/issues/39) needs to know before it opens the
+    /// dogfooding instance: **28 open tasks against 12,483**. Without the number in hand the app
+    /// looks empty and reads as a bug.
+    @Test
+    void twentyEightTasksAreOpen() {
+        assertThat(taskImport.openTaskCount()).isEqualTo(28);
     }
 
     /// ADR-0005's *re-runnable and idempotent, so dry runs are free* — the property every id in

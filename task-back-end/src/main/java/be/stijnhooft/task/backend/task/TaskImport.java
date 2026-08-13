@@ -1,6 +1,9 @@
 package be.stijnhooft.task.backend.task;
 
+import org.jspecify.annotations.Nullable;
+
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,15 +35,26 @@ public interface TaskImport {
     /// impose an order the running application would not have used. Sequences are assigned in fold
     /// order, which is ADR-0005's *migrated patches occupy sequences 1..N in `dateTime` order*.
     ///
+    /// Returns what the task folded to, because [#53](https://github.com/stainii/task/issues/53)
+    /// diffs it against the document portal stored and this is the only moment both exist. Reading
+    /// it back afterwards would be the wrong shape twice over: the migration module cannot see
+    /// `task.domain` ([ADR-0003](../../../../../../../../docs/adr/0003-two-modules-with-package-visibility-as-the-boundary.md)),
+    /// and a second query would prove the *database* right rather than the fold.
+    ///
     /// @throws IllegalArgumentException when the patches cannot produce a task — a missing creation
     ///                                  patch, or a field the fold can never fill. ADR-0005 requires
     ///                                  this to fail loudly rather than fall back to portal's stored
     ///                                  row.
-    void importTask(UUID taskId, List<ImportedPatch> patches);
+    FoldedTask importTask(UUID taskId, List<ImportedPatch> patches);
 
     long taskCount();
 
     long patchCount();
+
+    /// How many migrated tasks are still open — the only number
+    /// [#39](https://github.com/stainii/task/issues/39) needs before it opens the dogfooding
+    /// instance, because 28 against 12,483 looks like an empty app and reads as a bug.
+    long openTaskCount();
 
     /// One portal patch, already translated into the new vocabulary by the `migration` module.
     ///
@@ -50,5 +64,23 @@ public interface TaskImport {
     /// A null value in [#changes] is meaningful — it is how a field is cleared — so the map is the
     /// same shape `TaskPatch` itself holds.
     record ImportedPatch(UUID id, Instant dateTime, Map<String, String> changes) {
+    }
+
+    /// What one migrated task folded to, in the eight fields portal's stored document also has —
+    /// the comparable surface, and nothing else.
+    ///
+    /// `status` is a `String` rather than the enum, and `taskTemplateId`, `occurrenceId` and
+    /// `completedOn` are absent: `TaskStatus` lives in `task.domain` and is internal, and the three
+    /// missing fields have no counterpart in portal to be compared against. A port carrying more
+    /// than the caller can use would be leaking the aggregate through the back door ADR-0003 shut.
+    record FoldedTask(
+            String name,
+            Instant creationDateTime,
+            LocalDate startDate,
+            @Nullable LocalDate dueDate,
+            String context,
+            Importance importance,
+            @Nullable String description,
+            String status) {
     }
 }

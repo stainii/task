@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.migration.portal;
 
+import com.mongodb.DBRef;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import lombok.extern.slf4j.Slf4j;
@@ -113,8 +114,35 @@ public class TodoReader implements AutoCloseable {
                 document.getString("context"),
                 document.getString("status"),
                 document.getString("importance"),
-                instant(document.get("creationDateTime")))));
+                instant(document.get("creationDateTime")),
+                instant(document.get("startDateTime")),
+                instant(document.get("dueDateTime")),
+                document.getString("description"),
+                historyOrder(document))));
         return tasks;
+    }
+
+    /// The `history` array's order — insertion order, and so the order the patches *arrived* in.
+    ///
+    /// Read for the stored-versus-folded diff only. Portal's repair recursion re-`add`s patches, so
+    /// the same id can appear twice; duplicates are kept rather than collapsed, because a duplicate
+    /// is itself one of the causes the diff attributes a difference to.
+    private static List<String> historyOrder(Document document) {
+        var raw = document.get("history");
+        if (!(raw instanceof List<?> references)) {
+            return List.of();
+        }
+        var ids = new ArrayList<String>(references.size());
+        for (var reference : references) {
+            switch (reference) {
+                case DBRef ref -> ids.add(String.valueOf(ref.getId()));
+                // A plain id, should portal ever have written one. Never occurs in the archive:
+                // all 11,855 tasks carry DBRefs.
+                case null -> { }
+                default -> ids.add(String.valueOf(reference));
+            }
+        }
+        return List.copyOf(ids);
     }
 
     public List<PortalArchive.PortalPatch> patches() {

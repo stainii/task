@@ -469,3 +469,121 @@ four subscriptions map a plain quoted literal — `Setlist` produced `NOT_SO_IMP
 other three `IMPORTANT`, for years. The importer honours a simple quoted literal and evaluates
 nothing else; without it every migrated setlist template would start producing more urgent tasks than
 it ever did.
+
+## Amendments
+
+### The report does not abort. It attributes, and a person decides
+
+[#53](https://github.com/stainii/task/issues/53). This ADR called the diff report **the cutover
+abort mechanism** — "cutover can be called off on the day, on its evidence. That is the abort
+mechanism; there is no other." That stands as *where the evidence comes from* and is wrong about
+*who acts on it*. **The importer never aborts on the diff.** It bins every difference, prints what
+it could not explain first, and stops. The author continues, or opens a coding session, changes the
+mapping and re-runs — which is free, because the import is idempotent.
+
+The reason is that a count of divergent tasks carries almost no signal here. **Divergence is
+expected**: portal's merge *is* D2, so a task whose patches arrived out of order is *supposed* to
+fold to something other than what portal stored — that is the entire argument for discarding the
+stored document. Four thousand divergent tasks, all attributable, is health. **One divergence with
+no explanation is a defect in the fold or the translation**, and no percentage threshold would
+catch it.
+
+So the thing written down before the numbers is not a threshold. It is **the closed list of
+explanations we are willing to be satisfied by**, fixed while the counts are still unknown — which
+is what "a threshold decided while looking at the result is not a threshold" was protecting. A diff
+fitting none of them is **unexplained**, and unexplained diffs are the report's first page.
+
+**The acceptable causes.** Committed 2026-08-13, before the first stored-versus-folded run:
+
+| # | cause | shape |
+|---|---|---|
+| 1 | **Out-of-order arrival** | two patches touch the field, and their order in the stored `history` array differs from their `dateTime` order. D2 itself; expected to dominate |
+| 2 | **Duplicated history entry** | portal's repair recursion re-`add`s patches, so one appears twice in the array and can re-apply a stale value |
+| 3 | **Context overwritten by the deployment** | REC-011: stored `Personal`, folded `Housagotchi` / `Setlist` / `Health` / `social-recurring-tasks` |
+| 4 | **Context normalised** | trimmed, or folded onto a canonical spelling by `Contexts` |
+| 5 | **Importance defaulted** | ADR-0018: stored null, folded `NOT_SO_IMPORTANT` |
+| 6 | **Cleared start date defaulted** | stored null, folded the task's creation date |
+| 7 | **Date-time narrowed to a date** | same day, time of day dropped. Only fires when the **day** agrees; a differing day is cause 1 or unexplained |
+
+**One field is a canary: `creationDateTime`.** It is written once, by the creation patch, and
+copied rather than computed — no ordering of anything can move it — so a difference there means the
+translation is broken and it is unexplained **by construction**.
+
+The list first written here also made canaries of `name`, `description` and `status`, on the
+argument that they are carried through verbatim and so have no benign story. **That was wrong, and
+it was corrected before the first run** — while the counts were still unknown, which is the whole
+property the pre-commitment was written down to have. Causes 1 and 2 are properties of *ordering*,
+not of a field: two `status` patches arriving out of order is the likeliest D2 case in this corpus,
+and two `name` edits behave identically. Had the canary rule shipped as written, several thousand
+perfectly attributable D2 differences would have landed in the unexplained bucket and hidden the one
+defect it exists to expose.
+
+What survives from that instinct is narrower and better aimed: **a `status` difference on a task
+that is *currently open* is escalated to the report's front page whatever its cause.** Those are the
+tasks the author wakes up to on cutover morning, and a task portal shows as open that we fold to
+`COMPLETED` vanishes on day one.
+
+**Arrival order is read from the stored `history` array — for the report only.** The importer
+refuses to follow that `@DBRef` list when *building* a task, and rightly: grouping by `taskId`
+recovered 32 patches the array had lost. But array position **is** insertion order, and insertion
+order is the only record of arrival that survives anywhere in the corpus. So it is the only thing
+that can distinguish cause 1 from a bug. Two channels, never crossed: `taskId` grouping builds the
+task, array order explains the diff. It exposes cause 2 for free.
+
+**The report is written outside the repository**, next to the archive, because it quotes real task
+names and descriptions and [#31](https://github.com/stainii/task/issues/31) keeps this repo public
+on the rule that *the code is not the secret, the data is*. A gitignored path inside the repo is one
+`git add -f` from being the incident #31 was written to prevent; outside it, there is no mechanism.
+A machine-readable sidecar rides alongside the prose, one row per difference, so that a later
+session can act on an unexplained diff by opening a file rather than by restoring 5 MB of Mongo.
+
+**Two bars, not one.** *Fit to dogfood* ([#39](https://github.com/stainii/task/issues/39)) is loose:
+the loop works and the open tasks are right. *Fit to become the only copy*
+([#17](https://github.com/stainii/task/issues/17)) is strict: nothing unexplained is left
+un-adjudicated. #53 clears the first and writes the second down.
+
+### What the first stored-versus-folded run found
+
+The rehearsal ran through `MigrationRunner` on the `migration` profile — the path cutover executes,
+not the JUnit dry run — against the archive restored into throwaway containers: **50,073 documents,
+0 failures**. Of **9,421 differences, four are unexplained**, and all four are portal being wrong
+rather than the fold:
+
+- **Three stored values are not derivable from any patch in the task's own history.** `e8029ea0…`
+  has exactly two patches — a creation with `dueDateTime` 2020-02-27, and a status change — and
+  portal stored 2020-01-27. Nothing wrote that. This ADR's central claim, *portal's rows are already
+  unjustifiable by their own history*, arrives here as a measurement instead of an argument.
+- **One is a due-date edit portal's `history` array dropped** (`c8380233…`, four patches by `taskId`
+  and two in the array). One of the 32 patches #52 recovered, doing exactly what it was recovered
+  for — and the attribution rules correctly refused to explain it away.
+
+**D2's mechanism is present and never corrupted anything.** Twelve tasks have a `history` array out
+of clock order and 81 carry a duplicated entry, so the preconditions are real — and in none of them
+did the mis-ordering change one of the eight compared fields. The two order-based causes scored
+zero. Two devices belonging to one person, it turns out, rarely raced.
+
+**A correction to the comparison, not to the list.** The first run reported 8,895 `creationDateTime`
+differences, every one of the form `…310Z` against `…310607Z`: **a BSON date holds milliseconds and
+portal's patch strings hold microseconds**, so the stored document is a truncated copy of the value
+the fold reads. Comparing at millisecond precision is not a tolerance — it is the precision at which
+the stored document can express anything at all. No cause was added; a measurement error was fixed.
+
+**And a defect the report is structurally blind to.** The imported `context` column still held
+`Scholencoordinatie` (1,293), `Medisch huis` (7) and `Personal ` (1) beside their canonical
+spellings: `Contexts` was written, tested, and recorded in *`context` is normalised, and the
+deployment name wins* — and then only ever called for deployment names that were already canonical.
+`PatchTranslator` passed a hand-made task's own context straight through. 1,302 tasks, each stray
+spelling its own card under [ADR-0006](0006-one-overview-grouped-by-a-swappable-axis.md).
+
+The diff report could never have caught it, and the reason generalises: **stored and folded agreed,
+because they were wrong in the same way.** The report proves *fidelity to portal*, not *conformance
+to the decisions* — so a decision this ADR records and the code does not execute is invisible to it,
+and only a test beside the mapping rule can hold that line. Fixed, with a test, and confirmed by a
+second run: 25 contexts instead of 29, unexplained still four.
+
+**The dogfooding bar is cleared.** 11,855 tasks and 38,211 patches in; 12,483 tasks and 39,450
+patches out; 47 templates; 628 executions synthesised; every #52 figure unchanged. **28 tasks are
+open** against 12,455 completed, 13 of them overdue — the number
+[#39](https://github.com/stainii/task/issues/39) needs, or the dogfooding copy looks empty and reads
+as a bug. The cutover bar is written above and is [#17](https://github.com/stainii/task/issues/17)'s
+to apply.

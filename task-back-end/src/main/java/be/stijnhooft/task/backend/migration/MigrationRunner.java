@@ -14,7 +14,10 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Clock;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -58,6 +61,31 @@ public class MigrationRunner implements ApplicationRunner {
             var report = new PortalImporter(taskImport, taskTemplateImport, clock)
                     .importFrom(todo, List.copyOf(deployments));
             log.info("\n{}", report.render());
+            write(report);
+        }
+    }
+
+    /// Writes the report beside the archive, timestamped so a re-run never overwrites the run it is
+    /// being compared against — the fix loop is *read, change the mapping, run again, diff the two*,
+    /// and it does not work if the first one is gone.
+    ///
+    /// A failure to write is logged and swallowed. The import itself has already succeeded and the
+    /// summary is already on the console; throwing here would make an unwritable directory look
+    /// like a failed migration, which is the more expensive misunderstanding.
+    private void write(ImportReport report) {
+        var stamp = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HHmmss").withZone(clock.getZone()).format(clock.instant());
+        try {
+            var directory = Files.createDirectories(properties.reportDirectory());
+            var prose = directory.resolve("import-report-" + stamp + ".txt");
+            var sidecar = directory.resolve("import-differences-" + stamp + ".csv");
+            Files.writeString(prose, report.render());
+            Files.writeString(sidecar, report.renderCsv());
+            log.warn("Report written to {} and {}. Both quote real task names - they are outside the "
+                    + "repository on purpose (#31) and must stay there.", prose, sidecar);
+        } catch (IOException cannotWrite) {
+            log.error("The import succeeded but its report could not be written to {}. The summary "
+                    + "above is all there is; re-run once the directory is writable.",
+                    properties.reportDirectory(), cannotWrite);
         }
     }
 }

@@ -2,6 +2,7 @@ package be.stijnhooft.task.backend.migration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.nio.file.Path;
 import java.util.List;
 
 /// Where the restored archive is, for this run.
@@ -19,11 +20,18 @@ import java.util.List;
 /// @param deployments  the four restored `portal-recurring-tasks` databases. The `name` of each must
 ///                     be the **deployment name** as it appears in `subscription.origin`, not the
 ///                     database name — they differ in case, and for social they differ altogether
+/// @param reportDirectory where the diff report is written, which must be **outside this
+///                     repository**: it quotes real task names and descriptions, and
+///                     [#31](https://github.com/stainii/task/issues/31) keeps the repo public on the
+///                     rule that the code is not the secret, the data is. A gitignored path inside
+///                     the repo is one `git add -f` from being the incident #31 was written to
+///                     prevent; outside it, there is no mechanism
 @ConfigurationProperties(prefix = "task.migration")
 public record MigrationProperties(
         String mongoUri,
         String mongoDatabase,
-        List<Deployment> deployments) {
+        List<Deployment> deployments,
+        Path reportDirectory) {
 
     public MigrationProperties {
         deployments = List.copyOf(deployments);

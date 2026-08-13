@@ -25,6 +25,17 @@ public final class PortalArchive {
     ///
     /// `flowId` is null for the 3,023 hand-made tasks, and also for the 11 earliest generated ones,
     /// whose *id* is the flow id.
+    /// `startDateTime` and `dueDateTime` are read as `Instant` because that is how portal stored
+    /// them: Spring Data converted the `LocalDateTime` through `ZoneId.systemDefault()`, which was
+    /// `Europe/Brussels` — provable from the corpus, where a patch carrying
+    /// `dueDateTime: "2021-06-28T00:00"` is stored as `2021-06-27T22:00:00Z`, a +2 summer offset.
+    /// Read back at the same zone, they yield the wall-clock value portal displayed.
+    ///
+    /// [#historyOrder] is the `@DBRef` array's own order, which is **insertion order** and therefore
+    /// the only surviving record of the order patches *arrived* in. It is read for
+    /// [#53](https://github.com/stainii/task/issues/53)'s diff and for nothing else — the import
+    /// still groups patches by their `taskId`, which is what recovers the 32 patches this array
+    /// lost.
     public record PortalTask(
             String id,
             @Nullable String flowId,
@@ -32,7 +43,15 @@ public final class PortalArchive {
             @Nullable String context,
             @Nullable String status,
             @Nullable String importance,
-            @Nullable Instant creationDateTime) {
+            @Nullable Instant creationDateTime,
+            @Nullable Instant startDateTime,
+            @Nullable Instant dueDateTime,
+            @Nullable String description,
+            List<String> historyOrder) {
+
+        public PortalTask {
+            historyOrder = List.copyOf(historyOrder);
+        }
 
         /// The provenance string for this task: its `flowId`, or its own id when that is what
         /// portal used before the UUID scheme (`Health-1`, `Housagotchi-52`, …).

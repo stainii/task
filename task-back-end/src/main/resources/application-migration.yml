@@ -15,6 +15,11 @@
 task:
   migration:
     mongo-uri: ${PORTAL_MONGO_URI:mongodb://localhost:57017}
+    # #53: the stored-versus-folded report, OUTSIDE this repository. It quotes real task names and
+    # descriptions, and #31 keeps this repo public on the rule that the code is not the secret, the
+    # data is. A gitignored path inside the repo would be one `git add -f` from being the incident
+    # #31 was written to prevent; next to the archive, there is no mechanism.
+    report-directory: ${PORTAL_REPORT_DIR:${user.home}/portal-archive/2026-08-04/reports}
 
     # `todo`, not `portal-todo`. DB-001 inferred the latter and #35 measured the former: the Mongo
     # database is the only one in the corpus whose name is not its container's.

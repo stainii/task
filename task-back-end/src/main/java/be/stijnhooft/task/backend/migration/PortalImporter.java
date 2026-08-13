@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.migration;
 
+import be.stijnhooft.task.backend.migration.diff.StoredVersusFolded;
 import be.stijnhooft.task.backend.migration.map.Contexts;
 import be.stijnhooft.task.backend.migration.map.FlowId;
 import be.stijnhooft.task.backend.migration.map.PatchTranslator;
@@ -49,12 +50,14 @@ public class PortalImporter {
     private final TaskTemplateImport taskTemplateImport;
     private final Clock clock;
     private final ZoneId zone;
+    private final StoredVersusFolded storedVersusFolded;
 
     public PortalImporter(TaskImport taskImport, TaskTemplateImport taskTemplateImport, Clock clock) {
         this.taskImport = taskImport;
         this.taskTemplateImport = taskTemplateImport;
         this.clock = clock;
         this.zone = clock.getZone();
+        this.storedVersusFolded = new StoredVersusFolded(zone);
     }
 
     public ImportReport importFrom(TodoReader todo, List<RecurringTasksReader> deployments) {
@@ -312,8 +315,15 @@ public class PortalImporter {
             withDefaultImportance(translated, report);
 
             var taskId = PortalIds.ofTask(task.id());
-            taskImport.importTask(taskId, translated);
+            var folded = taskImport.importTask(taskId, translated);
             report.increment("tasks imported");
+
+            // #53: the diff happens here because this is the only moment both versions of the task
+            // exist - portal's document, and what its own history folds to. Reading either back
+            // afterwards would answer a question about the database instead.
+            var comparison = storedVersusFolded.compare(task, folded, portalPatches, context);
+            comparison.differences().forEach(report::difference);
+            report.count("date-times that lost a time of day", comparison.dateTimesThatLostATimeOfDay());
 
             if (templateId != null) {
                 completions.computeIfAbsent(templateId, key -> new ArrayList<>())
@@ -478,6 +488,8 @@ public class PortalImporter {
                 null,
                 execution.date());
 
+        // Nothing to diff: a synthesised task has no portal document to disagree with. It *is* the
+        // interpretation of an execution row, so comparing it with itself would prove nothing.
         taskImport.importTask(taskId, List.of(creation, completion));
         report.increment("executions synthesised into tasks");
     }
