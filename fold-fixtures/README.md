@@ -45,8 +45,16 @@ here rather than in the app.
 
 ## Status
 
-Written by [#45](https://github.com/stainii/task/issues/45) alongside the Java fold; the TypeScript
-side runs the same files in [#55](https://github.com/stainii/task/issues/55). Java runner:
-`task-back-end/src/test/java/…/task/FoldFixtureTest.java`.
+**Both sides run.** Written by [#45](https://github.com/stainii/task/issues/45) alongside the Java
+fold; [#55](https://github.com/stainii/task/issues/55) added the TypeScript fold and pointed it at
+the same files.
+
+- Java: `task-back-end/src/test/java/…/task/domain/FoldFixtureTest.java`
+- TypeScript: `task-front-end/src/app/domain/fold.fixtures.spec.ts`
+
+The TypeScript runner enumerates this directory with `node:fs` at test time rather than importing
+the files, so it stays outside the front-end's `tsconfig` and a new fixture needs no build change.
+It asserts the same three things the Java runner does: the folded task field by field, one history
+entry per distinct patch id, and the same result from the patches reversed and rotated.
 
 Conventions: `docs/quality-bar.md`.
