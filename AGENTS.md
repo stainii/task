@@ -24,3 +24,7 @@ The five canonical roles use their canonical strings verbatim: `needs-triage`, `
 ### Domain docs
 
 Single-context: one `CONTEXT.md` and one `docs/adr/` at the repo root, shared by back-end and front-end. See `docs/agents/domain.md`.
+
+### Angular skills
+
+`angular-developer` is installed and the front-end already follows it — there is no modernization backlog, and Signal Forms was considered for the task dialog and deliberately declined. Read before proposing either. See `docs/agents/angular-skills.md`.
