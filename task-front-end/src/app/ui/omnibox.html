@@ -11,7 +11,6 @@
   [value]="query()"
   (input)="typed($event)"
   (keydown.enter)="capture()"
-  (keydown.escape)="dismiss()"
 />
 
 <!--
@@ -73,6 +72,20 @@
       </button>
     }
     <button type="button" class="details" (click)="details()">Add details</button>
+  </div>
+}
+
+<!--
+  Undo, for a completion made **by name**. ADR-0015 puts a toast behind any action that removes a
+  row, and this removes one from a screen that does not show closed tasks — but the sharper reason
+  is that ADR-0011's amendment and ADR-0018 both name undo-then-recomplete inside this toast as the
+  *only* way a wrong `completedOn` is ever corrected. Without it the date is permanent the instant
+  *Done* is pressed.
+-->
+@if (undoable(); as completion) {
+  <div class="undoable" role="status">
+    <span class="what">Completed — {{ completion.name }}</span>
+    <button type="button" class="undo" (click)="undo()">Undo</button>
   </div>
 }
 

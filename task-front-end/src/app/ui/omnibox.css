@@ -106,7 +106,8 @@
  * The create toast. Bottom of the screen like the overview's undo toast, because it is the same
  * kind of thing — an offer with a deadline, about something that has already happened.
  */
-.created {
+.created,
+.undoable {
   position: fixed;
   z-index: 13;
   inset: auto 12px 12px;
@@ -122,12 +123,14 @@
   border-radius: 10px;
 }
 
-.created .what {
+.created .what,
+.undoable .what {
   flex: 1;
   min-width: 0;
 }
 
-.created button {
+.created button,
+.undoable button {
   padding: 4px 10px;
   font: inherit;
   font-size: 13px;
@@ -139,7 +142,8 @@
 }
 
 @media (min-width: 780px) {
-  .created {
+  .created,
+  .undoable {
     inset: auto auto 16px 50%;
     transform: translateX(-50%);
     width: min(620px, calc(100% - 48px));

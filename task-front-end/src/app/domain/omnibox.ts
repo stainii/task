@@ -1,3 +1,4 @@
+import { CAP } from './bands';
 import { IsoDate, today } from './dates';
 import { patchOn } from './patches';
 import { byRank } from './ranking';
@@ -20,6 +21,13 @@ import { Task, TaskPatch } from './task';
  * The app already has one answer to *which of these matters most today*, and a second one here
  * would be the shape that let portal's comparator and its buckets disagree for years — with the
  * added cost that the two would be visible a keystroke apart.
+ *
+ * **Capped at `bands.CAP`**, the overview's own number, *imported* rather than repeated: a second
+ * literal `5` is exactly what quality-bar §5 means by a rule existing in more than one place, and
+ * the two would drift green. The cap is what makes the ordering load-bearing rather than cosmetic
+ * — on six years of real history a two-letter query matches hundreds of rows, and whichever fall
+ * off the end are invisible. *ADR-0006 states the number for the overview; borrowing it for the
+ * omnibox is decided by recommendation.*
  */
 export function matchingTasks(tasks: readonly Task[], query: string, today: IsoDate): Task[] {
   const needle = query.trim().toLowerCase();
@@ -34,18 +42,8 @@ export function matchingTasks(tasks: readonly Task[], query: string, today: IsoD
   return tasks
     .filter((task) => task.status === 'OPEN' && task.name.toLowerCase().includes(needle))
     .sort(byRank(today))
-    .slice(0, SUGGESTIONS);
+    .slice(0, CAP);
 }
-
-/**
- * How many matches are offered.
- *
- * The cap is what makes the ordering above load-bearing rather than cosmetic: on six years of real
- * history a two-letter query matches hundreds of rows, and whichever ones fall off the end are
- * invisible. Five is ADR-0006's number for the overview's top-up, borrowed so a screenful means one
- * thing across the app. *Decided by recommendation; no ADR states the omnibox's length.*
- */
-const SUGGESTIONS = 5;
 
 /**
  * Capture: **one patch that is a whole task**, from the name alone.
@@ -99,6 +97,9 @@ export function contextsOf(tasks: readonly Task[]): string[] {
  * real app: a device holding four contexts and no capture history offered an invented default,
  * because the only fallback was a constant — and the very first capture is the one most likely to
  * be made before any preference has been recorded.
+ *
+ * *Decided by recommendation.* ADR-0018's fallback chain stops at *the last one used*, and says
+ * nothing about a device that has never used one.
  */
 export function lastUsedContext(tasks: readonly Task[]): string | null {
   let latest: Task | null = null;

@@ -25,9 +25,13 @@ import { Omnibox } from './omnibox';
 
 const NOW_AT = new Date('2026-08-14T10:00:00Z');
 
+/** The clock, movable: the appbar outlives midnight and has to notice. */
+let at = NOW_AT;
+
 let held: Task[] = [];
 let recorded: TaskPatch[] = [];
 let lastContext: string | null = null;
+let revision = signal(0);
 let harness: RouterTestingHarness;
 let page: HTMLElement;
 
@@ -91,10 +95,12 @@ beforeEach(() => {
   held = [];
   recorded = [];
   lastContext = null;
+  at = NOW_AT;
+  revision = signal(0);
   TestBed.configureTestingModule({
     providers: [
       provideRouter(routes, withComponentInputBinding()),
-      { provide: NOW, useValue: () => NOW_AT },
+      { provide: NOW, useValue: () => at },
       {
         provide: LocalStore,
         useValue: {
@@ -112,15 +118,24 @@ beforeEach(() => {
       {
         provide: SyncService,
         useValue: {
-          revision: signal(0),
+          revision,
           record: vi.fn((patch: TaskPatch) => {
             recorded.push(patch);
             // The real service writes through the store, so a captured task is on this device the
             // instant it is made — which is what *Add details* then navigates to. A stub that only
             // remembered the patch would make the dialog redirect as if the task did not exist.
-            const history = recorded.filter((held) => held.taskId === patch.taskId);
+            //
+            // **Refolded against the task's whole history**, exactly as `LocalStore.refold` does.
+            // Folding only the patches this stub had seen threw `IncompleteTaskHistoryError` for
+            // every completion of a task that was already here — a rejection inside a click
+            // handler, so no test failed on it and vitest went red on the exit code alone.
+            const existing = held.find((task) => task.id === patch.taskId);
+            const history = [
+              ...(existing?.history ?? []),
+              ...recorded.filter((made) => made.taskId === patch.taskId),
+            ];
             const task = foldOf(patch.taskId, history);
-            held = [...held.filter((existing) => existing.id !== task.id), task];
+            held = [...held.filter((other) => other.id !== task.id), task];
             return Promise.resolve(task);
           }),
         },
@@ -179,16 +194,39 @@ describe('capture by typing', () => {
     expect(recorded).toEqual([]);
   });
 
-  it('never changes the URL, so Escape returns you where you were', async () => {
-    // The omnibox is a control on the appbar and deliberately **not** a route (ADR-0014).
+  it('puts the box down on Escape without changing the URL', async () => {
+    // The omnibox is a control on the appbar and deliberately **not** a route (ADR-0014), so
+    // *Escape returns you where you were* means the panel closes and the URL is untouched.
+    //
+    // Pressed on **unfinished** input, which is the whole test: the first version of this pressed
+    // Escape after Enter, and `capture()` had already emptied the box — so both assertions held
+    // before the key was dispatched, and it passed against an omnibox with no Escape binding at all.
+    held = [aTask({ name: 'Beddengoed wassen' })];
     await standingAt('/in/housagotchi');
 
-    await type('Ramen lappen');
-    await press('Enter');
+    await type('bedden');
+    expect(page.querySelector('.panel')).toBeTruthy();
+
     await press('Escape');
 
-    expect(TestBed.inject(Router).url).toBe('/in/housagotchi');
     expect(box().value).toBe('');
+    expect(page.querySelector('.panel')).toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/in/housagotchi');
+  });
+
+  it('takes Escape from a chip too, not only from the caret', async () => {
+    // The chips and the suggestions are real, Tab-reachable buttons. Bound on the input alone, the
+    // ADR's promise held only while focus happened to be in the box.
+    held = [aTask({ context: 'house' }), aTask({ context: 'social' })];
+    await standingAt('/');
+
+    await type('Ramen lappen');
+    const chip = page.querySelector<HTMLElement>('.chip');
+    chip?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle();
+
+    expect(box().value).toBe('');
+    expect(page.querySelector('.panel')).toBeNull();
   });
 });
 
@@ -394,5 +432,70 @@ describe('where a capture lands before anything has been captured', () => {
     await press('Enter');
 
     expect(captured().context).toBe('general');
+  });
+});
+
+describe('undoing a completion made by name', () => {
+  it('offers an undo, which writes a void patch naming the completion', async () => {
+    // ADR-0015: an ~8 second toast with *Undo* follows **any action that removes a row**, and this
+    // one removes a row from a screen that does not show closed tasks. It is also the only
+    // correction path ADR-0011's amendment and ADR-0018 left for `completedOn`: undo and recomplete
+    // inside the toast, or a wrong completion date is permanent — the task is closed, the omnibox
+    // is open-only, and the overview will never show it again.
+    held = [aTask({ id: 'bed', name: 'Beddengoed wassen' })];
+    await standingAt('/');
+
+    await type('bedden');
+    await click('.suggestion');
+    await click('app-date-confirm .confirm');
+
+    expect(page.querySelector('.undoable')?.textContent).toContain('Beddengoed wassen');
+
+    await click('.undoable .undo');
+
+    expect(recorded).toHaveLength(2);
+    expect(recorded[1].voids).toBe(recorded[0].id);
+    expect(recorded[1].changes).toEqual({});
+  });
+
+  it('shows one toast at a time, so a capture does not sit under a completion', async () => {
+    held = [aTask({ id: 'bed', name: 'Beddengoed wassen' })];
+    await standingAt('/');
+
+    await type('bedden');
+    await click('.suggestion');
+    await click('app-date-confirm .confirm');
+    await type('Ramen lappen');
+    await press('Enter');
+
+    expect(page.querySelector('.undoable')).toBeNull();
+    expect(page.querySelector('.created')).toBeTruthy();
+  });
+});
+
+describe('the date the omnibox measures against', () => {
+  it('moves with the calendar, so a completion after midnight is not dated yesterday', async () => {
+    // `NOW` is a plain function, not a signal, so a `computed` over it memoises **for the life of
+    // the tab** — and this is an installed PWA whose appbar is never destroyed. The confirm seeds
+    // its date field from this value, so a frozen one writes yesterday into `completedOn`: ADR-0011's
+    // domain clock, what a min/max anchor reads, and `CONTEXT.md` says it is never editable
+    // afterwards. `overview.ts` met this exact problem and answered it with a signal re-set on
+    // reload; this is the same answer.
+    held = [aTask({ id: 'bed', name: 'Beddengoed wassen' })];
+    await standingAt('/');
+
+    // Read it **first**. A memoised computed is only wrong once it has an answer to remember, so a
+    // test that moves the clock before anything has looked at the date passes either way.
+    await type('bedden');
+    expect(texts('.suggestion .state')).toEqual(['no due date']);
+
+    at = new Date('2026-08-15T10:00:00Z');
+    revision.update((value) => value + 1);
+    await settle();
+
+    await click('.suggestion');
+
+    const field = page.querySelector<HTMLInputElement>("app-date-confirm input[type='date']");
+    expect(field?.value).toBe('2026-08-15');
   });
 });

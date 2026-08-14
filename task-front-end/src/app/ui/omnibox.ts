@@ -14,19 +14,37 @@ import { filter, map } from 'rxjs';
 import { NOW } from '../clock';
 import { IsoDate, today } from '../domain/dates';
 import { capturePatch, contextsOf, lastUsedContext, matchingTasks } from '../domain/omnibox';
-import { completePatch, DUE_PRESETS, dueDatePatch } from '../domain/patches';
-import { Task } from '../domain/task';
+import { completePatch, DUE_PRESETS, dueDatePatch, undoPatch } from '../domain/patches';
+import { Task, TaskPatch } from '../domain/task';
 import { LocalStore } from '../store/local-store';
 import { SyncService } from '../sync/sync';
 import { DateConfirm } from './date-confirm';
 import { dueLabel } from './wording';
 
-/** A capture, while its toast is still offering to finish the job. */
-export interface Captured {
-  readonly taskId: string;
-  readonly name: string;
-  readonly context: string;
-}
+/**
+ * The one toast slot, and the two things it can be about.
+ *
+ * One slot rather than two, because the two are mutually exclusive in practice and a capture
+ * stacked under a completion would put two undo-shaped offers on screen with different deadlines.
+ */
+export type Toast =
+  /** A capture, still offering to give it the due date it deliberately did not get. */
+  | {
+      readonly kind: 'created';
+      readonly taskId: string;
+      readonly name: string;
+      readonly context: string;
+    }
+  /**
+   * A completion made by name, still offering to take it back.
+   *
+   * ADR-0015 puts a toast behind **any action that removes a row**, and this removes one from a
+   * screen that does not show closed tasks. It is also the *only* correction path ADR-0011's
+   * amendment and ADR-0018 left for `completedOn`: undo and recomplete inside the toast, or a wrong
+   * date is permanent — the task is closed, this list is open-only, and the overview will never
+   * show it again.
+   */
+  | { readonly kind: 'completed'; readonly patch: TaskPatch; readonly name: string };
 
 /** One row of the dropdown: something you can mark done, and which state it is in. */
 export interface Suggestion {
@@ -54,6 +72,11 @@ export interface Suggestion {
   selector: 'app-omnibox',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [DateConfirm],
+  // Scoped to this component rather than `document:`, so it catches Escape from a chip or a
+  // suggestion button — both are real, Tab-reachable buttons — without adding a third unconditional
+  // document-level owner of the key beside `TaskPage` and `DateConfirm`. Bound on the input alone,
+  // ADR-0014's *Escape returns you where you were* held only while the caret was in the box.
+  host: { '(keydown.escape)': 'dismiss()' },
   templateUrl: './omnibox.html',
   styleUrl: './omnibox.css',
 })
@@ -92,10 +115,21 @@ export class Omnibox {
   /** The task whose confirm is open, or null. Nothing is written while this is set. */
   protected readonly confirming = signal<Task | null>(null);
 
-  /** The capture just made, while its toast is still up. */
-  protected readonly created = signal<Captured | null>(null);
+  /** What the toast is about, or null while there is nothing to say. */
+  private readonly toast = signal<Toast | null>(null);
 
-  private createdTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The two views of that one slot, so the template branches on presence rather than on a kind. */
+  protected readonly created = computed(() => {
+    const toast = this.toast();
+    return toast?.kind === 'created' ? toast : null;
+  });
+
+  protected readonly undoable = computed(() => {
+    const toast = this.toast();
+    return toast?.kind === 'completed' ? toast : null;
+  });
+
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -133,8 +167,11 @@ export class Omnibox {
    * you last captured into, the context of the newest task this device holds, and only then the
    * literal.
    *
-   * The fourth step was added after driving the real app: a device holding four real contexts and
-   * no capture history marked `general` — a word nothing in the data had ever named.
+   * **ADR-0018 states two steps** — standing in, else last used. The third and fourth are additions:
+   * on a device that has never captured, *both* of the ADR's steps are silent while the answer is
+   * sitting in the task list. Found by driving the real app, where a device holding four real
+   * contexts marked `general`, a word nothing in the data had ever named. *Decided by
+   * recommendation; ADR-0018 names only the first two steps.*
    */
   protected readonly context = computed(
     () =>
@@ -181,33 +218,47 @@ export class Omnibox {
 
   /** One tap on the toast, giving the capture the due date it deliberately did not get. */
   protected async due(days: number): Promise<void> {
-    const captured = this.created();
-    if (captured === null) {
+    const created = this.created();
+    if (created === null) {
       return;
     }
     this.clearToast();
-    await this.sync.record(dueDatePatch(captured.taskId, days, this.now()));
+    await this.sync.record(dueDatePatch(created.taskId, days, this.now()));
   }
 
   /** *Add details*: an ordinary navigation to the task's own dialog (ADR-0018). */
   protected details(): void {
-    const captured = this.created();
-    if (captured === null) {
+    const created = this.created();
+    if (created === null) {
       return;
     }
     this.clearToast();
-    void this.router.navigate(['/task', captured.taskId]);
+    void this.router.navigate(['/task', created.taskId]);
   }
 
   private clearToast(): void {
-    if (this.createdTimer !== null) {
-      clearTimeout(this.createdTimer);
-      this.createdTimer = null;
+    if (this.toastTimer !== null) {
+      clearTimeout(this.toastTimer);
+      this.toastTimer = null;
     }
-    this.created.set(null);
+    this.toast.set(null);
   }
 
-  protected readonly today = computed<IsoDate>(() => today(this.now()));
+  /**
+   * The date this screenful is measured against, **re-read whenever the tasks are**.
+   *
+   * A `signal`, not a `computed`: `NOW` is a plain function rather than a signal, so a computed
+   * over it has no dependency to invalidate and memoises for the life of the tab — and this appbar
+   * is never destroyed, in an installed PWA that stays open across midnight. The consequence is not
+   * cosmetic here: `DateConfirm` seeds its field from this, so a frozen value writes **yesterday**
+   * into `completedOn` — ADR-0011's domain clock, what a min/max anchor reads, and never editable
+   * afterwards.
+   *
+   * `overview.ts` met this exact problem and answered it the same way, for the same stated reason.
+   */
+  private readonly asOf = signal<IsoDate>(today(this.now()));
+
+  protected readonly today = this.asOf.asReadonly();
 
   /**
    * What typing offers: the open tasks that match, most urgent first.
@@ -254,7 +305,20 @@ export class Omnibox {
     }
     this.confirming.set(null);
     this.query.set('');
-    await this.sync.record(completePatch(task, this.now(), on));
+
+    const patch = completePatch(task, this.now(), on);
+    await this.sync.record(patch);
+    this.offerToast({ kind: 'completed', patch, name: task.name });
+  }
+
+  /** Takes the completion back, as ADR-0004's void patch. The fold recomputes; nothing is edited. */
+  protected async undo(): Promise<void> {
+    const toast = this.undoable();
+    if (toast === null) {
+      return;
+    }
+    this.clearToast();
+    await this.sync.record(undoPatch(toast.patch, this.now()));
   }
 
   protected cancelConfirm(): void {
@@ -281,13 +345,13 @@ export class Omnibox {
     await this.sync.record(patch);
     await this.store.setLastContext(context);
     this.remembered.set(context);
-    this.offerToast({ taskId: patch.taskId, name, context });
+    this.offerToast({ kind: 'created', taskId: patch.taskId, name, context });
   }
 
-  private offerToast(captured: Captured): void {
+  private offerToast(toast: Toast): void {
     this.clearToast();
-    this.created.set(captured);
-    this.createdTimer = setTimeout(() => this.created.set(null), Omnibox.TOAST_MS);
+    this.toast.set(toast);
+    this.toastTimer = setTimeout(() => this.toast.set(null), Omnibox.TOAST_MS);
   }
 
   /** Escape puts the box down. It never navigates, because typing never navigated. */
@@ -297,7 +361,9 @@ export class Omnibox {
 
   private async reload(): Promise<void> {
     try {
-      this.held.set(await this.store.tasks());
+      const tasks = await this.store.tasks();
+      this.asOf.set(today(this.now()));
+      this.held.set(tasks);
       this.remembered.set(await this.store.lastContext());
     } catch (error) {
       // Fire-and-forget from an effect: a rejection escaping here is an unhandled one and nothing
