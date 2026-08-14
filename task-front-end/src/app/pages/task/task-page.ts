@@ -10,12 +10,13 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Router, RouterLink } from '@angular/router';
 
 import { NOW } from '../../clock';
 import { addDays, IsoDate, today } from '../../domain/dates';
-import { ASK_FROM_PRESETS, PostponePreset } from '../../domain/patches';
-import { Importance, IMPORTANCES, Task } from '../../domain/task';
+import { ASK_FROM_PRESETS, DatePreset } from '../../domain/patches';
+import { IMPORTANCES, Task } from '../../domain/task';
 import {
   asksAfterItIsDue,
   changesOf,
@@ -68,7 +69,7 @@ interface AskFromConflict {
 @Component({
   selector: 'app-task-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink],
+  imports: [CdkTrapFocus, RouterLink],
   templateUrl: './task-page.html',
   styleUrl: './task-page.css',
   host: { '(document:keydown.escape)': 'dismiss()' },
@@ -86,6 +87,12 @@ export class TaskPage {
   protected readonly presets = ASK_FROM_PRESETS;
 
   protected readonly confirming = signal(false);
+
+  /** Set once an exit has been *decided*, so the guard below stops asking about it. */
+  private leaving = false;
+
+  /** Resolves the guard once the confirm has been answered. */
+  private answer: ((leave: boolean) => void) | null = null;
 
   /**
    * One read of the local store, keyed on the id in the URL.
@@ -147,9 +154,11 @@ export class TaskPage {
   /**
    * *Asking from 17 Aug, still due 30 Jun — 48 days overdue.*
    *
-   * The overdue tail goes through the same ladder the overview uses, rather than a subtraction
-   * written a second time here: the two saying different things about one date is exactly what
-   * `dueIn` exists to prevent.
+   * **The count is measured from the date you will be asked, not from today**, which is ADR-0018's
+   * own arithmetic: 30 Jun to 17 Aug is 48 days. Measuring against today reads correctly only while
+   * the due date is already past, and contradicts itself the moment it is not — *asking from 25
+   * Aug, still due 20 Aug — in 6 days* says the thing is both late and not yet due. The gap this
+   * sentence is about is the one between the two dates it names.
    */
   protected readonly conflict = computed<AskFromConflict | null>(() => {
     const draft = this.draft();
@@ -160,13 +169,14 @@ export class TaskPage {
     return {
       from: dateLabel(draft.startDate, asOf),
       due: dateLabel(draft.dueDate, asOf),
-      overdue: dueLabel(draft.dueDate, asOf),
+      overdue: dueLabel(draft.dueDate, draft.startDate),
     };
   });
 
   constructor() {
-    // Navigation *is* an imperative side effect, which is the one thing an effect is for. This one
-    // reads the resource and writes no signal of its own.
+    // Navigation *is* an imperative side effect, which is the one thing an effect is for. It writes
+    // no signal of this component's own; the one signal it does touch is `Notices`, whose whole
+    // purpose is to outlive the component being navigated away from.
     effect(() => {
       const failure = this.loaded.error();
       if (failure !== undefined) {
@@ -186,9 +196,8 @@ export class TaskPage {
     });
   }
 
-  protected label(importance: Importance): string {
-    return importanceLabel(importance);
-  }
+  /** Referenced rather than wrapped: a method that only forwards is a name to keep in step. */
+  protected readonly label = importanceLabel;
 
   /** The value of whichever control raised the event. Typed once here rather than in six bindings. */
   protected value(event: Event): string {
@@ -199,12 +208,12 @@ export class TaskPage {
     this.draft.update((draft) => ({ ...draft, [field]: value }));
   }
 
-  /** An emptied text field is `null` on the wire, not `''` — the fold's *clear it* value. */
-  protected editText(field: 'description', value: string): void {
-    this.draft.update((draft) => ({ ...draft, [field]: value === '' ? null : value }));
-  }
-
-  protected editDate(field: 'dueDate', value: string): void {
+  /**
+   * A field that can be empty, where **empty is `null` on the wire and never `''`** — the fold's
+   * *clear it* value. One function for both, since a cleared due date and a cleared description are
+   * the same statement about a different field.
+   */
+  protected clearable(field: 'dueDate' | 'description', value: string): void {
     this.draft.update((draft) => ({ ...draft, [field]: value === '' ? null : value }));
   }
 
@@ -218,11 +227,11 @@ export class TaskPage {
     }
   }
 
-  protected askFrom(preset: PostponePreset): void {
+  protected askFrom(preset: DatePreset): void {
     this.draft.update((draft) => ({ ...draft, startDate: this.presetDate(preset) }));
   }
 
-  protected isOn(preset: PostponePreset): boolean {
+  protected isOn(preset: DatePreset): boolean {
     return this.draft().startDate === this.presetDate(preset);
   }
 
@@ -230,6 +239,23 @@ export class TaskPage {
    * One Save writes **one patch carrying every changed field**, and an untouched form writes
    * nothing at all.
    */
+  /**
+   * The route guard's question: may this dialog be left?
+   *
+   * **Every accidental exit funnels through here** — the scrim, Escape and, the one neither of
+   * those reaches, **hardware back**. ADR-0018 lists all three together, and a component can only
+   * see the first two: back is a `popstate` the router turns into a navigation, so the only place
+   * that can ask about it is a guard. Without this, the gesture an installed PWA uses most often
+   * would be the one gesture that discards silently.
+   */
+  canLeave(): boolean | Promise<boolean> {
+    if (this.leaving || this.changeCount() === 0) {
+      return true;
+    }
+    this.confirming.set(true);
+    return new Promise<boolean>((resolve) => (this.answer = resolve));
+  }
+
   protected async save(): Promise<void> {
     const task = this.task();
     if (task === null) {
@@ -254,6 +280,14 @@ export class TaskPage {
     this.close();
   }
 
+  /** The confirm's *Discard*: by this point the exit is deliberate, so it says what went too. */
+  protected discard(): void {
+    this.notices.say(`Discarded ${this.changeCount()} unsaved change(s)`);
+    this.confirming.set(false);
+    this.answer?.(true);
+    this.answer = null;
+  }
+
   /**
    * An **accidental** dismissal — scrim, Escape, hardware back — asks first.
    *
@@ -261,18 +295,16 @@ export class TaskPage {
    * in front of every close (ADR-0018). With nothing typed there is nothing to lose, so it goes.
    */
   protected dismiss(): void {
-    if (this.changeCount() === 0) {
-      this.close();
-      return;
-    }
-    this.confirming.set(true);
+    this.goBack();
   }
 
   protected keepEditing(): void {
     this.confirming.set(false);
+    this.answer?.(false);
+    this.answer = null;
   }
 
-  private presetDate(preset: PostponePreset): IsoDate {
+  private presetDate(preset: DatePreset): IsoDate {
     return addDays(today(this.now()), preset.days);
   }
 
@@ -292,7 +324,17 @@ export class TaskPage {
   }
 
   private close(): void {
-    void this.router.navigateByUrl(this.returnTo);
+    this.leaving = true;
+    this.goBack();
+  }
+
+  /**
+   * **`replaceUrl`, so closing does not stack a history entry.** Without it, hardware back after
+   * saving walks straight back into the dialog you just left — which is the opposite of ADR-0014's
+   * reason for routing at all: *an installed PWA's hardware back must leave the thing, not the app*.
+   */
+  private goBack(): void {
+    void this.router.navigateByUrl(this.returnTo, { replaceUrl: true });
   }
 }
 

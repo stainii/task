@@ -23,7 +23,14 @@ export const routes: Routes = [
   { path: 'in/:value', component: Overview, title: 'Tasks' },
   { path: 'templates', component: Templates, title: 'Templates' },
   { path: 'templates/:id', component: TemplateAuthoring, title: 'Template' },
-  { path: 'task/:id', component: TaskPage, title: 'Task' },
+  {
+    // The guard is how **hardware back** gets asked about. A component sees the scrim and Escape;
+    // it cannot see a `popstate`, and ADR-0018 lists all three together as accidental dismissals.
+    path: 'task/:id',
+    component: TaskPage,
+    title: 'Task',
+    canDeactivate: [(dialog: TaskPage) => dialog.canLeave()],
+  },
   { path: 'status', component: Status, title: 'Status' },
   { path: '**', redirectTo: '' },
 ];

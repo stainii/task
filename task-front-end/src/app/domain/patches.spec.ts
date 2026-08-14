@@ -111,12 +111,15 @@ describe('ASK_FROM_PRESETS', () => {
     ]);
   });
 
-  it('is the postpone set plus the un-postpone, and the two cannot drift apart', () => {
-    // ADR-0018 words this as *the same set minus `Today`*, so it is expressed that way rather than
-    // written out twice. Two literals is how portal came to score a missing importance one way in
-    // the comparator and another in the buckets.
-    expect(ASK_FROM_PRESETS.filter((preset) => preset.days > 0)).toEqual(POSTPONE_PRESETS);
-    expect(ASK_FROM_PRESETS.filter((preset) => preset.days === 0)).toHaveLength(1);
+  it('is the postpone set plus the un-postpone, and nothing else', () => {
+    // Stated against literals rather than by re-running the `filter` that defines `POSTPONE_PRESETS`
+    // — that would restate the implementation and pass however either list changed. ADR-0018 words
+    // the relationship as *the same set minus `Today`*, and this is that sentence as data.
+    expect(ASK_FROM_PRESETS.map((preset) => preset.label)).toEqual([
+      'Today',
+      ...['Tomorrow', 'In 3 days', 'Next week'],
+    ]);
+    expect(POSTPONE_PRESETS.map((preset) => preset.label)).not.toContain('Today');
   });
 });
 

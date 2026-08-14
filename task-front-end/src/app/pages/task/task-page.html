@@ -5,7 +5,19 @@
   -->
   <button type="button" class="scrim" aria-label="Close" (click)="dismiss()"></button>
 
-  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="task-dialog-title">
+  <!--
+    `aria-modal` is a promise to a screen reader that nothing outside this is reachable, so the trap
+    is what makes it true rather than merely declared. `autoCapture` puts the caret in the first
+    field, which is also where a person editing a task wants to be.
+  -->
+  <section
+    class="dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="task-dialog-title"
+    cdkTrapFocus
+    [cdkTrapFocusAutoCapture]="true"
+  >
     <h2 id="task-dialog-title" class="visually-hidden">Edit task</h2>
 
     <!--
@@ -27,6 +39,7 @@
       <input
         id="task-name"
         data-field="name"
+        cdkFocusInitial
         type="text"
         [value]="draft().name"
         (input)="edit('name', value($event))"
@@ -85,7 +98,7 @@
           data-field="dueDate"
           type="date"
           [value]="draft().dueDate ?? ''"
-          (input)="editDate('dueDate', value($event))"
+          (input)="clearable('dueDate', value($event))"
         />
       </div>
 
@@ -135,7 +148,7 @@
         data-field="description"
         rows="3"
         [value]="draft().description ?? ''"
-        (input)="editText('description', value($event))"
+        (input)="clearable('description', value($event))"
       ></textarea>
     </div>
 
@@ -151,7 +164,7 @@
     @if (confirming()) {
       <div class="confirm" role="alertdialog" aria-label="Discard changes?">
         <span>{{ changeCount() }} unsaved change(s). Leaving now discards them.</span>
-        <button type="button" class="discard" (click)="cancel()">Discard</button>
+        <button type="button" class="discard" (click)="discard()">Discard</button>
         <button type="button" (click)="keepEditing()">Keep editing</button>
       </div>
     }

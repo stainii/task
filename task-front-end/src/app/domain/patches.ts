@@ -27,8 +27,14 @@ export interface PanelAction {
   readonly done: string;
 }
 
-/** How far each preset moves a start date, from today. */
-export interface PostponePreset {
+/**
+ * How far a preset moves a start date, from today.
+ *
+ * Named for what it is rather than for its first caller: the same shape serves *ask me from*, whose
+ * `Today` is precisely **not** a postpone — `CONTEXT.md` keeps the two words apart on purpose, and
+ * a type called `DatePreset` sitting under `ASK_FROM_PRESETS` would put them back together.
+ */
+export interface DatePreset {
   readonly label: string;
   readonly days: number;
 }
@@ -43,7 +49,7 @@ export interface PostponePreset {
  * the whole point of the edit dialog: postpone is forward-only, so pulling a sleeping task back
  * into the day's work has no other surface in the app.
  */
-export const ASK_FROM_PRESETS: readonly PostponePreset[] = [
+export const ASK_FROM_PRESETS: readonly DatePreset[] = [
   { label: 'Today', days: 0 },
   { label: 'Tomorrow', days: 1 },
   { label: 'In 3 days', days: 3 },
@@ -57,7 +63,7 @@ export const ASK_FROM_PRESETS: readonly PostponePreset[] = [
  * `task.comparator.ts` and `task.model.ts` disagree for years about what a missing importance
  * means. `Today` is dropped because postpone moves forward only, where it would be a no-op.
  */
-export const POSTPONE_PRESETS: readonly PostponePreset[] = ASK_FROM_PRESETS.filter(
+export const POSTPONE_PRESETS: readonly DatePreset[] = ASK_FROM_PRESETS.filter(
   (preset) => preset.days > 0,
 );
 

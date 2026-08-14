@@ -45,6 +45,19 @@ async function settle(): Promise<void> {
   await harness.fixture.whenStable();
 }
 
+/**
+ * Renders what is on screen **without** waiting for the app to go stable.
+ *
+ * The confirm exists *during* a navigation the guard is holding open, so the app is deliberately
+ * unstable while it is up: `whenStable()` would wait for the very answer the assertion is about.
+ */
+async function paint(): Promise<void> {
+  // A macrotask, not a microtask: the guard runs inside the router's own async pipeline, so the
+  // question is not asked yet at the end of the current tick.
+  await new Promise((resume) => setTimeout(resume, 0));
+  harness.fixture.detectChanges();
+}
+
 function field<T extends HTMLElement>(page: HTMLElement, name: string): T {
   const found = page.querySelector<T>(`[data-field='${name}']`);
   if (found === null) {
@@ -320,10 +333,39 @@ describe('leaving without saving', () => {
     type(field(page, 'name'), 'Was ophangen en opvouwen');
     await settle();
     scrim(page).click();
-    await settle();
+    await paint();
 
     expect(router().url).toBe('/task/a');
     expect(page.querySelector('.confirm')?.textContent).toContain('1 unsaved change(s)');
+  });
+
+  it('asks on any exit, including the one no component can see', async () => {
+    // Hardware back is a `popstate`, which the dialog never hears about — so the confirm has to
+    // live on the route rather than on the scrim. ADR-0018 lists all three dismissals together.
+    const page = await open(aTask({ id: 'a', name: 'Was ophangen' }));
+
+    type(field(page, 'name'), 'Was ophangen en opvouwen');
+    await settle();
+    void router().navigateByUrl('/');
+    await paint();
+
+    expect(router().url).toBe('/task/a');
+    expect(page.querySelector('.confirm')).not.toBeNull();
+  });
+
+  it('discards from the confirm, and says what went', async () => {
+    const page = await open(aTask({ id: 'a', name: 'Was ophangen' }));
+
+    type(field(page, 'name'), 'Was ophangen en opvouwen');
+    await settle();
+    scrim(page).click();
+    await paint();
+    button(page, '.confirm .discard').click();
+    await settle();
+
+    expect(router().url).toBe('/');
+    expect(recorded).toEqual([]);
+    expect(TestBed.inject(Notices).message()).toBe('Discarded 1 unsaved change(s)');
   });
 
   it('goes straight out on an accidental dismissal when nothing was typed', async () => {
@@ -341,7 +383,7 @@ describe('leaving without saving', () => {
     type(field(page, 'name'), 'Was ophangen en opvouwen');
     await settle();
     scrim(page).click();
-    await settle();
+    await paint();
     button(page, '.confirm button:not(.discard)').click();
     await settle();
 
@@ -378,8 +420,20 @@ describe('asking after it is due', () => {
     const page = await open(aTask({ id: 'a', startDate: '2026-08-17', dueDate: '2026-06-30' }));
 
     const note = page.querySelector('.note')?.textContent?.replace(/\s+/g, ' ').trim();
-    expect(note).toContain('Asking from 17 Aug, still due 30 Jun — 45 days overdue');
+    // 48, not 45: the count is measured **from the date you will be asked**, which is ADR-0018's
+    // own arithmetic — 30 Jun to 17 Aug is 48 days — and it is the only reading that stays true.
+    expect(note).toContain('Asking from 17 Aug, still due 30 Jun — 48 days overdue');
     expect(note).toContain('Not an error');
+  });
+
+  it('counts from the day you will be asked, not from today', async () => {
+    // Measuring against today makes the sentence contradict itself whenever the due date has not
+    // arrived yet: *asking from 25 Aug, still due 20 Aug — in 6 days* says the thing is both late
+    // and not yet due. The gap the sentence is about is between the two dates it names.
+    const page = await open(aTask({ id: 'a', startDate: '2026-08-25', dueDate: '2026-08-20' }));
+
+    const note = page.querySelector('.note')?.textContent?.replace(/\s+/g, ' ').trim();
+    expect(note).toContain('Asking from 25 Aug, still due 20 Aug — 5 days overdue');
   });
 
   it('says nothing when the task is asked about before it is due', async () => {

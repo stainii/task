@@ -18,7 +18,7 @@ import {
   completePatch,
   PanelAction,
   POSTPONE_PRESETS,
-  PostponePreset,
+  DatePreset,
   postponePatch,
 } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
@@ -114,7 +114,7 @@ export class TaskPanel {
     this.act(cancelPatch(this.task(), this.now()), 'Cancelled');
   }
 
-  protected postpone(preset: PostponePreset): void {
+  protected postpone(preset: DatePreset): void {
     // Just the participle, like the other two. The preset's own label does not compose into a
     // sentence — *Postponed until in 3 days* — and it says nothing the tap that produced it did
     // not already say.
