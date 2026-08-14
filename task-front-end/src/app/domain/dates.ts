@@ -50,6 +50,18 @@ export function daysUntil(from: IsoDate, to: IsoDate): number {
   return (utcOf(to) - utcOf(from)) / MILLIS_PER_DAY;
 }
 
+/**
+ * Days until a due date, or null where there is none.
+ *
+ * The one question the ranking, the bands, the buckets and the wording all ask, so they ask it in
+ * one place: five copies of *is there a date, and how far off is it* are five chances for the
+ * null case to be answered differently, which is exactly how portal came to sort a task as
+ * middling and colour it as unimportant.
+ */
+export function dueIn(dueDate: IsoDate | null, today: IsoDate): number | null {
+  return dueDate === null ? null : daysUntil(today, dueDate);
+}
+
 /** Midnight UTC on that calendar date — a fixed point, with no zone in it to shift. */
 function utcOf(date: IsoDate): number {
   const [year, month, day] = date.split('-').map(Number);

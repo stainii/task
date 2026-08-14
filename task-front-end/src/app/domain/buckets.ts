@@ -1,5 +1,5 @@
-import { daysUntil, IsoDate } from './dates';
-import { Task } from './task';
+import { dueIn, IsoDate } from './dates';
+import { isImportant, Task } from './task';
 
 /**
  * The **importance bucket**: which quadrant a task falls in, drawn as the colour stripe down a
@@ -22,12 +22,12 @@ export type ImportanceBucket = 'focus' | 'long-game' | 'fit-in' | 'back-burner';
 const NEAR_DAYS = 7;
 
 export function bucketOf(task: Task, today: IsoDate): ImportanceBucket {
-  const important = task.importance === 'IMPORTANT' || task.importance === 'VERY_IMPORTANT';
   // An undated task is never near — there is no date to be near to — so it falls to the row below,
   // which for an important task is `long-game` and not the bottom of the screen.
-  const near = task.dueDate !== null && daysUntil(today, task.dueDate) < NEAR_DAYS;
+  const days = dueIn(task.dueDate, today);
+  const near = days !== null && days < NEAR_DAYS;
 
-  if (important) {
+  if (isImportant(task.importance)) {
     return near ? 'focus' : 'long-game';
   }
   return near ? 'fit-in' : 'back-burner';

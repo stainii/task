@@ -126,6 +126,47 @@ describe('visibleWork', () => {
     expect(names(work.visible)).toEqual(['late', 'meh']);
   });
 
+  it('ranks the whole visible band, rather than pinning the due set above the top-up', () => {
+    // ADR-0018: "Band membership trumps the score … the points order what is inside that
+    // guarantee, they never override it." Membership says who is on screen; it does not also
+    // impose an order. A task due today that nobody cares about scores 50; one due in two days
+    // that matters very much scores 98, and it belongs above.
+    const dontCare = aTask({ name: 'dull', importance: 'I_DO_NOT_REALLY_CARE', dueDate: TODAY });
+    const urgent = aTask({
+      name: 'urgent',
+      importance: 'VERY_IMPORTANT',
+      dueDate: addDays(TODAY, 2),
+    });
+
+    const work = visibleWork([dontCare, urgent], TODAY);
+
+    expect(names(work.visible)).toEqual(['urgent', 'dull']);
+    // …and the guarantee is untouched: the due task is still on screen, just not first.
+    expect(names(work.visible)).toContain('dull');
+    expect(work.also).toHaveLength(0);
+  });
+
+  it('still selects the top-up by rank, not by due date', () => {
+    const due = aTask({ name: 'due', dueDate: TODAY });
+    const strong = aTask({
+      name: 'strong',
+      importance: 'VERY_IMPORTANT',
+      dueDate: addDays(TODAY, 1),
+    });
+    const weak = Array.from({ length: 6 }, (_, index) =>
+      aTask({
+        name: `weak ${index}`,
+        importance: 'I_DO_NOT_REALLY_CARE',
+        dueDate: addDays(TODAY, 40 + index),
+      }),
+    );
+
+    const work = visibleWork([...weak, due, strong], TODAY);
+
+    expect(names(work.visible).slice(0, 2)).toEqual(['strong', 'due']);
+    expect(work.visible).toHaveLength(5);
+  });
+
   it('does not scale with anything: five is a day’s work, not screen estate', () => {
     expect(CAP).toBe(5);
   });

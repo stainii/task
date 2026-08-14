@@ -14,7 +14,7 @@ something outside it**, and **defects a green test suite cannot see**.
 | | Runs | Gates |
 |---|---|---|
 | `./mvnw verify` (back-end) | locally + CI | tests, `ApplicationModules.verify()`, Error Prone/NullAway |
-| `npm run lint`, `npm run format:check`, `ng test` (front-end) | locally + CI | ESLint, Prettier, unit tests |
+| `npm run lint`, `npm run format:check`, `npm test` (front-end) | locally + CI | ESLint, Prettier, unit tests |
 | Playwright end-to-end | CI, and by hand when you touch a journey | critical journeys, offline behaviour |
 
 **Green means all three.** [ADR-0007](adr/0007-the-box-pulls-nightly-behind-a-dump.md) deploys every
@@ -119,10 +119,19 @@ remains**, in `JsonToMapConverter`.
 
 - `npm run lint` — ESLint via `angular-eslint`, the counterpart to Error Prone.
 - `npm run format:check` — Prettier. Formatting is a tool's job, never a review comment.
-- `ng test` — vitest.
+- `npm test` — vitest. **`npm test`, never `ng test` directly**; see below.
 
 Node is pinned to 26 in `.nvmrc`; run `nvm use` first. On an older Node the CLI refuses to run,
 which is the front-end's version of the `~/.mavenrc` trap in `task-back-end/README.md`.
+
+**The suite runs in `Europe/Brussels`, and the zone is part of the test.** `npm test` is
+`TZ=Europe/Brussels ng test` — the same zone as the back-end's `task.time-zone`. Added by
+[#57](https://github.com/stainii/task/issues/57), whose band arithmetic exists to survive the two
+days a year that are 23 and 25 hours long: **under `TZ=UTC` every one of those tests passes against
+the very arithmetic they were written to catch**, because a zone with no daylight saving cannot
+express the bug. `ng test` on its own is therefore a green suite that has checked nothing, which is
+the same shape as the `-Xplugin` argument above — a gate that still reports success after it has
+stopped running.
 
 **`now()` goes through the `NOW` token** (`src/app/clock.ts`), the counterpart to the back-end's
 `Clock` bean and there for the same reason: a date-boundary decision taken by calling `new Date()`
@@ -303,7 +312,7 @@ Stating these so they are not quietly reintroduced.
 ## 8. Before closing a ticket
 
 - [ ] `./mvnw verify` passes.
-- [ ] `npm run lint`, `npm run format:check` and `ng test` pass.
+- [ ] `npm run lint`, `npm run format:check` and `npm test` pass.
 - [ ] No new suppression without a one-line reason saying what resolves it.
 - [ ] `CONTEXT.md` updated if the ticket settled a domain term.
 - [ ] `docs/adr/` updated if it settled or amended a decision.

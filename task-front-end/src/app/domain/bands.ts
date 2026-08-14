@@ -1,4 +1,4 @@
-import { daysUntil, IsoDate } from './dates';
+import { daysUntil, dueIn, IsoDate } from './dates';
 import { byRank } from './ranking';
 import { Task } from './task';
 
@@ -50,17 +50,27 @@ export function visibleWork(tasks: readonly Task[], today: IsoDate): VisibleWork
   const started = open.filter((task) => daysUntil(today, task.startDate) <= 0);
   const notStarted = open.filter((task) => daysUntil(today, task.startDate) > 0);
 
-  const due = started.filter(
-    (task) => task.dueDate !== null && daysUntil(today, task.dueDate) <= 0,
-  );
-  const rest = started.filter((task) => !due.includes(task));
+  const due = started.filter((task) => isDue(task, today));
+  const rest = started.filter((task) => !isDue(task, today));
 
+  // Selection and order are two different questions, and only the first one is about being due.
+  // **Membership trumps the score; it does not also impose an order** — the due set decides *who*
+  // is on screen however big it is, and the points then order everything that is on it. Pinning
+  // the due set above the top-up would put a task due today that nobody cares about (50 points)
+  // above one due in two days that matters very much (98), which is the balance the whole
+  // Eisenhower model exists to strike.
   const topUp = Math.max(0, CAP - due.length);
   return {
-    visible: [...due, ...rest.slice(0, topUp)],
+    visible: [...due, ...rest.slice(0, topUp)].sort(byRank(today)),
     also: rest.slice(topUp),
     notStarted,
     dueCount: due.length,
     capExceeded: due.length > CAP,
   };
+}
+
+/** Overdue or due today — **one set, not two rules**, which is what makes the guarantee sayable. */
+function isDue(task: Task, today: IsoDate): boolean {
+  const days = dueIn(task.dueDate, today);
+  return days !== null && days <= 0;
 }

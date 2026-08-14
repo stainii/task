@@ -18,8 +18,18 @@ import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TaskPanel } from './task-panel';
 
-/** A band that starts folded, and what is remembered about it for the session. */
-interface Fold {
+/**
+ * A band that starts folded, and what is remembered about it for the session.
+ *
+ * `key` is separate from `title` on purpose: the key is what the session remembers, and deriving it
+ * from the displayed words would make renaming a heading silently forget which bands were open —
+ * a defect no test would catch, because both halves would still be internally consistent.
+ *
+ * Named `CollapsedBand` rather than `Fold` because `domain/fold.ts` is the most load-bearing word
+ * in this app and it means something else entirely.
+ */
+interface CollapsedBand {
+  readonly key: 'also' | 'future';
   readonly title: string;
   readonly tasks: readonly Task[];
   readonly open: boolean;
@@ -91,12 +101,21 @@ export class Overview {
   /**
    * The band's title, which **says why** when more than five things are on screen.
    *
-   * Without it the list silently grows past the cap and the rule looks broken rather than
+   * Without the retitle the list silently grows past the cap and the rule looks broken rather than
    * deliberate.
+   *
+   * **And it does not claim things are due when none are.** ADR-0006 specifies the retitle only for
+   * the exceeded case, so this is a gap rather than a contradiction — but the band is topped up
+   * with work that is *not* due, and a heading is a fact in words (ADR-0019): `Due today` over five
+   * tasks due next month states something false. *Decided by recommendation; no ADR covers it.*
    */
-  protected readonly dueTitle = computed(() =>
-    this.work().capExceeded ? `Due today — all ${this.work().dueCount}` : 'Due today',
-  );
+  protected readonly dueTitle = computed(() => {
+    const { capExceeded, dueCount } = this.work();
+    if (capExceeded) {
+      return `Due today — all ${dueCount}`;
+    }
+    return dueCount > 0 ? 'Due today' : 'Next up';
+  });
 
   protected readonly capExceeded = computed(() => this.work().capExceeded);
 
@@ -108,16 +127,18 @@ export class Overview {
    * clearing the top five was a click that revealed what was already on screen. Opening is
    * remembered for the session, so clearing the day's work does not re-gate the same list.
    */
-  protected readonly folds = computed<readonly Fold[]>(() => {
+  protected readonly folds = computed<readonly CollapsedBand[]>(() => {
     const opened = this.opened();
-    return [
-      { title: 'Also…', tasks: this.work().also, open: opened.has('also') },
+    const bands: readonly CollapsedBand[] = [
+      { key: 'also', title: 'Also…', tasks: this.work().also, open: opened.has('also') },
       {
+        key: 'future',
         title: 'Starting in the future…',
         tasks: this.work().notStarted,
         open: opened.has('future'),
       },
-    ].filter((fold) => fold.tasks.length > 0);
+    ];
+    return bands.filter((band) => band.tasks.length > 0);
   });
 
   protected readonly empty = computed(
@@ -149,8 +170,7 @@ export class Overview {
     }
   }
 
-  protected unfold(title: string): void {
-    const key = title === 'Also…' ? 'also' : 'future';
+  protected unfold(key: CollapsedBand['key']): void {
     this.opened.update((opened) => new Set(opened).add(key));
   }
 

@@ -23,6 +23,19 @@ export const IMPORTANCES = [
 
 export type Importance = (typeof IMPORTANCES)[number];
 
+/**
+ * The line between the two important grades and the two that are not.
+ *
+ * One predicate rather than the same two-way comparison written wherever it is needed. Portal had
+ * it in two places — `task.comparator.ts` and `task.model.ts` — and they **disagreed**: the same
+ * task sorted as middling and coloured as unimportant. The nullable column that caused that
+ * particular disagreement is gone, but the shape that let two answers exist is this expression
+ * being written twice, and the ranking and the importance buckets are still the two callers.
+ */
+export function isImportant(importance: Importance): boolean {
+  return importance === 'IMPORTANT' || importance === 'VERY_IMPORTANT';
+}
+
 /** Mirrors `be.stijnhooft.task.backend.task.domain.TaskStatus`. */
 export const TASK_STATUSES = ['OPEN', 'COMPLETED', 'CANCELLED'] as const;
 

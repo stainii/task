@@ -85,9 +85,11 @@ beforeEach(() => {
 
 describe('the bands', () => {
   it('shows the day’s work and folds the rest away', async () => {
+    // `soon 0` is due today, so this is the *day's work* the band is named for: one due task, then
+    // four more topping it up to the cap.
     await render([
       ...Array.from({ length: 8 }, (_, index) =>
-        aTask({ name: `soon ${index}`, dueDate: addDays(TODAY, index + 1) }),
+        aTask({ name: `soon ${index}`, dueDate: addDays(TODAY, index) }),
       ),
       aTask({ name: 'sleeping', startDate: addDays(TODAY, 10) }),
     ]);
@@ -116,6 +118,14 @@ describe('the bands', () => {
     expect(band('Due today').querySelector('.band-title')?.textContent).not.toContain('the cap');
   });
 
+  it('does not claim work is due today when none of it is', async () => {
+    // The band tops itself up with work that is not due, and a heading is a fact in words. `Due
+    // today` over five tasks due next month says something untrue.
+    await render(Array.from({ length: 3 }, () => aTask({ dueDate: addDays(TODAY, 20) })));
+
+    expect(texts('.band-title')).toEqual(['Next up']);
+  });
+
   it('opens a folded band, and remembers that it is open', async () => {
     await render(
       Array.from({ length: 8 }, (_, index) =>
@@ -136,10 +146,19 @@ describe('the bands', () => {
     expect(texts('.band-title')).toEqual(['Due today']);
   });
 
-  it('says so when there is nothing at all', async () => {
+  it('says so when there is nothing at all, in FE-006’s own words', async () => {
     await render([]);
 
-    expect(element().textContent).toContain('Nothing due, and nothing waiting.');
+    expect(element().textContent).toContain('Relax! Nothing else to do.');
+  });
+
+  it('does not say there is nothing to do while work sleeps in the future band', async () => {
+    // Portal's own condition, and the reason its wording says *nothing else*: sleeping work is
+    // still work, so the message must not appear over a future band that has something in it.
+    await render([aTask({ startDate: addDays(TODAY, 10) })]);
+
+    expect(element().textContent).not.toContain('Relax!');
+    expect(band('Starting in the future…')).toBeTruthy();
   });
 });
 

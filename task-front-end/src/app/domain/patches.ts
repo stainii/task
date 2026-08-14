@@ -1,4 +1,4 @@
-import { addDays, IsoDate, today } from './dates';
+import { addDays, today } from './dates';
 import { Task, TaskPatch } from './task';
 
 /**
@@ -77,12 +77,7 @@ export function cancelPatch(task: Task, now: Date): TaskPatch {
  * back still carrying its true overdue count: the app stops asking, it does not stop knowing.
  */
 export function postponePatch(task: Task, days: number, now: Date): TaskPatch {
-  return patchOn(task.id, now, { startDate: startingIn(days, now) });
-}
-
-/** Where a postpone of `days` would land, so a caller can show it before writing it. */
-export function startingIn(days: number, now: Date): IsoDate {
-  return addDays(today(now), days);
+  return patchOn(task.id, now, { startDate: addDays(today(now), days) });
 }
 
 /**

@@ -1,5 +1,5 @@
-import { daysUntil, IsoDate } from './dates';
-import { Importance, Task } from './task';
+import { dueIn, IsoDate } from './dates';
+import { Importance, isImportant, Task } from './task';
 
 /**
  * The ranking: what order tasks take **inside** a band of visible work.
@@ -58,13 +58,11 @@ export function rankingPoints(task: Task, today: IsoDate): number {
 }
 
 function urgency(task: Task, today: IsoDate): number {
-  if (task.dueDate === null) {
-    return task.importance === 'IMPORTANT' || task.importance === 'VERY_IMPORTANT'
-      ? UNDATED_URGENCY
-      : 0;
+  const days = dueIn(task.dueDate, today);
+  if (days === null) {
+    return isImportant(task.importance) ? UNDATED_URGENCY : 0;
   }
 
-  const days = daysUntil(today, task.dueDate);
   if (days < 0) {
     // Flat, deliberately: a task a year late is not fifty times more urgent than one a day late,
     // and the bonus above is where the remaining discrimination lives.
@@ -74,10 +72,8 @@ function urgency(task: Task, today: IsoDate): number {
 }
 
 function overdueBonus(task: Task, today: IsoDate): number {
-  if (task.dueDate === null || daysUntil(today, task.dueDate) >= 0) {
-    return 0;
-  }
-  return OVERDUE_BONUS[task.importance];
+  const days = dueIn(task.dueDate, today);
+  return days !== null && days < 0 ? OVERDUE_BONUS[task.importance] : 0;
 }
 
 /**

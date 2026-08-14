@@ -3,8 +3,14 @@
   know nothing about which axis the row above them groups by, which is what keeps a second axis
   (a goal) a change to the cards rather than a rewrite.
 -->
+<!--
+  FE-006's own words, kept verbatim. *Nothing else* is the accurate half: the message appears when
+  the day's work and the sleeping work are both empty, which is portal's exact condition
+  (`todo-overview.component.html:15`) — and it cannot fire while `Also…` holds anything, because a
+  band with nothing due tops itself up from precisely that list.
+-->
 @if (empty()) {
-  <p class="nothing">Nothing due, and nothing waiting.</p>
+  <p class="nothing">Relax! Nothing else to do.</p>
 } @else {
   <section class="band">
     <h2 class="band-title">
@@ -38,7 +44,7 @@
           screen has not been limited. #58 adds the words that say what is behind the door.
         -->
         <h2 class="band-title visually-hidden">{{ fold.title }}</h2>
-        <button type="button" class="foldbar" (click)="unfold(fold.title)">
+        <button type="button" class="foldbar" (click)="unfold(fold.key)">
           <span>{{ fold.title }}</span>
           <span class="count">{{ fold.tasks.length }}</span>
         </button>

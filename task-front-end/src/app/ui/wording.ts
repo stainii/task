@@ -1,4 +1,4 @@
-import { daysUntil, IsoDate } from '../domain/dates';
+import { dueIn, IsoDate } from '../domain/dates';
 
 /**
  * How a date is said on screen.
@@ -14,11 +14,11 @@ import { daysUntil, IsoDate } from '../domain/dates';
  * actually being asked.
  */
 export function dueLabel(dueDate: IsoDate | null, today: IsoDate): string {
-  if (dueDate === null) {
+  const days = dueIn(dueDate, today);
+  if (days === null) {
     return 'no due date';
   }
 
-  const days = daysUntil(today, dueDate);
   if (days < 0) {
     return plural(-days, 'day') + ' overdue';
   }
@@ -39,10 +39,10 @@ export function dueLabel(dueDate: IsoDate | null, today: IsoDate): string {
 
 /** Which of the three states a due date is in, for the colour that backs the words up. */
 export function dueTone(dueDate: IsoDate | null, today: IsoDate): 'overdue' | 'today' | 'later' {
-  if (dueDate === null) {
+  const days = dueIn(dueDate, today);
+  if (days === null) {
     return 'later';
   }
-  const days = daysUntil(today, dueDate);
   return days < 0 ? 'overdue' : days === 0 ? 'today' : 'later';
 }
 

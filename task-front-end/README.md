@@ -47,8 +47,13 @@ This will compile your project and store the build artifacts in the `dist/` dire
 To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
 
 ```bash
-ng test
+npm test
 ```
+
+**`npm test`, not `ng test`.** The script pins `TZ=Europe/Brussels`, and the zone is part of the
+test rather than a detail of it: the band arithmetic is written to survive the two days a year that
+are 23 and 25 hours long, and in a zone with no daylight saving those tests pass against the very
+bug they exist to catch. See `docs/quality-bar.md` §3.
 
 ## Running end-to-end tests
 
