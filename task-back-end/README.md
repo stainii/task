@@ -162,6 +162,15 @@ With it on, the containers survive between runs and `./mvnw verify` skips ~20 se
 startup; with it off, `withReuse(true)` is a no-op — which is also the case on CI, where a fresh
 runner has nothing to reuse ([#21](https://github.com/stainii/task/issues/21)).
 
+**The data does not survive with them.** `TestcontainersConfiguration#emptyOnce` drops and recreates
+the schema once per run, before the first test touches Postgres, so a reused container behaves like
+a fresh one and Flyway rebuilds from V1. Without it the suite's own leftovers accumulate at exactly
++34 open tasks per run and the eighth consecutive run fails with
+`DataBufferLimitException: Exceeded limit on max bytes to buffer : 262144` — `GET /api/tasks`
+returns every open task with its full history, and it eventually outgrows `WebTestClient`'s default
+buffer. Nothing to remember and nothing to run by hand; it is here so that **a local run and a CI
+run mean the same thing**. Full story in `docs/quality-bar.md` §5.
+
 One trap when running a single class: **`./mvnw surefire:test -Dtest=Foo` does not compile
 anything** and will happily run a stale `Foo` from `target/`. Use `./mvnw test -Dtest=Foo`. Found
 while canarying #44's boundary test: deliberately broken, it still "passed".

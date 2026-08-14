@@ -172,8 +172,11 @@ to move a number** — and note that there is no number. See §7.
 
 ### Assert on your own data, by id
 
-Integration tests share one reused Postgres container and nothing is cleaned up between them.
-So:
+Integration tests share one reused Postgres container and nothing is cleaned up between them —
+**between *tests*. The database is emptied once at the start of each *run***, in
+`TestcontainersConfiguration#emptyOnce`, so a local run and a CI run start from the same place. That
+is a guarantee this section depends on rather than a convenience; see *Why the run starts empty*
+below. So:
 
 - **A test asserts only on data it created, identified by its own ids.** Never "the stream contains
   one event", never "the repository has three rows".
@@ -184,6 +187,45 @@ So:
 None of this is theoretical. Instancio mints dates decades ahead, and a stream test written against a
 time window received a patch from another test class dated 2071. Test *order* would have changed
 the result.
+
+#### Why the run starts empty
+
+**A reused container grows for ever, and one endpoint turns that into a failure.** `GET /api/tasks`
+returns *every* open task with its full patch history, and the tests that read a snapshot do so
+through `WebTestClient`'s default **256 KB** buffer. Nothing cleans up, so every run adds to what
+the last one left.
+
+Measured, not predicted. Each full run left exactly **+34 open tasks**, dead linear across eight
+runs — 63, 97, 131, 165, 199, 233, 267, 301, 334 — and on **run 8** the suite failed with four
+
+```
+DataBufferLimitException: Exceeded limit on max bytes to buffer : 262144
+```
+
+in `TaskModuleIntegrationTest.thePatchThatIsSentTwiceIsAcceptedTwiceAndStoredOnce` and three tests
+of `TaskPatchStreamResumeIntegrationTest`. 301 open tasks passed and 334 did not, so the wall is
+around 320. With the wipe in place the same counter sits flat at **29, 29, 29**.
+
+Three things about this are worth keeping:
+
+- **CI could never have caught it.** CI is always run #1 on a fresh container, so the bug is
+  invisible to precisely the thing that exists to see bugs — this document's own recurring shape, in
+  a new place. What the wipe buys is that *a local run and a CI run mean the same thing*.
+- **It looked like an importer problem and was not.** The failure was first met with 12,850 tasks in
+  the shared container, left by a stale `PortalArchiveImportIntegrationTest` run from before that
+  class had its own container. Its private container works exactly as
+  [#52](https://github.com/stainii/task/issues/52) intended — a full run leaves the shared database
+  on **89** rows, not 12,850 — so the importer reached the same wall in one step instead of eight,
+  and in doing so hid the ordinary accumulation underneath it. **The obvious culprit was the
+  loudest, not the cause.**
+- **The 256 KB buffer is deliberately left at its default.** Raising it postpones rather than fixes
+  — unbounded growth beats any constant — and it would also hide the wipe failing. At the default, a
+  return of the growth fails loudly and early instead of years later.
+
+This does not weaken anything above it: the wipe runs **once per JVM, before the first test touches
+Postgres**, so no test ever sees another test's data vanish. The one case it does not cover is two
+`./mvnw verify` runs at once on one machine, where the second empties the first's database mid-run
+— the shared container was already unsafe that way before this existed.
 
 **A test that cannot obey these rules gets its own container, and says why.** There is exactly one:
 `PortalArchiveImportIntegrationTest`, which drives [ADR-0005](adr/0005-migration-by-replay-into-one-history.md)'s
