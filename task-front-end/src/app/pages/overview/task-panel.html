@@ -1,0 +1,61 @@
+<!--
+  The gesture is bound on the panel rather than on the row, so it stays available while the panel
+  is open. `touch-action: pan-y` in the stylesheet is what lets a vertical scroll through this list
+  still work: without it the browser hands us every gesture and the page stops scrolling.
+-->
+<div
+  class="panel"
+  [attr.data-bucket]="bucket()"
+  [class.open]="open()"
+  (pointerdown)="began($event)"
+  (pointermove)="moved($event)"
+  (pointerup)="ended()"
+  (pointercancel)="ended()"
+>
+  <!--
+    The fill says what the gesture is about to do. A gesture has no glyph, so this is one of the
+    places ADR-0019 leaves words in place — an unlabelled two-way swipe on a destructive-ish action
+    is a coin flip.
+  -->
+  <div class="fill right" [style.width.px]="rightFill()" aria-hidden="true">
+    <span>Complete</span>
+  </div>
+  <div class="fill left" [style.width.px]="leftFill()" aria-hidden="true"><span>Cancel</span></div>
+
+  <button type="button" class="row" [attr.aria-expanded]="open()" (click)="toggle()">
+    <span class="name">{{ task().name }}</span>
+    <span class="meta">
+      <!-- The axis the list is grouped by, shown on the row (ADR-0006). Context today, and the
+           bands below know nothing about which axis that is. -->
+      <span class="context">{{ task().context }}</span>
+      <span class="due" [class]="'tone-' + tone()">{{ due() }}</span>
+      <span class="caret" aria-hidden="true">{{ open() ? '▴' : '▾' }}</span>
+    </span>
+  </button>
+
+  @if (open()) {
+    <div class="body">
+      <p class="description">{{ task().description ?? 'No description.' }}</p>
+
+      <div class="verbs">
+        <span class="constructive">
+          <app-glyph-button verb="edit" (click)="edit()" />
+          <app-glyph-button verb="postpone" [matMenuTriggerFor]="postponeMenu" />
+          <app-glyph-button verb="complete" tone="good" (click)="complete()" />
+        </span>
+        <!-- Pushed to the far edge: colour already says *category*, but never *which*. -->
+        <span class="destructive">
+          <app-glyph-button verb="cancel" tone="danger" (click)="cancel()" />
+        </span>
+      </div>
+
+      <mat-menu #postponeMenu>
+        @for (preset of presets; track preset.days) {
+          <button mat-menu-item type="button" class="postpone-preset" (click)="postpone(preset)">
+            {{ preset.label }}
+          </button>
+        }
+      </mat-menu>
+    </div>
+  }
+</div>

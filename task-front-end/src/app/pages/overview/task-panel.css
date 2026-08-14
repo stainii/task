@@ -1,0 +1,150 @@
+:host {
+  display: block;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  /* FE-005: the importance bucket, as a stripe down the left edge. */
+  border-left: var(--app-stripe-width) solid var(--app-back-burner);
+  /* Vertical scrolling stays the browser's; horizontal is ours. Without this the list stops
+     scrolling on a phone, which is the whole screen broken to serve one gesture. */
+  touch-action: pan-y;
+}
+
+.panel[data-bucket='focus'] {
+  border-left-color: var(--app-focus);
+}
+
+.panel[data-bucket='long-game'] {
+  border-left-color: var(--app-long-game);
+}
+
+.panel[data-bucket='fit-in'] {
+  border-left-color: var(--app-fit-in);
+}
+
+.panel[data-bucket='back-burner'] {
+  border-left-color: var(--app-back-burner);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.context {
+  font-size: 11px;
+  color: var(--app-muted);
+  background: var(--app-chip);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.due {
+  font-size: 12px;
+  color: var(--app-muted);
+}
+
+.due.tone-today {
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+.due.tone-overdue {
+  color: var(--app-overdue);
+  font-weight: 600;
+}
+
+.caret {
+  color: var(--app-muted);
+  font-size: 11px;
+}
+
+.body {
+  padding: 0 13px 10px;
+  border-top: 1px solid var(--app-line);
+}
+
+.description {
+  margin: 10px 0;
+  color: var(--app-muted);
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.verbs {
+  display: flex;
+  align-items: center;
+}
+
+.constructive {
+  display: flex;
+  gap: 2px;
+}
+
+/* The separation ADR-0019 asked for, made of space rather than only of colour. */
+.destructive {
+  margin-left: auto;
+}
+
+/*
+ * The swipe fills. They grow from their own edge, sit under the row, and are painted in the same
+ * two colours the verbs use — but the word is what says which, not the colour.
+ */
+.fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+  color: var(--app-surface);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fill > span {
+  padding: 0 14px;
+}
+
+.fill.right {
+  left: 0;
+  justify-content: flex-start;
+  background: var(--app-complete);
+}
+
+.fill.left {
+  right: 0;
+  justify-content: flex-end;
+  background: var(--app-cancel);
+}

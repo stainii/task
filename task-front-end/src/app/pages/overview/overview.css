@@ -1,0 +1,136 @@
+:host {
+  display: block;
+}
+
+.band + .band {
+  margin-top: 22px;
+}
+
+.band-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--app-muted);
+}
+
+/* The reason more than five things are on screen, said rather than left to be inferred. */
+.why {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+/*
+ * One grid that reflows by width, **capped at three columns** (ADR-0015). Past three the width has
+ * to go into the columns and not into more of them: `repeat(auto-fill, minmax(270px, 1fr))` yields
+ * five at 1500px and truncates almost every task name, which is the exact failure the panel's
+ * expand-to-reveal exists to avoid.
+ *
+ * At three columns a cap of five leaves one empty cell in the second row. **It stays empty** —
+ * outlining it turns an absence into a UI element, and the dashed outline collides with the fold
+ * bar, which uses the same border to mean *you can click this*.
+ */
+.grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 700px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1080px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.foldbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--app-surface);
+  /* Dashed says *you can click this*, and nothing else on the screen may borrow it. */
+  border: 1px dashed var(--app-line);
+  border-radius: 10px;
+  color: var(--app-muted);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.foldbar:hover {
+  border-color: var(--app-muted);
+}
+
+.count {
+  margin-left: auto;
+  color: var(--app-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.nothing {
+  margin: 0;
+  color: var(--app-muted);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--app-ink);
+  color: var(--app-bg);
+  font-size: 14px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+}
+
+.toast span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast button {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--app-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* A heading the screen reader still needs, for a band whose visible control is the fold bar. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
