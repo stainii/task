@@ -1,0 +1,86 @@
+<!--
+  One input, and the placeholder is the whole instruction: add, find, or say what you did (ADR-0014).
+  A control on the appbar, never a route.
+-->
+<input
+  class="query"
+  type="text"
+  autocomplete="off"
+  aria-label="Add, find, or say what you did"
+  placeholder="Add, find, or say what you did…"
+  [value]="query()"
+  (input)="typed($event)"
+  (keydown.enter)="capture()"
+  (keydown.escape)="dismiss()"
+/>
+
+<!--
+  One list of things you can mark done, with *create a task* underneath (ADR-0014). The two groups
+  the first draft had collapsed once every row opened the same confirm: the split was invisible, and
+  it listed a due template twice. Template rows join this list with #61.
+-->
+@if (creatable()) {
+  <div class="panel">
+    <!--
+      Context chips, not a token syntax (ADR-0018): `#house` is a vocabulary to remember whose failure
+      mode is silently eating a word out of a task name — in two languages. A chip cannot corrupt
+      what you typed.
+    -->
+    <div class="chips">
+      @for (chip of chips(); track chip) {
+        <button
+          type="button"
+          class="chip"
+          [class.on]="chip === context()"
+          [attr.aria-pressed]="chip === context()"
+          (click)="pick(chip)"
+        >
+          {{ chip }}
+        </button>
+      }
+    </div>
+
+    <ul class="offers">
+      @for (suggestion of suggestions(); track suggestion.task.id) {
+        <li>
+          <button type="button" class="suggestion" (click)="choose(suggestion.task)">
+            <span class="name">{{ suggestion.task.name }}</span>
+            <span class="state">{{ suggestion.state }}</span>
+          </button>
+        </li>
+      }
+      <li>
+        <button type="button" class="create" (click)="capture()">
+          Create “{{ query().trim() }}” in {{ context() }}
+        </button>
+      </li>
+    </ul>
+  </div>
+}
+
+<!--
+  The create toast (ADR-0018). A captured task deliberately has **no due date** — a made-up one lies
+  about when the thing was needed, and would make ADR-0012's 07:30 push announce tasks the author
+  never dated. Due date is the most-edited field in six years (1,397 edits), so one tap here is what
+  keeps the edit dialog shut for the ordinary case.
+-->
+@if (created(); as capture) {
+  <div class="created" role="status">
+    <span class="what">Added “{{ capture.name }}” in {{ capture.context }}</span>
+    @for (chip of dueChips(); track chip.days) {
+      <button type="button" class="due" [attr.data-days]="chip.days" (click)="due(chip.days)">
+        {{ chip.label }}
+      </button>
+    }
+    <button type="button" class="details" (click)="details()">Add details</button>
+  </div>
+}
+
+@if (confirming(); as task) {
+  <app-date-confirm
+    [what]="task.name"
+    [today]="today()"
+    (confirmed)="completed($event)"
+    (cancelled)="cancelConfirm()"
+  />
+}

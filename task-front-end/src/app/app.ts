@@ -7,6 +7,7 @@ import { filter, map } from 'rxjs';
 
 import { SyncService } from './sync/sync';
 import { Notices } from './ui/notices';
+import { Omnibox } from './ui/omnibox';
 
 /** The two destinations (ADR-0014). Everything else is somewhere you are *sent*. */
 type Destination = 'tasks' | 'templates' | 'elsewhere';
@@ -20,7 +21,7 @@ type Destination = 'tasks' | 'templates' | 'elsewhere';
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip],
+  imports: [RouterOutlet, RouterLink, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip, Omnibox],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

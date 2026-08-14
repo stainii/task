@@ -174,6 +174,22 @@ describe('the local store', () => {
     });
   });
 
+  describe('the last context captured into', () => {
+    it('survives the tab that learned it', async () => {
+      // ADR-0018's fallback when you are not standing in a context: *the last one used*. Durable
+      // rather than in memory, because the commonest capture is the first one after opening the
+      // app, which is exactly the moment an in-memory answer has already been forgotten.
+      await store.setLastContext('housagotchi');
+      await store.close();
+
+      expect(await store.lastContext()).toBe('housagotchi');
+    });
+
+    it('has no answer before anything has been captured', async () => {
+      expect(await store.lastContext()).toBeNull();
+    });
+  });
+
   describe('the sync state it holds for #56', () => {
     it('remembers the cursor and the last successful sync across a connection', async () => {
       await store.setCursor({ epoch: 3, sequence: 41 });

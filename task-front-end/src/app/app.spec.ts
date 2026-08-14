@@ -43,7 +43,8 @@ describe('App', () => {
 
     const tabs = [...shell.querySelectorAll('nav.tabs a')].map((a) => a.textContent?.trim());
     expect(tabs).toEqual(['Tasks', 'Templates']);
-    expect(shell.querySelector('.omnibox-slot')).toBeTruthy();
+    // The omnibox is really on the appbar, not a slot waiting for one (#60).
+    expect(shell.querySelector('app-omnibox input.query')).toBeTruthy();
     expect(shell.querySelector('button.more')?.getAttribute('aria-label')).toBe('More');
   });
 

@@ -323,6 +323,24 @@ export class LocalStore {
     await this.putMeta('lastSyncedAt', at);
   }
 
+  /**
+   * The context the omnibox last captured into, or null before anything has been captured.
+   *
+   * ADR-0018's fallback for a capture made where no context is being stood in. Durable rather than
+   * in memory for the same reason `lastSyncedAt` is: the commonest capture is the first one after
+   * opening the app, which is precisely when an in-memory answer has already been forgotten.
+   *
+   * It lives beside the cursor rather than in `localStorage` so that everything this device
+   * remembers is erased by one hard reset, and nothing survives it in a second place.
+   */
+  async lastContext(): Promise<string | null> {
+    return (await this.meta<string>('lastContext')) ?? null;
+  }
+
+  async setLastContext(context: string): Promise<void> {
+    await this.putMeta('lastContext', context);
+  }
+
   private async meta<T>(key: string): Promise<T | undefined> {
     const db = await this.database();
     return request<T | undefined>(db.transaction('meta').objectStore('meta').get(key));

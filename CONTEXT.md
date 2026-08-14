@@ -376,15 +376,24 @@ opens the shared date confirm first.
 The omnibox is a control, not a route: typing never changes the URL and Escape returns you where you
 were.
 
-A created task takes the **context you are standing in**, falling back to the last one you used; one
-tap on a chip changes that before Enter. Its importance is `IMPORTANT` and it has no due date — the
-toast that follows offers one in a tap, and *Add details* opens the edit dialog for the minority of
-tasks that need more. There is deliberately **no token syntax** (`#house`, `^friday`): a vocabulary
-whose failure mode is silently eating a word out of a task name.
+A created task takes the **context you are standing in**, falling back to the last one you used, and
+then to the context of the newest task this device holds; one tap on a chip changes that before
+Enter. That third step is not decoration — it is what stops the first capture on a device that has
+never captured from landing in a word nothing in the data has ever named. Its importance is
+`IMPORTANT` and it has no due date — the toast that follows offers one in a tap, and *Add details*
+opens the edit dialog for the minority of tasks that need more. There is deliberately **no token
+syntax** (`#house`, `^friday`): a vocabulary whose failure mode is silently eating a word out of a
+task name.
+
+**The list of things you can mark done is open tasks only.** Closed ones are held for a day so undo
+works cold, so they are really there to be offered, and ADR-0011's amendment refused offering them:
+reaching a closed task through the omnibox is functionality the author does not want.
 
 Resolved in [#37](https://github.com/stainii/task/issues/37),
 [ADR-0014](docs/adr/0014-two-destinations-and-you-capture-by-typing.md); instant creation settled in
-[#38](https://github.com/stainii/task/issues/38).
+[#38](https://github.com/stainii/task/issues/38); built in
+[#60](https://github.com/stainii/task/issues/60), where the template rows were left to
+[#61](https://github.com/stainii/task/issues/61) — the client holds no templates until then.
 
 ### Grouping axis
 

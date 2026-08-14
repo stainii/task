@@ -1,10 +1,10 @@
 <header class="appbar">
   <!--
-    The omnibox: "Add, find, or say what you did…" (ADR-0014). It is a control on the appbar and
-    never a route, so typing does not change the URL and Escape returns you where you were.
-    Inert until #60 makes it live — the slot is here because the shell's proportions depend on it.
+    The omnibox (ADR-0014). A control on the appbar and never a route, so typing does not change the
+    URL and Escape returns you where you were. It carries capture, the one-list dropdown and the
+    create toast; the template rows in that list arrive with #61.
   -->
-  <div class="omnibox-slot">Add, find, or say what you did…</div>
+  <app-omnibox />
 
   <button
     type="button"

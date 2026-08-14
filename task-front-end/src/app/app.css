@@ -16,19 +16,6 @@
   z-index: 5;
 }
 
-.omnibox-slot {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: var(--app-chip);
-  color: var(--app-muted);
-  font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .more {
   flex: none;
   border: 0;

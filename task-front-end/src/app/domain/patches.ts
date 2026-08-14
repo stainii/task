@@ -1,4 +1,4 @@
-import { addDays, today } from './dates';
+import { addDays, IsoDate, today } from './dates';
 import { Task, TaskPatch } from './task';
 
 /**
@@ -68,13 +68,40 @@ export const POSTPONE_PRESETS: readonly DatePreset[] = ASK_FROM_PRESETS.filter(
 );
 
 /**
+ * The create toast's due-date offsets: ADR-0018's `due today · tomorrow · in 3 days`.
+ *
+ * Derived from the same set as the other two rather than written out a third time — the app has one
+ * vocabulary of date offsets, and three literals is three chances for two of them to drift. `Next
+ * week` is dropped because the toast is the moment you have just typed the thing and know when it
+ * is wanted; a week out is what the edit dialog is for.
+ *
+ * The toast exists because a captured task has **no due date at all**, which is deliberate — a
+ * default one lies about when the thing was needed — and due date is the most-edited field in the
+ * author's history at 1,397 edits. One tap here means the dialog never opens.
+ */
+export const DUE_PRESETS: readonly DatePreset[] = ASK_FROM_PRESETS.filter(
+  (preset) => preset.days < 7,
+);
+
+/** Giving a captured task a due date, from the toast that followed it. */
+export function dueDatePatch(taskId: string, days: number, now: Date): TaskPatch {
+  return patchOn(taskId, now, { dueDate: addDays(today(now), days) });
+}
+
+/**
  * Completing: the status, plus **the day the work happened**.
  *
  * `completedOn` is a domain value and not a third sync clock (ADR-0011) — it is what a min/max
  * template's anchor reads, so it is the date the person was standing on rather than a UTC one.
+ *
+ * **`completedOn` defaults to today and is otherwise given**, which is ADR-0014's boundary as a
+ * parameter: *chosen by name asks, acted on in place does not*. A swipe on a row in front of you
+ * means now; typing a name into the omnibox is recording something that already happened, so that
+ * path passes the date the confirm collected. Either way the **write** clock stays `now` — a
+ * backdated `dateTime` would lose the fold to any later edit from another device.
  */
-export function completePatch(task: Task, now: Date): TaskPatch {
-  return patchOn(task.id, now, { status: 'COMPLETED', completedOn: today(now) });
+export function completePatch(task: Task, now: Date, completedOn: IsoDate = today(now)): TaskPatch {
+  return patchOn(task.id, now, { status: 'COMPLETED', completedOn });
 }
 
 /**

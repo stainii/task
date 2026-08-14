@@ -4,6 +4,8 @@ import {
   ASK_FROM_PRESETS,
   cancelPatch,
   completePatch,
+  DUE_PRESETS,
+  dueDatePatch,
   POSTPONE_PRESETS,
   postponePatch,
   undoPatch,
@@ -46,6 +48,23 @@ describe('completePatch', () => {
     // and the fold may never read it.
     expect(patch.sequence).toBeNull();
     expect(patch.voids).toBeNull();
+  });
+
+  it('takes the day the work happened when the user has said which day that was', () => {
+    // *I ticked it off today but I did it last Tuesday.* Chosen by name — in the omnibox or the
+    // templates list — always asks (ADR-0014), where a swipe on a row in front of you means *now*.
+    const patch = completePatch(aTask({ id: 'a' }), NOW, '2026-08-11');
+
+    expect(patch.changes).toEqual({ status: 'COMPLETED', completedOn: '2026-08-11' });
+  });
+
+  it('backdates the domain clock and never the write clock', () => {
+    // The whole of ADR-0011's argument. `dateTime` orders the fold, so a backdated one would lose
+    // to any later edit from another device: correcting a task's name on a laptop would silently
+    // un-complete the chore.
+    const patch = completePatch(aTask(), NOW, '2026-08-11');
+
+    expect(patch.dateTime).toBe(NOW.toISOString());
   });
 
   it('mints a different id every time, because the id is the idempotency key', () => {
@@ -120,6 +139,28 @@ describe('ASK_FROM_PRESETS', () => {
       ...['Tomorrow', 'In 3 days', 'Next week'],
     ]);
     expect(POSTPONE_PRESETS.map((preset) => preset.label)).not.toContain('Today');
+  });
+});
+
+describe('DUE_PRESETS', () => {
+  it('offers the three the create toast names, and no further', () => {
+    // ADR-0018 words the toast as `due today · tomorrow · in 3 days · Add details`. Derived from
+    // the same set as everything else rather than written out a third time — the app has **one**
+    // vocabulary of date offsets, which is what stops two of them drifting apart.
+    expect(DUE_PRESETS.map((preset) => [preset.label, preset.days])).toEqual([
+      ['Today', 0],
+      ['Tomorrow', 1],
+      ['In 3 days', 3],
+    ]);
+  });
+});
+
+describe('dueDatePatch', () => {
+  it('sets the due date the toast offered, measured from today', () => {
+    const patch = dueDatePatch('a', 1, NOW);
+
+    expect(patch.taskId).toBe('a');
+    expect(patch.changes).toEqual({ dueDate: '2026-08-15' });
   });
 });
 
