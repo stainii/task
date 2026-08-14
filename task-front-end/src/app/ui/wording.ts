@@ -1,4 +1,5 @@
 import { dueIn, IsoDate } from '../domain/dates';
+import { Importance } from '../domain/task';
 
 /**
  * How a date is said on screen.
@@ -49,3 +50,40 @@ export function dueTone(dueDate: IsoDate | null, today: IsoDate): 'overdue' | 't
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * A calendar date, said out loud: `30 Jun`, or `7 Jun '24` once it is a different year.
+ *
+ * The dialog needs this where the overview does not. On a row only one of the two dates can ever be
+ * live — the task is visible, so *ask me from* is by definition already past — but in the dialog
+ * both are editable and side by side, which is the narrowing ADR-0019 records against its own floor
+ * 1. Naming a bare `30 Jun` on a date two years back would be the same failure as a calendar glyph:
+ * it says *a date* without saying **which**.
+ *
+ * Formatted here rather than through `Intl`, for `dates.ts`'s reason: the input is a `YYYY-MM-DD`
+ * with no zone in it, and the round trip through a `Date` is how `2026-03-01` becomes `2026-02-28`.
+ */
+export function dateLabel(date: IsoDate, today: IsoDate): string {
+  const [year, month, day] = date.split('-');
+  const said = `${Number(day)} ${MONTHS[Number(month) - 1]}`;
+  return year === today.slice(0, 4) ? said : `${said} '${year.slice(2)}`;
+}
+
+/**
+ * The four importance grades, in words a person would say.
+ *
+ * Facts are words (ADR-0019), and these are the labels portal used. The enum names are the wire
+ * shape and belong on the wire: `I_DO_NOT_REALLY_CARE` in a dropdown is a database talking.
+ */
+export function importanceLabel(importance: Importance): string {
+  return IMPORTANCE_LABELS[importance];
+}
+
+const IMPORTANCE_LABELS: Record<Importance, string> = {
+  I_DO_NOT_REALLY_CARE: 'I don’t really care',
+  NOT_SO_IMPORTANT: 'Not so important',
+  IMPORTANT: 'Important',
+  VERY_IMPORTANT: 'Very important',
+};

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { cancelPatch, completePatch, POSTPONE_PRESETS, postponePatch, undoPatch } from './patches';
+import {
+  ASK_FROM_PRESETS,
+  cancelPatch,
+  completePatch,
+  POSTPONE_PRESETS,
+  postponePatch,
+  undoPatch,
+} from './patches';
 import { aTask } from './task.mother';
 
 /**
@@ -88,6 +95,28 @@ describe('postponePatch', () => {
       ['Next week', 7],
     ]);
     expect(POSTPONE_PRESETS.every((preset) => preset.days > 0)).toBe(true);
+  });
+});
+
+describe('ASK_FROM_PRESETS', () => {
+  it('offers the four the archive supports, `Today` first', () => {
+    // The measured distribution, not a guess: pushes to *today* 1,210, +1 day 552, +2…6 days 1,283
+    // — which is what `In 3 days` is the median of — and exactly +7 days only 55, which is why
+    // ADR-0015's proposed `+1 week` would have been the least-used control on the screen.
+    expect(ASK_FROM_PRESETS.map((preset) => [preset.label, preset.days])).toEqual([
+      ['Today', 0],
+      ['Tomorrow', 1],
+      ['In 3 days', 3],
+      ['Next week', 7],
+    ]);
+  });
+
+  it('is the postpone set plus the un-postpone, and the two cannot drift apart', () => {
+    // ADR-0018 words this as *the same set minus `Today`*, so it is expressed that way rather than
+    // written out twice. Two literals is how portal came to score a missing importance one way in
+    // the comparator and another in the buckets.
+    expect(ASK_FROM_PRESETS.filter((preset) => preset.days > 0)).toEqual(POSTPONE_PRESETS);
+    expect(ASK_FROM_PRESETS.filter((preset) => preset.days === 0)).toHaveLength(1);
   });
 });
 

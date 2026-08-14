@@ -1,0 +1,200 @@
+/*
+ * A dialog by look, a route by address (ADR-0018).
+ *
+ * The whole form fits a 375px phone **unscrolled**, which is what let the drawer go: it is short
+ * enough that hiding two fields would buy no space at all.
+ */
+
+.scrim {
+  /* A real button, not a div with a click: the scrim is a dismissal, so it is reachable by keyboard
+     and carries the name of what it does. Escape does the same thing from the host. */
+  position: fixed;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  cursor: default;
+  background: light-dark(rgb(0 0 0 / 32%), rgb(0 0 0 / 56%));
+  z-index: 10;
+}
+
+.dialog {
+  position: fixed;
+  z-index: 11;
+  inset: auto 0 0;
+  max-height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--app-surface);
+  border-top: 1px solid var(--app-line);
+  border-radius: 14px 14px 0 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.provenance {
+  margin: 0;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.provenance a {
+  color: var(--app-accent);
+}
+
+.provenance .aside {
+  display: block;
+  font-size: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field label {
+  font-size: 12px;
+  color: var(--app-muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--app-ink);
+  background: var(--app-bg);
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+/*
+ * The two dates stack below ~430px or the second one clips — found at 375px, and recorded as a
+ * consequence of ADR-0018 rather than left to be rediscovered.
+ */
+.dates {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 430px) {
+  .dates {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-muted);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.preset.on {
+  color: var(--app-accent);
+  border-color: var(--app-accent);
+}
+
+.note {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--app-muted);
+  background: var(--app-chip);
+  border-radius: 8px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.actions button {
+  padding: 8px 16px;
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-bg);
+  color: var(--app-ink);
+  cursor: pointer;
+}
+
+.actions .save {
+  color: var(--app-bg);
+  background: var(--app-accent);
+  border-color: transparent;
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  font-size: 14px;
+  background: var(--app-chip);
+  border-radius: 8px;
+}
+
+.confirm span {
+  flex: 1;
+  min-width: 0;
+}
+
+.confirm button {
+  padding: 6px 12px;
+  font: inherit;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-ink);
+  cursor: pointer;
+}
+
+.confirm .discard {
+  color: var(--app-cancel);
+}
+
+/* One continuum: density scales, functionality does not (ADR-0006). */
+@media (min-width: 780px) {
+  .dialog {
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100% - 48px));
+    max-height: calc(100% - 48px);
+    padding: 22px;
+    border: 1px solid var(--app-line);
+    border-radius: 14px;
+  }
+}

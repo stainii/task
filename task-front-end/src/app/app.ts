@@ -6,6 +6,7 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { filter, map } from 'rxjs';
 
 import { SyncService } from './sync/sync';
+import { Notices } from './ui/notices';
 
 /** The two destinations (ADR-0014). Everything else is somewhere you are *sent*. */
 type Destination = 'tasks' | 'templates' | 'elsewhere';
@@ -26,6 +27,10 @@ type Destination = 'tasks' | 'templates' | 'elsewhere';
 export class App {
   private readonly router = inject(Router);
   private readonly sync = inject(SyncService);
+  private readonly notices = inject(Notices);
+
+  /** What a screen said on its way out. */
+  protected readonly notice = this.notices.message;
 
   /**
    * Whether a sync is waiting on a human — ADR-0004's stall prompt.
@@ -46,6 +51,10 @@ export class App {
     void this.sync.login();
   }
 
+  protected dismissNotice(): void {
+    this.notices.dismiss();
+  }
+
   protected logOut(): void {
     void this.sync.logout();
   }
@@ -60,7 +69,10 @@ export class App {
 
   protected readonly destination = computed<Destination>(() => {
     const url = this.url();
-    if (url === '/' || url.startsWith('/in/')) {
+    // `/task/:id` is a dialog **over** the overview (ADR-0018), so it counts as Tasks for the same
+    // reason `/in/:value` does: opening a task is not leaving the destination it belongs to, and a
+    // tab that goes dark while a dialog is open reads as having left the app.
+    if (url === '/' || url.startsWith('/in/') || url.startsWith('/task/')) {
       return 'tasks';
     }
     if (url.startsWith('/templates')) {

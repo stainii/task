@@ -1,0 +1,159 @@
+@if (task(); as task) {
+  <!--
+    A dialog by look, a route by address (ADR-0018). The scrim is an accidental dismissal, so it
+    asks before discarding; the explicit Cancel below is an answer, and just goes.
+  -->
+  <button type="button" class="scrim" aria-label="Close" (click)="dismiss()"></button>
+
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="task-dialog-title">
+    <h2 id="task-dialog-title" class="visually-hidden">Edit task</h2>
+
+    <!--
+      A generated task is edited freely, and told where it came from. Locking the fields would
+      contradict ADR-0001 — a generated task *is* a task — and would break the ordinary case of
+      annotating one particular round. The link is the one thing here that offers to fix every round
+      after this one.
+    -->
+    @if (task.taskTemplateId; as templateId) {
+      <p class="provenance">
+        Made by a template —
+        <a [routerLink]="['/templates', templateId]">edit the template instead →</a>
+        <span class="aside">changes here apply to this task only</span>
+      </p>
+    }
+
+    <div class="field">
+      <label for="task-name">What needs to be done?</label>
+      <input
+        id="task-name"
+        data-field="name"
+        type="text"
+        [value]="draft().name"
+        (input)="edit('name', value($event))"
+      />
+    </div>
+
+    <div class="field">
+      <label for="task-context">Context</label>
+      <!--
+        A context is a free label, not an enum (`CONTEXT.md`) — so this is an input with the ones
+        already in use one keystroke away, rather than a select that would make a new context
+        unreachable from the only screen that can set one.
+      -->
+      <input
+        id="task-context"
+        data-field="context"
+        type="text"
+        list="task-contexts"
+        [value]="draft().context"
+        (input)="edit('context', value($event))"
+      />
+      <datalist id="task-contexts">
+        @for (context of contexts(); track context) {
+          <option [value]="context"></option>
+        }
+      </datalist>
+    </div>
+
+    <div class="field">
+      <label for="task-importance">Importance</label>
+      <select
+        id="task-importance"
+        data-field="importance"
+        [value]="draft().importance"
+        (change)="edit('importance', value($event))"
+      >
+        @for (importance of importances; track importance) {
+          <option [value]="importance" [selected]="importance === draft().importance">
+            {{ label(importance) }}
+          </option>
+        }
+      </select>
+    </div>
+
+    <!--
+      The two dates, side by side and both worded. ADR-0019's floor 1 is a rule about *this* screen:
+      on an overview row only one of them can ever be live, but here both are editable and adjacent,
+      which is the pair a calendar glyph and a clock glyph cannot tell apart. They stack below 430px
+      or the second one clips — found at 375px.
+    -->
+    <div class="dates">
+      <div class="field">
+        <label for="task-due">Due</label>
+        <input
+          id="task-due"
+          data-field="dueDate"
+          type="date"
+          [value]="draft().dueDate ?? ''"
+          (input)="editDate('dueDate', value($event))"
+        />
+      </div>
+
+      <div class="field">
+        <label for="task-start">Ask me from</label>
+        <input
+          id="task-start"
+          data-field="startDate"
+          type="date"
+          [value]="draft().startDate"
+          (input)="editStart(value($event))"
+        />
+        <!--
+          The measured set, `Today` first. `Today` is the point of the screen: postpone moves
+          forward only, so pulling a sleeping task back into the day's work has no other surface.
+        -->
+        <div class="presets">
+          @for (preset of presets; track preset.days) {
+            <button
+              type="button"
+              class="preset"
+              [class.on]="isOn(preset)"
+              (click)="askFrom(preset)"
+            >
+              {{ preset.label }}
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!--
+      Stated, never forbidden: 40% of the author's real tasks are in this state by design, and the
+      reflex validation here would reject six years of history (ADR-0018).
+    -->
+    @if (conflict(); as conflict) {
+      <p class="note" role="note">
+        Asking from {{ conflict.from }}, still due {{ conflict.due }} — {{ conflict.overdue }}. Not
+        an error: 40% of your real tasks look like this.
+      </p>
+    }
+
+    <div class="field">
+      <label for="task-description">Extra information</label>
+      <textarea
+        id="task-description"
+        data-field="description"
+        rows="3"
+        [value]="draft().description ?? ''"
+        (input)="editText('description', value($event))"
+      ></textarea>
+    </div>
+
+    <footer class="actions">
+      <button type="button" class="save" (click)="save()">Save</button>
+      <button type="button" class="discard" (click)="cancel()">Cancel</button>
+    </footer>
+
+    <!--
+      Split by gesture (ADR-0018): only an *accidental* dismissal asks. That is what lets both
+      answers hold without putting a confirm in front of every close.
+    -->
+    @if (confirming()) {
+      <div class="confirm" role="alertdialog" aria-label="Discard changes?">
+        <span>{{ changeCount() }} unsaved change(s). Leaving now discards them.</span>
+        <button type="button" class="discard" (click)="cancel()">Discard</button>
+        <button type="button" (click)="keepEditing()">Keep editing</button>
+      </div>
+    }
+  </section>
+}

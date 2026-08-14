@@ -48,3 +48,18 @@
 <main>
   <router-outlet />
 </main>
+
+<!--
+  A notice from a screen that has already gone (`ui/notices.ts`): ADR-0018's closed-task redirect
+  unmounts the only component that knows why it happened, so the sentence has to outlive it. It
+  lives in the shell rather than on a screen for exactly that reason.
+
+  Not the overview's undo toast. That one carries a verb and a deadline; this one is a fact you have
+  already lived through, and an `Undo` beside it would offer to reverse something that cannot be.
+-->
+@if (notice(); as notice) {
+  <div class="notice" role="status">
+    <span>{{ notice }}</span>
+    <button type="button" (click)="dismissNotice()">Dismiss</button>
+  </div>
+}

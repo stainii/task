@@ -117,3 +117,39 @@ main {
     padding: 20px 26px;
   }
 }
+
+/*
+ * A notice from a screen that has already gone. Positioned like the overview's undo toast so the
+ * two never fight for the same corner: this one is the shell's, and only one is ever up.
+ */
+.notice {
+  position: fixed;
+  inset: auto 16px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  z-index: 20;
+}
+
+.notice span {
+  flex: 1;
+  min-width: 0;
+}
+
+.notice button {
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--app-accent);
+  background: transparent;
+  cursor: pointer;
+}
