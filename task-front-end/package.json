@@ -7,6 +7,7 @@
     "build": "ng build --define=\"TASK_BUILT_AT='$(date -u +%Y-%m-%dT%H:%M:%SZ)'\"",
     "watch": "ng build --watch --configuration development",
     "test": "TZ=Europe/Brussels ng test",
+    "e2e": "npm run build && playwright test",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
@@ -33,6 +34,7 @@
     "@angular/cli": "^22.1.2",
     "@angular/compiler-cli": "^22.1.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.2.0",
     "angular-eslint": "^22.1.0",
     "eslint": "^10.8.0",

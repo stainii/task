@@ -1,0 +1,10 @@
+/* The Playwright suite (#64). It runs outside the Angular build — Playwright transpiles it itself —
+   so this exists to give an editor and `tsc` the same view of it that the runner has. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/e2e",
+    "types": ["node"]
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+}

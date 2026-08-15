@@ -23,6 +23,7 @@ const SCHEMA = 'node_modules/@angular/service-worker/config/schema.json';
 interface NgswConfig {
   readonly appData?: unknown;
   readonly index: string;
+  readonly navigationUrls?: readonly string[];
   readonly assetGroups?: readonly {
     readonly name: string;
     readonly resources: { readonly urls?: readonly string[]; readonly files?: readonly string[] };
@@ -68,6 +69,22 @@ function urlPatterns(): string[] {
     ...(config.assetGroups ?? []).flatMap((group) => group.resources.urls ?? []),
     ...(config.dataGroups ?? []).flatMap((group) => group.urls ?? []),
   ];
+}
+
+/**
+ * `ngsw`'s rule for `navigationUrls`: a URL is answered with the app shell when it matches at least
+ * one positive pattern and no negative one (`!` prefixed).
+ *
+ * Written out for the same reason `matches` is — the package does not export it, and asking the
+ * config whether it matches itself would pass by construction.
+ */
+function isNavigationUrl(url: string): boolean {
+  const patterns = config.navigationUrls ?? [];
+  const negative = patterns.filter((pattern) => pattern.startsWith('!')).map((p) => p.slice(1));
+  const positive = patterns.filter((pattern) => !pattern.startsWith('!'));
+  return (
+    positive.some((glob) => matches(glob, url)) && !negative.some((glob) => matches(glob, url))
+  );
 }
 
 describe('ngsw-config.json', () => {
@@ -137,6 +154,39 @@ describe('ngsw-config.json', () => {
     const shell = (config.assetGroups ?? []).find((group) => 'installMode' in group);
     expect(shell).toMatchObject({ installMode: 'prefetch' });
     expect(config.index).toBe('/index.html');
+  });
+
+  it('does not answer a navigation to the auth server with the app shell', () => {
+    // Found end to end by #64, and it broke logging in outright.
+    //
+    // `ngsw` answers any *navigation* request matching `navigationUrls` with `index.html`, and the
+    // default list is "everything without a dot in the last segment". ADR-0010 puts Keycloak on
+    // this same origin under `/realms`, so `/realms/…/openid-connect/auth` matched it: the redirect
+    // to the login page was served the app instead. Inside the silent `check-sso` iframe that app
+    // booted, asked for a token, opened another iframe, and the tab went round for ever.
+    //
+    // Nothing else can see this. It is not a code path, the build is green, and the failure only
+    // exists once a service worker is installed — so it cannot reproduce in `ng serve` either.
+    const navigations = [
+      '/realms/stijnhooft-realm/protocol/openid-connect/auth',
+      '/realms/stijnhooft-realm/protocol/openid-connect/logout',
+      '/realms/stijnhooft-realm/account',
+      '/api/tasks',
+    ];
+
+    // Absent means the default list, which is precisely the thing that was wrong.
+    expect(config.navigationUrls).toBeDefined();
+
+    for (const navigation of navigations) {
+      expect(isNavigationUrl(navigation), `${navigation} must not be served the app shell`).toBe(
+        false,
+      );
+    }
+
+    // And the app's own deep links still are, or every route but `/` becomes a 404 offline.
+    for (const route of ['/', '/templates', '/task/abc', '/in/house', '/status']) {
+      expect(isNavigationUrl(route), `${route} must still be served the app shell`).toBe(true);
+    }
   });
 
   it('prefetches the icons the manifest declares', () => {

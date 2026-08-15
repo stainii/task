@@ -99,13 +99,22 @@ alone (`Relax! Nothing else to do.`).
 
 ## Running end-to-end tests
 
-For end-to-end (e2e) testing, run:
-
 ```bash
-ng e2e
+npm run e2e
 ```
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+Playwright, against the real stack — Postgres and Keycloak from `../task-back-end/compose.yaml`, the
+back-end jar, and this app's **production** bundle behind one origin. `e2e/stack.mjs` starts all of
+it, so the command works on a laptop exactly as it does in CI; the containers are left running
+afterwards, so a rerun takes seconds. Browsers come from `npx playwright install --with-deps`, once.
+
+Four scenarios, and no more. They are the ones with no other witness: `setOffline(true)` is the only
+mechanism in the stack that can test ADR-0004's offline contract end to end, and everything a Vitest
+could assert is asserted there instead. `docs/quality-bar.md` §4 lists them and the three rules they
+are written to.
+
+`ng serve` is not usable here — it emits no service worker, and half of these scenarios are about
+what the worker serves when there is no network.
 
 ## Additional Resources
 

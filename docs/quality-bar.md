@@ -157,8 +157,40 @@ That last group is why Playwright is here at all. `browserContext.setOffline(tru
 mechanism in the whole stack that can test ADR-0004's offline contract end to end. The shared fold
 fixtures prove the *rule*; only these prove the browser actually queues and replays.
 
-Not yet installed — the front-end is still an empty shell, so there are no journeys to drive.
-It lands with the front-end work.
+**Installed by [#64](https://github.com/stainii/task/issues/64).** Four scenarios, in
+`task-front-end/e2e/`, and no more — the suite is narrow on purpose, because it is the most
+expensive test in the repo and anything a vitest could assert belongs there:
+
+| file | what only it can see |
+|---|---|
+| `outbox-drains-in-order.spec.ts` | an out-of-order drain makes the rename a `404`, which the outbox **drops**, silently |
+| `cold-start-offline.spec.ts` | the document comes from the service worker and the tasks from IndexedDB, with no token |
+| `expired-token-stalls.spec.ts` | a refused patch stalls and prompts, and survives the redirect to Keycloak and back |
+| `stream-resume.spec.ts` | a stranded device catches up on exactly what it missed — no gap, no duplicate |
+
+```bash
+cd task-front-end && npm run e2e
+```
+
+That builds the front end and runs `e2e/stack.mjs`, which brings up Postgres and Keycloak from
+`task-back-end/compose.yaml`, starts the back-end jar, and serves `dist/` behind one origin with
+`/api` and `/realms` proxied — nginx's shape (ADR-0010), because the suite needs the *production*
+bundle: `ng serve` emits no service worker, so half of these scenarios cannot exist there.
+
+Three rules the suite is written to, each of which cost a debugging session:
+
+- **Assert only on data you created, by name.** The stack is shared and nothing is cleaned between
+  runs; the database holds years of real tasks. Nothing here counts rows or reads the overview's
+  panels, because whether a row is on screen depends on the band cap and which folds are open.
+- **Prove the fault you claim to have injected.** `setOffline(true)` does not close an *established*
+  connection, so the stream test refuses its reconnect instead — the first version cut nothing and
+  passed anyway.
+- **Wait for a state, never for a duration.** `navigator.onLine`, the not-syncing banner and
+  `/ngsw/state` are the three the suite waits on, and each is the app's or the browser's own answer.
+
+It has already earned itself: it found that the service worker answered the navigation to Keycloak's
+login page with the app shell, which made logging in impossible and was invisible to every other
+check in the build (`src/app/pwa/ngsw-config.spec.ts` now holds the cheap version of that test).
 
 ---
 

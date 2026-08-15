@@ -17,7 +17,7 @@ release job, no manual trigger.
 | `error-prone-canary` | proves Error Prone is actually running (see §3) | 25s |
 | `front-end` | `npm ci`, `npm run lint`, `npm run format:check`, `npm test`, `npm run build` in `task-front-end` | 33s |
 | `detect-e2e` | decides whether the Playwright job activates | 4s |
-| `end-to-end` | Playwright against the real stack — **inert until Playwright is installed**, see §4 | skipped |
+| `end-to-end` | Playwright against the real stack — **live since [#64](https://github.com/stainii/task/issues/64)**, see §4 | — |
 | `green` | fails unless every job above passed | 3s |
 
 They run in parallel: **2m18s wall clock**, about **7 billable minutes** once GitHub rounds each job
@@ -57,6 +57,13 @@ sdk env && cd task-back-end && ./mvnw verify
 ```bash
 cd task-front-end && nvm use && npm ci && npm run lint && npm run format:check && npm test && npm run build
 ```
+
+```bash
+cd task-front-end && npm run e2e
+```
+
+The third needs Docker and browsers (`npx playwright install --with-deps` once); it brings the whole
+stack up itself. See `quality-bar.md` §4.
 
 Two differences between your machine and the runner, and both have bitten this project:
 
@@ -124,14 +131,16 @@ If it ever fails, do not delete it. Read `quality-bar.md` §2 first.
 
 ---
 
-## 4. End-to-end tests activate themselves
+## 4. End-to-end tests activated themselves
 
 `quality-bar.md` §1 lists Playwright as one of the three things "green" means, and §4 says it lands
-with the front-end work. It is not installed yet, so there is nothing to run.
+with the front-end work.
 
 Rather than leave a gate for someone to remember, `detect-e2e` looks for
 `task-front-end/playwright.config.ts`. **The day that file is committed, the `end-to-end` job starts
-running** — and `green` stops accepting a skipped result.
+running** — and `green` stops accepting a skipped result. That day was
+[#64](https://github.com/stainii/task/issues/64): the mechanism fired on its own, as designed, and
+nothing in the workflow had to be edited to enable it.
 
 What CI provides when it activates:
 

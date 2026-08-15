@@ -12,9 +12,19 @@
       "are lost permanently and invisibly - the ?since= defect ADR-0004 was written to kill,",
       "reintroduced by configuration instead of by code.",
       "Offline reads come from IndexedDB. Nothing here. See src/app/pwa/ngsw-config.spec.ts."
+    ],
+    "navigationUrlsAreNarrowedBecause": [
+      "ngsw answers any navigation request matching navigationUrls with index.html, and the default",
+      "list is 'everything without a dot in the last segment'. ADR-0010 puts Keycloak on this same",
+      "origin under /realms, so the redirect to the login page matched it and was served the app",
+      "instead. In the silent check-sso iframe that app booted, asked for a token, opened another",
+      "iframe, and the tab looped for ever - logging in was impossible with a worker installed.",
+      "Found end to end by #64, which is the only thing in the stack that could see it: the build is",
+      "green either way and ng serve installs no worker."
     ]
   },
   "index": "/index.html",
+  "navigationUrls": ["/**", "!/**/*.*", "!/**/*__*", "!/**/*__*/**", "!/realms/**", "!/api/**"],
   "assetGroups": [
     {
       "name": "app",

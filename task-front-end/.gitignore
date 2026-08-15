@@ -39,6 +39,14 @@ testem.log
 /typings
 __screenshots__/
 
+# Playwright (#64). The session file holds a dev-realm cookie for a throwaway user, but a captured
+# credential of any kind belongs outside git on principle (#31).
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+/e2e/.auth
+
 # System files
 .DS_Store
 Thumbs.db
