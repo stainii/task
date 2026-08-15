@@ -94,6 +94,14 @@ beforeEach(() => {
         provide: SyncService,
         useValue: {
           revision,
+          // The real one records in order and answers with the patch undo names; the stub delegates
+          // to this file's own `record` so the fold below still does the work.
+          recordAll: async (patches: TaskPatch[]) => {
+            for (const patch of patches) {
+              await TestBed.inject(SyncService).record(patch);
+            }
+            return patches[patches.length - 1];
+          },
           record: vi.fn((patch: TaskPatch) => {
             recorded.push(patch);
             const existing = heldTasks.find((task) => task.id === patch.taskId);
@@ -150,6 +158,19 @@ describe('the templates list', () => {
     await fixture.whenStable();
 
     expect(texts('li.template .name')).toEqual(['Alive', 'Retired']);
+  });
+});
+
+/** #61's "Done when": the list grows to ~115 entries after import, so it has to work at that size. */
+describe('at the size the import produces', () => {
+  it('renders all ~115 rows', async () => {
+    await render(
+      Array.from({ length: 115 }, (_unused, index) =>
+        aTemplate({ id: `t${index}`, name: `Template ${index}` }),
+      ),
+    );
+
+    expect(element().querySelectorAll('li.template')).toHaveLength(115);
   });
 });
 

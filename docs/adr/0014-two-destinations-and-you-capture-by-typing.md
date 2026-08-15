@@ -216,3 +216,42 @@ menu, and there are now two destinations.
 - **`CONTEXT.md` still needs `omnibox` adding**, and was deliberately not edited here: a concurrent
   session resolving [#36](https://github.com/stainii/task/issues/36) has uncommitted changes to that
   file, and editing it from this session risked silently clobbering them.
+
+## Amendments
+
+### The one list has one cap, and the order inside each half
+
+Amended by [Templates: the reminding list and the one authoring screen](https://github.com/stainii/task/issues/61),
+2026-08-15.
+
+This ADR collapsed the dropdown's two groups into one list and stated the order of what typing offers
+— *"complete a matching open task, **I already did this** for a matching template, and create a
+task"*. Building the merge needed two things that sentence does not say, and got one of them wrong on
+the first attempt.
+
+**The stated order holds, and it was briefly inverted.** The first implementation put template rows
+above task rows and recorded that as decided-by-recommendation on the grounds that the ADR was silent
+about the merged list. It is not silent; the sentence above is the order, and the reason it is right
+is the same reason the groups were collapsed — an open task is the thing the app has already decided
+you should be doing, and ranking a chore above it re-creates the split as an ordering.
+
+**The five rows are shared, not five each.** Both halves capping at `bands.CAP` independently and the
+merge capping again is a cap of ten pretending to be a cap of five, and the half listed second loses
+every row: five matching chores pushed every open task off the list. `templateOffers` therefore takes
+the room the tasks left rather than a cap of its own.
+
+**A template row is one task definition, not one template.** ADR-0011 makes the affordance pick a
+task, and portal's *"What did you do?"* dropdown listed one name each; with several definitions the
+equivalent is naming which one. Expanding in the list rather than asking after the row is picked is
+what keeps the box one keystroke deep — you type *stofzuigen* and the thing you meant is there,
+instead of a row called *Beddengoed* that then asks a question.
+
+### The templates list's own order, inside each half
+
+Amended by the same ticket.
+
+This ADR says the list ranks **not-yet-due templates first** and says nothing about the order within
+either half. *Decided by recommendation:* the quiet half leads with the one longest since it was
+done, and a template never done leads them all — which is the reminding question in order. The firing
+half keeps the overview's own `byRank`, because a second answer to *what matters most today* one tab
+away from the first is how portal's comparator and its buckets came to disagree for years.

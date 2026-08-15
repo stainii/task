@@ -320,16 +320,35 @@
   <button type="button" class="add-definition" (click)="addDefinition()">Add another task</button>
 
   <!--
+    **One preview component, one rule: dates when dates exist, shape when they do not** (ADR-0013).
+    Authoring has no anchor date, and inventing one would print concrete dates that are wrong for
+    every actual run — so this is the shape, in the anchor's own words.
+
+    It is **not** gated on the timeline. An earlier draft put it inside `@if (showTimeline())`, which
+    is `definitions.length > 1`, so the 44 real one-task templates got no preview at all — the ADR
+    has these as two things, and the timeline is the one that appears *additionally*.
+  -->
+  <ol class="shape" aria-label="What this template describes">
+    @for (row of shape(); track $index) {
+      <li>
+        <span class="what">{{ row.name || 'This task' }}</span>
+        <span class="when">{{ row.when }}</span>
+      </li>
+    }
+  </ol>
+
+  <!--
     **The timeline appears additionally when there is more than one task, with the numbers still
-    visible** (ADR-0013). It earns its place only when there is something to compare: for one task
-    it is a ruler, a legend and a drag affordance wrapped around two numbers. On a narrow screen it
-    is hidden by CSS rather than by a second rule here.
+    visible** (ADR-0013). It earns its place only when there is something to compare: for one task it
+    is a ruler, a legend and a drag affordance wrapped around two numbers. On a narrow screen it is
+    hidden by CSS rather than by a second rule here.
   -->
   @if (showTimeline()) {
     <ol class="timeline" aria-label="How the tasks sit around the anchor">
       @for (row of shape(); track $index) {
         <li>
-          <span class="what">{{ row.name }}</span> <span class="when">{{ row.when }}</span>
+          <span class="what">{{ row.name || 'This task' }}</span>
+          <span class="when">{{ row.when }}</span>
         </li>
       }
     </ol>
@@ -405,7 +424,7 @@
     -->
     @if (anchorDate() !== '') {
       <ul class="preview">
-        @for (row of preview(); track $index) {
+        @for (row of preview().definitions; track $index) {
           <li class="preview-row">
             <span class="what">{{ row.name }}</span>
             <span class="when">{{ row.startDate }} → {{ row.dueDate ?? 'no due date' }}</span>
@@ -413,8 +432,8 @@
         }
       </ul>
 
-      @if (renderProblem(); as problem) {
-        <p class="problem" role="alert">{{ problem }}</p>
+      @if (preview().refusal; as refusal) {
+        <p class="problem" role="alert">{{ refusal }}</p>
       }
     }
 

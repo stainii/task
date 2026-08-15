@@ -173,8 +173,8 @@ export class Templates {
   /**
    * Writes ADR-0011's one button in whichever of its two shapes the data chose.
    *
-   * **In order, and awaited in order**: the pair that mints a task is a creation followed by a
-   * completion, and the outbox drains in the order it was filled.
+   * Through `sync.recordAll`, which the omnibox's template rows use too: the two paths mint the same
+   * patches and must record them the same way, and it is what names the patch undo takes back.
    */
   protected async completed(on: IsoDate): Promise<void> {
     const chosen = this.confirming();
@@ -183,15 +183,11 @@ export class Templates {
     }
     this.confirming.set(null);
 
-    const patches = didItPatches(chosen.row, chosen.definitionIndex, on, this.now());
-    for (const patch of patches) {
-      await this.sync.record(patch);
-    }
+    const undoable = await this.sync.recordAll(
+      didItPatches(chosen.row, chosen.definitionIndex, on, this.now()),
+    );
 
-    // The *completing* patch is the one undo names — voiding the creation of a task minted here
-    // would complete it instead (the fold cannot un-create), which is the opposite of taking it
-    // back. Voiding the completion leaves an open task, which is a row you can then cancel.
-    this.offerUndo(patches[patches.length - 1], chosen.what);
+    this.offerUndo(undoable, chosen.what);
   }
 
   protected async undo(): Promise<void> {

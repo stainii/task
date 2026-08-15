@@ -308,38 +308,42 @@ export class Omnibox {
    */
   protected readonly suggestions = computed<readonly Suggestion[]>(() => {
     const query = this.query();
-    const today = this.today();
+    const asOf = this.today();
 
-    // **Templates lead.** A task that matched is already on the overview, one tab away; a template
-    // that is not yet due has no other route in the app except the templates list, and this box is
-    // the one that claims to be *one keystroke from wherever you are*. It is also the half ADR-0014
-    // ranks first for the ✓ on the list itself, so the two surfaces agree.
-    //
-    // *Decided by recommendation:* ADR-0014 collapses the two groups into one list and does not say
-    // how the merged list orders itself.
-    const templates = templateOffers(this.heldTemplates(), this.held(), query, today).map(
-      (offer) =>
-        ({
-          kind: 'template',
-          key: `${offer.row.template.id}#${offer.definitionIndex}`,
-          name: offer.name,
-          state: lastDoneLabel(offer.row.lastCompletedOn, today),
-          offer,
-        }) as const,
-    );
-
-    const tasks = matchingTasks(this.held(), query, today).map(
+    // **Tasks first, then templates** — ADR-0014 states the order outright: *"Typing offers, in
+    // order — complete a matching open task, I already did this for a matching template, and create
+    // a task with what you typed."* An earlier draft of this method put templates first and claimed
+    // the ADR was silent on the merged list; it is not, and the reason it is not is the same reason
+    // the two groups were collapsed: an open task is the thing the app already decided you should be
+    // doing, and offering a chore above it re-creates the split by ranking.
+    const tasks = matchingTasks(this.held(), query, asOf).map(
       (task) =>
         ({
           kind: 'task',
           key: task.id,
           name: task.name,
-          state: dueLabel(task.dueDate, today),
+          state: dueLabel(task.dueDate, asOf),
           task,
         }) as const,
     );
 
-    return [...templates, ...tasks].slice(0, CAP);
+    // **Whatever room the tasks left**, which is why this asks for a limit rather than taking the
+    // cap itself. Both halves capping at five independently made the merge slice a ten-row list back
+    // to five, so five matching chores pushed *every* open task off a list ADR-0014 puts them at the
+    // top of.
+    const room = Math.max(0, CAP - tasks.length);
+    const templates = templateOffers(this.heldTemplates(), this.held(), query, asOf, room).map(
+      (offer) =>
+        ({
+          kind: 'template',
+          key: `${offer.row.template.id}#${offer.definitionIndex}`,
+          name: offer.name,
+          state: lastDoneLabel(offer.row.lastCompletedOn, asOf),
+          offer,
+        }) as const,
+    );
+
+    return [...tasks, ...templates];
   });
 
   /** Creating is offered whenever anything has been typed, whether or not something matched. */
@@ -370,7 +374,8 @@ export class Omnibox {
    * A task row completes that task; a template row mints one created and completed in the same
    * breath. **The two are indistinguishable from here on** — one confirm collected the date, one
    * toast offers to take it back — which is exactly what ADR-0014 means by the paths converging
-   * before anything is written.
+   * before anything is written. `recordAll` is the third thing they share, and it is what names the
+   * patch undo takes back.
    */
   protected async completed(on: IsoDate): Promise<void> {
     const suggestion = this.confirming();
@@ -380,25 +385,13 @@ export class Omnibox {
     this.confirming.set(null);
     this.query.set('');
 
-    const patches =
+    const undoable = await this.sync.recordAll(
       suggestion.kind === 'task'
         ? [completePatch(suggestion.task, this.now(), on)]
-        : didItPatches(suggestion.offer.row, suggestion.offer.definitionIndex, on, this.now());
+        : didItPatches(suggestion.offer.row, suggestion.offer.definitionIndex, on, this.now()),
+    );
 
-    // In order, and awaited in order: the minting pair is a creation followed by a completion, and
-    // the outbox drains in the order it was filled.
-    for (const patch of patches) {
-      await this.sync.record(patch);
-    }
-
-    // The **completing** patch is the one undo names. Voiding the creation of a task minted here
-    // would complete it instead — the fold cannot un-create — which is the opposite of taking it
-    // back.
-    this.offerToast({
-      kind: 'completed',
-      patch: patches[patches.length - 1],
-      name: suggestion.name,
-    });
+    this.offerToast({ kind: 'completed', patch: undoable, name: suggestion.name });
   }
 
   /** Takes the completion back, as ADR-0004's void patch. The fold recomputes; nothing is edited. */

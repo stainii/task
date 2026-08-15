@@ -63,20 +63,6 @@ export function variablesIn(...texts: readonly (string | null | undefined)[]): s
 }
 
 /**
- * Every variable a template asks for: its context, and every definition's name and description.
- *
- * There is no declared list (ADR-0013). Portal kept one beside the placeholders and they drifted —
- * `Nagaan of workshop mogelijk is` declared a `${lector}` that appeared in no text, so every run for
- * years asked for it and threw the answer away, with nothing able to report it.
- */
-export function variablesOf(template: TaskTemplate): string[] {
-  return variablesIn(
-    template.context,
-    ...template.taskDefinitions.flatMap((definition) => [definition.name, definition.description]),
-  );
-}
-
-/**
  * Substitution, and **an unanswered variable is left standing as `${…}`** rather than blanked.
  *
  * The task is then named for the mistake, which is how it is found; substituting it away would
@@ -85,7 +71,7 @@ export function variablesOf(template: TaskTemplate): string[] {
 export function fillInVariables(text: string, variables: Readonly<Record<string, string>>): string {
   let filled = text;
   for (const [name, value] of Object.entries(variables)) {
-    filled = filled.split('${' + name + '}').join(value ?? '');
+    filled = filled.split('${' + name + '}').join(value);
   }
   return filled;
 }

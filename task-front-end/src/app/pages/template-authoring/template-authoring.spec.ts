@@ -304,6 +304,59 @@ describe('retiring a template', () => {
   });
 });
 
+/**
+ * **One preview component, one rule** (ADR-0013) — and it is not the timeline. An earlier draft
+ * rendered the shape only inside `@if (showTimeline())`, which is `definitions.length > 1`, so the
+ * 44 one-task templates the author actually has got no preview at all.
+ */
+describe('the preview while authoring', () => {
+  it('shows the shape for a one-task template, in the anchor’s own words', async () => {
+    heldTemplates = [
+      aTemplate({
+        id: 'workshop',
+        trigger: manual('When is the workshop?'),
+        taskDefinitions: [
+          aDefinition({
+            name: 'Voorbereidingsmail',
+            startDateOffsetDays: -14,
+            dueDateOffsetDays: -7,
+          }),
+        ],
+      }),
+    ];
+
+    await open('workshop');
+
+    expect(texts('.shape li').join(' ')).toContain('14 days before');
+    expect(texts('.shape li').join(' ')).toContain('When is the workshop?');
+  });
+
+  /**
+   * A scheduled template has no anchor to name, so it reads its **rule** back instead. Not its next
+   * dates: enumerating firings forward is a rule that already exists in `CalendarRule`, and
+   * quality-bar §5 forbids a second implementation with no shared fixtures to pin it.
+   */
+  it('reads a scheduled rule back as a sentence rather than as four controls', async () => {
+    heldTemplates = [
+      aTemplate({
+        id: 'bins',
+        trigger: {
+          type: 'CALENDAR',
+          calendarRule: 'WEEKS',
+          calendarInterval: 2,
+          calendarWeekdays: 'TUESDAY,THURSDAY',
+        },
+        taskDefinitions: [aDefinition({ name: 'Vuilbakken' })],
+      }),
+    ];
+
+    await open('bins');
+
+    expect(texts('.shape li').join(' ')).toContain('every 2 weeks on Tuesday and Thursday');
+  });
+});
+
+/** The "Done when" size: ~115 rows after import, and it has to work at that size. */
 describe('running a manual template', () => {
   /**
    * **The anchor is asked by name.** *"When is the workshop?"* rather than a date picker is the
@@ -350,6 +403,31 @@ describe('running a manual template', () => {
     await fill('anchorDate', '2026-09-15');
 
     expect(texts('.run-form .preview-row').join(' ')).toContain('2026-09-01');
+  });
+
+  /**
+   * TODO-022: a template that cannot render one of its tasks produces **none**, and the preview has
+   * to say so — which is exactly what running it would do. The path was written and never run: the
+   * refusal was reported by writing a signal from inside a `computed`, which Angular forbids
+   * (NG0600), so the one case this branch exists for raised a framework error instead.
+   */
+  it('says the whole firing is refused when a task renders to nothing', async () => {
+    heldTemplates = [
+      aTemplate({
+        id: 'workshop',
+        trigger: manual('When is the workshop?'),
+        taskDefinitions: [aDefinition({ name: '${school}' })],
+      }),
+    ];
+
+    await open('workshop');
+    await click('.run');
+    await fill('anchorDate', '2026-09-15');
+    // Typed and then cleared, which is how a variable comes to be answered with nothing at all.
+    await fill('variable-school', '');
+
+    expect(texts('.run-form .preview-row')).toEqual([]);
+    expect(texts('.run-form .problem').join(' ')).toContain('renders to an empty name');
   });
 
   it('is not offered for a template that fires by itself', async () => {

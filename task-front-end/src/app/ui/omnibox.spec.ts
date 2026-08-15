@@ -124,6 +124,14 @@ beforeEach(() => {
         provide: SyncService,
         useValue: {
           revision,
+          // The real one records in order and answers with the patch undo names; the stub delegates
+          // to this file's own `record` so the fold below still does the work.
+          recordAll: async (patches: TaskPatch[]) => {
+            for (const patch of patches) {
+              await TestBed.inject(SyncService).record(patch);
+            }
+            return patches[patches.length - 1];
+          },
           record: vi.fn((patch: TaskPatch) => {
             recorded.push(patch);
             // The real service writes through the store, so a captured task is on this device the
@@ -524,8 +532,9 @@ describe('saying you did a chore that is showing nothing', () => {
     await type('bedden');
 
     // One list, not two groups: ADR-0014 collapsed the split once every row opened the same
-    // confirm, because it was invisible and it listed a due template twice.
-    expect(texts('.suggestion .name')).toEqual(['Beddengoed wassen', 'Beddengoed opnieuw kopen']);
+    // confirm, because it was invisible and it listed a due template twice. The **open task leads**,
+    // which is the order that ADR states outright.
+    expect(texts('.suggestion .name')).toEqual(['Beddengoed opnieuw kopen', 'Beddengoed wassen']);
   });
 
   it('says which state each row is in, in words', async () => {
@@ -587,5 +596,27 @@ describe('saying you did a chore that is showing nothing', () => {
 
     const undo = recorded[recorded.length - 1];
     expect(undo.voids).toBe(recorded[recorded.length - 2].id);
+  });
+});
+
+/**
+ * The five rows are **shared**, not five each. Capping both halves and then the merge is a cap of
+ * ten pretending to be a cap of five, and it starves whichever half is listed second — here, every
+ * chore, on a query that matches five tasks.
+ */
+describe('the one list’s one cap', () => {
+  it('gives the templates whatever room the tasks left, rather than a second five', async () => {
+    held = Array.from({ length: 5 }, (_unused, index) =>
+      aTask({ id: `t${index}`, name: `Vuilbak ${index}`, dueDate: '2026-08-20' }),
+    );
+    heldTemplates = [
+      aTemplate({ name: 'Vuilbakken', taskDefinitions: [aDefinition({ name: 'Vuilbakken' })] }),
+    ];
+    await standingAt('/');
+
+    await type('vuilbak');
+
+    expect(texts('.suggestion .name')).toHaveLength(5);
+    expect(texts('.suggestion .name').every((name) => name.startsWith('Vuilbak '))).toBe(true);
   });
 });

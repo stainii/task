@@ -133,38 +133,62 @@ export class TemplateAuthoring {
    *
    * It renders through the **same renderer the server uses**, pinned by `/render-fixtures/` — a
    * preview computed some other way would be a preview that can disagree with what gets created.
+   *
+   * **The refusal is a value, not a signal write.** A template that cannot render one of its tasks
+   * produces *none* (TODO-022), and saying so from inside a `computed` by setting a signal is
+   * exactly what Angular forbids (NG0600) — so the failure raised a framework error on the one path
+   * it exists for, and left the message on screen for ever once set. Returned as part of the answer,
+   * it clears itself the moment the next render succeeds.
    */
-  protected readonly preview = computed<readonly RenderedDefinition[]>(() => {
+  protected readonly preview = computed<{
+    readonly definitions: readonly RenderedDefinition[];
+    readonly refusal: string | null;
+  }>(() => {
     const anchor = this.anchorDate();
     if (anchor === '') {
-      return [];
+      return { definitions: [], refusal: null };
     }
     try {
-      return renderTemplate(templateOf(this.draft(), this.id()), {
+      const firing = renderTemplate(templateOf(this.draft(), this.id()), {
         firingDate: today(this.now()),
         anchor,
         variables: this.answers(),
-      }).definitions;
+      });
+      return { definitions: firing.definitions, refusal: null };
     } catch (error) {
-      // A template that cannot render one of its tasks produces **none** (TODO-022). The preview
-      // says so rather than showing the ones that happened to work, because that is exactly what
-      // running it would do.
-      this.renderProblem.set(error instanceof TemplateRenderError ? error.message : String(error));
-      return [];
+      // No tasks at all rather than the ones that happened to render before the refusal, because
+      // that is precisely what running it would do.
+      return {
+        definitions: [],
+        refusal: error instanceof TemplateRenderError ? error.message : String(error),
+      };
     }
   });
 
-  protected readonly renderProblem = signal<string | null>(null);
-
   /**
-   * The shape a manual template describes, without dates: *2 weeks before → 1 week before the
-   * workshop*, using the anchor's own name.
+   * **What this template describes, without dates**: *2 weeks before → 1 week before the workshop*,
+   * in the anchor's own words.
+   *
+   * Shown for **every** template rather than only multi-task ones. A scheduled template gets its
+   * rule read back in words instead of an anchor question, because *"every 14 weeks on Saturday"* is
+   * unreadable as four form controls — ADR-0013's strongest case for the preview existing at all.
+   * What it does **not** do is enumerate the next firing dates: that is a rule that already exists
+   * in Java, and a second implementation of it with no shared fixture directory to pin it is exactly
+   * what `docs/quality-bar.md` §5 forbids. Named as a limit, not solved by guessing.
    */
   protected readonly shape = computed(() =>
     this.draft().definitions.map((definition) => ({
       name: definition.name,
-      when: shapeOf(definition, this.anchorQuestion()),
+      when: shapeOf(definition, this.hangsOff()),
     })),
+  );
+
+  /**
+   * What the offsets are measured from, said out loud — the anchor's question for a manual template,
+   * and the rule itself for one that comes round on its own.
+   */
+  protected readonly hangsOff = computed(() =>
+    this.draft().kind === 'MANUAL' ? this.anchorQuestion() : ruleInWords(this.draft()),
   );
 
   /** ADR-0013: the timeline earns its place only when there is something to compare. */
@@ -361,6 +385,48 @@ export class TemplateAuthoring {
     this.running.set(false);
     await this.router.navigate(['/']);
   }
+}
+
+/**
+ * A scheduled trigger, read back as a sentence.
+ *
+ * Deliberately the *rule* and not its next dates. Enumerating firings forward is a rule that already
+ * exists once, in `CalendarRule`, and quality-bar §5 is explicit that anything implemented twice
+ * needs shared golden fixtures — there is no `/firing-fixtures/`, and inventing a second answer to
+ * *when does this fire* with nothing to pin it against is how two implementations come to disagree
+ * at a date boundary, which is where this project keeps finding its bugs.
+ */
+function ruleInWords(draft: TemplateDraft): string {
+  if (draft.kind === 'MIN_MAX') {
+    const every = `every ${plural(draft.interval, 'day')}`;
+    return draft.window === 0
+      ? `${every}, due straight away`
+      : `${every}, ${plural(draft.window, 'day')} to do it`;
+  }
+
+  const every = `every ${draft.calendarEvery === 1 ? singular(draft.calendarUnit) : `${draft.calendarEvery} ${draft.calendarUnit}`}`;
+  if (draft.calendarUnit === 'weeks') {
+    return `${every} on ${draft.weekdays.map(said).join(' and ')}`;
+  }
+  if (draft.calendarUnit === 'months' && draft.monthlyOn === 'nth-weekday') {
+    return `the ${draft.ordinal.toLowerCase()} ${said(draft.nthWeekday)} of ${every.replace('every ', 'every ')}`;
+  }
+  if (draft.calendarUnit === 'months' || draft.calendarUnit === 'years') {
+    return `${every} on day ${draft.dayOfMonth}`;
+  }
+  return every;
+}
+
+function singular(unit: string): string {
+  return unit.replace(/s$/, '');
+}
+
+function said(weekday: string): string {
+  return weekday.charAt(0) + weekday.slice(1).toLowerCase();
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
 /** *2 weeks before → 1 week before the workshop*, said without a date (ADR-0013's preview rule). */

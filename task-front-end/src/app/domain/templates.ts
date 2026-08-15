@@ -154,6 +154,14 @@ export function templateOffers(
   tasks: readonly Task[],
   query: string,
   today: IsoDate,
+  /**
+   * **How many rows the caller has room for**, rather than a cap taken here.
+   *
+   * The omnibox shares one five-row list between tasks and templates (ADR-0014), so capping both
+   * halves at `CAP` and then capping the merge again is a cap of ten pretending to be a cap of
+   * five — and the half listed second silently loses every row.
+   */
+  limit: number = CAP,
 ): TemplateOffer[] {
   const needle = query.trim().toLowerCase();
   if (needle === '') {
@@ -174,5 +182,5 @@ export function templateOffers(
         offer.name.toLowerCase().includes(needle) ||
         offer.row.template.name.toLowerCase().includes(needle),
     )
-    .slice(0, CAP);
+    .slice(0, limit);
 }

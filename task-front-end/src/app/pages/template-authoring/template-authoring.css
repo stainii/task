@@ -183,6 +183,28 @@ textarea {
 }
 
 /*
+ * The shape: what this template describes, in words, at any number of tasks. Always shown, because
+ * the preview and the timeline are two things and only the second one is conditional.
+ */
+.shape {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shape li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.shape .when {
+  color: var(--app-muted);
+}
+
+/*
  * The timeline. Hidden below the breakpoint rather than removed from the DOM: ADR-0013 says it
  * appears on mobile *only when there is room*, which is a viewport question and therefore CSS's,
  * not a second rule in the component that would have to guess at a width.

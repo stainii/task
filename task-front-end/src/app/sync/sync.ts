@@ -148,6 +148,26 @@ export class SyncService {
     return task;
   }
 
+  /**
+   * Records several patches **in order**, and answers with the one an undo should name.
+   *
+   * The two callers are ADR-0014's two capture paths, and they mint the same patches by
+   * construction — the templates list's ✓ and the omnibox's template rows both go through
+   * `didItPatches`. Recording them was written out twice, comment and all, which is the duplication
+   * the shared `DateConfirm` and `UndoToast` already argued against: the paths differ only in how
+   * the thing was chosen.
+   *
+   * **The last patch is the one undo names**, and that is a rule rather than an off-by-one. Voiding
+   * the *creation* of a task minted here would complete it instead — the fold cannot un-create — so
+   * naming the completion is what actually takes it back.
+   */
+  async recordAll(patches: readonly TaskPatch[]): Promise<TaskPatch> {
+    for (const patch of patches) {
+      await this.record(patch);
+    }
+    return patches[patches.length - 1];
+  }
+
   /** Raises the login prompt the stall asked for, and resumes both loops behind it. */
   async login(): Promise<void> {
     await this.auth.login();
