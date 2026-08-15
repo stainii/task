@@ -55,6 +55,42 @@ test rather than a detail of it: the band arithmetic is written to survive the t
 are 23 and 25 hours long, and in a zone with no daylight saving those tests pass against the very
 bug they exist to catch. See `docs/quality-bar.md` §3.
 
+## The PWA
+
+Installability is not decoration: an installed origin is exempt from Safari's seven-day eviction of
+script-writable storage, so it is what makes `navigator.storage.persist()` in `store/local-store.ts`
+mean anything. A plain browser tab is a **supported degraded mode**, not a second policy — an evicted
+store is not data loss, because ADR-0004's hard-reset path refetches it, and **only an undrained
+outbox is**.
+
+**`ngsw-config.json` has an empty `dataGroups`, deliberately.** The file says why and
+`src/app/pwa/ngsw-config.spec.ts` enforces it. Short version: `ngsw` caches GET and the resync path
+is a GET, so a cached snapshot hands the client a stale `sequence` watermark and the patches in the
+gap are lost — the `?since=` defect ADR-0004 exists to kill, reintroduced by configuration rather
+than by code. Offline reads come from IndexedDB. Nothing goes in `dataGroups`.
+
+Note that the service worker only exists in a **production** build (`serviceWorker` is set on that
+configuration alone), so `ng serve` never has one.
+
+### Icons
+
+Regenerated, not ported from portal. The artwork is
+[ADR-0019](../docs/adr/0019-verbs-are-glyphs-facts-are-words.md)'s own `complete` glyph — the exact
+path string from `src/app/ui/glyph.ts` — in white on `--app-accent`, which makes the app's icon a
+member of its own four-glyph vocabulary rather than a new drawing, and keeps it legible at 16 pixels.
+
+The SVG sources live in `icons/`. To regenerate every size:
+
+```bash
+./icons/generate.sh
+```
+
+`public/nothing-to-do.png` is the **one** asset RES-015 keeps from portal, parked for the empty-state
+redesign to accept or reject. Nothing references it yet, and **its licence is unestablished** — it
+arrived in portal as stock art with no licence file, and this repo is public by choice
+([#31](https://github.com/stainii/task/issues/31)). Establish the licence before using it, or delete
+it.
+
 ## Running end-to-end tests
 
 For end-to-end (e2e) testing, run:
