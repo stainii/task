@@ -6,6 +6,7 @@ import { AuthService } from './auth';
 import { Outbox } from './outbox';
 import { PatchStream } from './stream';
 import { SyncStatus } from './sync-status';
+import { TemplateService } from './templates';
 
 /**
  * The half of the app that talks to the server, and what happens when it cannot.
@@ -30,6 +31,16 @@ export class SyncService {
   private readonly stream = inject(PatchStream);
   private readonly status = inject(SyncStatus);
   private readonly auth = inject(AuthService);
+
+  /**
+   * The template list, which is fetched rather than streamed.
+   *
+   * Templates are online-write-only and are not patched, so they have no place in the outbox or the
+   * stream — but they are *read* offline by the reminding list, the omnibox's rows and ADR-0011's
+   * mint, so the fetch rides with the same two moments the rest of sync starts on: boot, and the
+   * radio coming back.
+   */
+  private readonly templates = inject(TemplateService);
 
   /** Bumped whenever sync changed the local store. #57's overview reacts to this and re-reads. */
   readonly revision = this.status.revision;
@@ -106,6 +117,7 @@ export class SyncService {
           this.status.online.set(true);
           this.stream.nudge();
           this.send();
+          void this.templates.refresh();
         },
         { signal: listeners.signal },
       );
@@ -116,6 +128,7 @@ export class SyncService {
 
     this.stream.start();
     this.send();
+    void this.templates.refresh();
   }
 
   /**

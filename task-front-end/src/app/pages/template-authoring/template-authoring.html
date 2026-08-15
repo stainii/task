@@ -1,0 +1,426 @@
+<header class="head">
+  <h2>{{ creating() ? 'New template' : draft().name || 'Template' }}</h2>
+
+  <!--
+    ADR-0004: **visibly** unavailable offline. Everything that writes is gone rather than disabled
+    and failing — a template is a rule that keeps running in your absence, so unlike a task there is
+    no outbox to queue it into (`CONTEXT.md`: templates are online-write-only).
+  -->
+  @if (!writable()) {
+    <p class="offline" role="status">
+      Templates can only be changed online. What is here is what this device last saw.
+    </p>
+  }
+</header>
+
+<fieldset class="fields" [disabled]="!writable()">
+  <label class="field">
+    <span>Name</span>
+    <input
+      data-field="name"
+      type="text"
+      [value]="draft().name"
+      (input)="editText('name', $event)"
+    />
+  </label>
+
+  <!--
+    The context is on the template, never on a task: it does not vary inside one (11 real
+    definitions, 3 templates, zero variation), and ADR-0006 made it the overview's grouping axis. A
+    template that would span two contexts is two templates that happen to share a date.
+  -->
+  <label class="field">
+    <span>Context</span>
+    <input
+      data-field="context"
+      type="text"
+      [value]="draft().context"
+      (input)="editText('context', $event)"
+    />
+  </label>
+
+  <!--
+    **The trigger is the first field, and it shapes the form beneath it** (ADR-0013). Not three
+    forms behind a chooser: a min/max form shaped for the 44 real recurring templates has nowhere to
+    put a second task, so `Beddengoed wassen en bed stofzuigen` would stay a name string for ever.
+  -->
+  <label class="field">
+    <span>When does it come round?</span>
+    <!--
+      `[selected]` on each option, never `[value]` on the select. Found by driving the real app: a
+      `<select>` binds its value *before* its options exist, so the binding is dropped and the
+      control falls back to the first entry — a new task showed "I don't really care" while the
+      draft said `IMPORTANT`. Every select below is written the same way for the same reason, and
+      the unit tests were green throughout because each one happened to assert the first option.
+    -->
+    <select data-field="kind" (change)="editKind($event)">
+      <option value="MANUAL" [selected]="draft().kind === 'MANUAL'">Run by hand</option>
+      <option value="MIN_MAX" [selected]="draft().kind === 'MIN_MAX'">Every so often</option>
+      <option value="CALENDAR" [selected]="draft().kind === 'CALENDAR'">On the calendar</option>
+    </select>
+  </label>
+
+  <div class="trigger">
+    @switch (draft().kind) {
+      @case ('MANUAL') {
+        <!--
+          **The author names the anchor** — *"When is the workshop?"* — so running the template asks
+          a question instead of presenting a date picker, and the preview has a label to read.
+        -->
+        <label class="field">
+          <span>What should running it ask?</span>
+          <input
+            data-field="anchorLabel"
+            type="text"
+            placeholder="When is the workshop?"
+            [value]="draft().anchorLabel"
+            (input)="editText('anchorLabel', $event)"
+          />
+        </label>
+      }
+
+      @case ('MIN_MAX') {
+        <!--
+          **Interval plus window**, not two absolute numbers. Ten of the 44 real templates have
+          `min == max` — 720/720, 365/365, 5/5 — meaning *due immediately*; under two fields that
+          idiom is typing the same number twice and wondering whether it was a mistake, and here it
+          is one field left at zero.
+        -->
+        <p class="sentence">
+          Comes round every
+          <input
+            data-field="interval"
+            type="number"
+            min="1"
+            [value]="draft().interval"
+            (input)="editNumber('interval', $event)"
+          />
+          days, and I have
+          <input
+            data-field="window"
+            type="number"
+            min="0"
+            [value]="draft().window"
+            (input)="editNumber('window', $event)"
+          />
+          days to do it.
+        </p>
+        @if (draft().window === 0) {
+          <p class="aside">Due the day it appears.</p>
+        }
+      }
+
+      @default {
+        <p class="sentence">
+          Every
+          <input
+            data-field="calendarEvery"
+            type="number"
+            min="1"
+            [value]="draft().calendarEvery"
+            (input)="editNumber('calendarEvery', $event)"
+          />
+          <!--
+            *Yearly* is offered here and stored as `Months(n × 12)` — nobody thinks "every 12 months
+            on day 14", so the affordance stays even though the rule does not.
+          -->
+          <select
+            data-field="calendarUnit"
+            [value]="draft().calendarUnit"
+            (change)="editUnit($event)"
+          >
+            <option value="days">days</option>
+            <option value="weeks">weeks</option>
+            <option value="months">months</option>
+            <option value="years">years</option>
+          </select>
+        </p>
+
+        @if (draft().calendarUnit === 'weeks') {
+          <!-- Several weekdays in one rule, so *Tuesday and Thursday* is one template. -->
+          <div class="weekdays">
+            @for (weekday of WEEKDAYS; track weekday) {
+              <button
+                type="button"
+                class="weekday"
+                [class.on]="draft().weekdays.includes(weekday)"
+                [attr.aria-pressed]="draft().weekdays.includes(weekday)"
+                (click)="toggleWeekday(weekday)"
+              >
+                {{ weekday.slice(0, 2) }}
+              </button>
+            }
+          </div>
+        }
+
+        @if (draft().calendarUnit === 'months') {
+          <label class="field">
+            <span>On</span>
+            <select data-field="monthlyOn" (change)="editMonthlyOn($event)">
+              <option value="day-of-month" [selected]="draft().monthlyOn === 'day-of-month'">
+                a day of the month
+              </option>
+              <option value="nth-weekday" [selected]="draft().monthlyOn === 'nth-weekday'">
+                a weekday of the month
+              </option>
+            </select>
+          </label>
+        }
+
+        @if (draft().calendarUnit === 'months' && draft().monthlyOn === 'nth-weekday') {
+          <!--
+            *Every first Saturday*, *every last Friday* — the shape #36 asked for and no other rule
+            can produce. There is no `FIFTH`: a month always has a fourth, and `LAST` is what people
+            mean by it anyway.
+          -->
+          <p class="sentence">
+            the
+            <select data-field="ordinal" (change)="editOrdinal($event)">
+              @for (ordinal of ORDINALS; track ordinal) {
+                <option [value]="ordinal" [selected]="draft().ordinal === ordinal">
+                  {{ ordinal.toLowerCase() }}
+                </option>
+              }
+            </select>
+            <select data-field="nthWeekday" (change)="editWeekday('nthWeekday', $event)">
+              @for (weekday of WEEKDAYS; track weekday) {
+                <option [value]="weekday" [selected]="draft().nthWeekday === weekday">
+                  {{ weekday.toLowerCase() }}
+                </option>
+              }
+            </select>
+          </p>
+        } @else if (draft().calendarUnit === 'months' || draft().calendarUnit === 'years') {
+          <p class="sentence">
+            on day
+            <input
+              data-field="dayOfMonth"
+              type="number"
+              min="1"
+              max="31"
+              [value]="draft().dayOfMonth"
+              (input)="editNumber('dayOfMonth', $event)"
+            />
+            <span class="aside">31 falls back to the end of a short month.</span>
+          </p>
+        }
+      }
+    }
+  </div>
+
+  <!--
+    **Variables are inferred from the text; there is no declared list** (ADR-0013). Portal kept both
+    and they drifted — one template asked for a `${lector}` that appeared in no text and threw the
+    answer away for years. A typo shows up here as it is typed, rather than as a task named
+    `${scool}` months later.
+  -->
+  @if (variables().length > 0) {
+    <div class="variables">
+      <span class="aside">Asks for:</span>
+      @for (variable of variables(); track variable) {
+        <span class="variable">{{ '${' + variable + '}' }}</span>
+      }
+    </div>
+  }
+
+  <h3>Tasks it creates</h3>
+
+  <!--
+    **Progressive disclosure**: a task collapses to its name and its importance, and the `▾` reveals
+    the offsets and the description — the two things that are rare across the real data. A
+    single-task template therefore never opens the drawer, which is what keeps the 44 three-field
+    recurring templates from paying for the 3 workshop-shaped ones.
+  -->
+  <ul class="definitions">
+    @for (definition of draft().definitions; track $index) {
+      <li class="definition">
+        <div class="collapsed">
+          <input
+            [attr.data-field]="'definition-name-' + $index"
+            type="text"
+            placeholder="What is the task called?"
+            [value]="definition.name"
+            (input)="editDefinitionText($index, 'name', $event)"
+          />
+
+          <!--
+            Importance is in the **collapsed** row rather than behind the drawer. A template-level
+            default with a per-task override was proposed and overruled as less straightforward than
+            one home for the field; putting it here is what recovers that, so the single-task case
+            still costs nothing and there are no override semantics to explain.
+          -->
+          <select
+            [attr.data-field]="'definition-importance-' + $index"
+            (change)="editDefinitionImportance($index, $event)"
+          >
+            @for (importance of IMPORTANCES; track importance) {
+              <option [value]="importance" [selected]="definition.importance === importance">
+                {{ importanceLabel(importance) }}
+              </option>
+            }
+          </select>
+
+          <button
+            type="button"
+            class="drawer"
+            [attr.aria-expanded]="opened() === $index"
+            (click)="toggleDrawer($index)"
+          >
+            ▾
+          </button>
+
+          @if (draft().definitions.length > 1) {
+            <button type="button" class="remove" (click)="removeDefinition($index)">Remove</button>
+          }
+        </div>
+
+        @if (opened() === $index) {
+          <div class="drawer-contents">
+            <!--
+              **One anchor, two offsets.** The `startDateDeviationBase` / `dueDateDeviationBase`
+              selectors this replaces did nothing in ten of eleven real definitions and were
+              silently inconsistent in the eleventh — four tasks anchored to the due date and one to
+              the start date, with identical offsets either way. Under one anchor that is
+              unrepresentable.
+            -->
+            <label class="field">
+              <span>Starts (days from the anchor)</span>
+              <input
+                [attr.data-field]="'definition-start-' + $index"
+                type="number"
+                [value]="definition.startDateOffsetDays"
+                (input)="editOffset($index, 'startDateOffsetDays', $event)"
+              />
+            </label>
+
+            <label class="field">
+              <span>Due (days from the anchor)</span>
+              <input
+                [attr.data-field]="'definition-due-' + $index"
+                type="number"
+                [value]="definition.dueDateOffsetDays"
+                (input)="editOffset($index, 'dueDateOffsetDays', $event)"
+              />
+            </label>
+
+            <label class="field">
+              <span>Description</span>
+              <textarea
+                [attr.data-field]="'definition-description-' + $index"
+                [value]="definition.description"
+                (input)="editDefinitionText($index, 'description', $event)"
+              ></textarea>
+            </label>
+          </div>
+        }
+      </li>
+    }
+  </ul>
+
+  <button type="button" class="add-definition" (click)="addDefinition()">Add another task</button>
+
+  <!--
+    **The timeline appears additionally when there is more than one task, with the numbers still
+    visible** (ADR-0013). It earns its place only when there is something to compare: for one task
+    it is a ruler, a legend and a drag affordance wrapped around two numbers. On a narrow screen it
+    is hidden by CSS rather than by a second rule here.
+  -->
+  @if (showTimeline()) {
+    <ol class="timeline" aria-label="How the tasks sit around the anchor">
+      @for (row of shape(); track $index) {
+        <li>
+          <span class="what">{{ row.name }}</span> <span class="when">{{ row.when }}</span>
+        </li>
+      }
+    </ol>
+  }
+
+  @for (problem of problems(); track problem) {
+    <p class="problem" role="alert">{{ problem }}</p>
+  }
+</fieldset>
+
+@if (writable()) {
+  <div class="actions">
+    <button type="button" class="save" (click)="save()">Save</button>
+
+    @if (runnable()) {
+      <button type="button" class="run" (click)="startRun()">Run it now</button>
+    }
+
+    <!--
+      **Deactivated, not deleted.** #35 measured what deleting cost portal: tasks reference 115
+      distinct templates and 43 survive, so 49% of recurring tasks point at nothing. `taskTemplateId`
+      is load-bearing now — the min/max anchor reads it — so deleting severs a link the model uses.
+      Deletion survives only while the template has no tasks at all, which is a count rather than a
+      judgement.
+    -->
+    @if (!creating()) {
+      @if (active()) {
+        <button type="button" class="deactivate" (click)="deactivate()">Deactivate</button>
+      } @else {
+        <button type="button" class="reactivate" (click)="reactivate()">Reactivate</button>
+      }
+
+      @if (deletable()) {
+        <button type="button" class="delete" (click)="remove()">Delete</button>
+      }
+    }
+  </div>
+}
+
+<!--
+  Running it: **the named anchor and the variables, then the tasks are created immediately**
+  (ADR-0013). There is no edit-before-create step — the tasks are ordinary tasks the moment they
+  exist, and a confirm-and-adjust step would be a second editing surface for something already
+  editable one screen later. The preview is the check that replaces it.
+-->
+@if (running()) {
+  <section class="run-form" role="dialog" aria-modal="true" aria-label="Run this template">
+    <label class="field">
+      <span>{{ anchorQuestion() }}</span>
+      <input
+        data-field="anchorDate"
+        type="date"
+        [value]="anchorDate()"
+        (input)="anchorDate.set($any($event.target).value)"
+      />
+    </label>
+
+    @for (variable of variables(); track variable) {
+      <label class="field">
+        <span>{{ variable }}</span>
+        <input
+          [attr.data-field]="'variable-' + variable"
+          type="text"
+          (input)="answer(variable, $event)"
+        />
+      </label>
+    }
+
+    <!--
+      **Dates when dates exist, and shape when they do not.** While authoring a manual template
+      there is no anchor and inventing one would show concrete dates that are wrong for every actual
+      run; here the anchor has been typed, so these are the real dates.
+    -->
+    @if (anchorDate() !== '') {
+      <ul class="preview">
+        @for (row of preview(); track $index) {
+          <li class="preview-row">
+            <span class="what">{{ row.name }}</span>
+            <span class="when">{{ row.startDate }} → {{ row.dueDate ?? 'no due date' }}</span>
+          </li>
+        }
+      </ul>
+
+      @if (renderProblem(); as problem) {
+        <p class="problem" role="alert">{{ problem }}</p>
+      }
+    }
+
+    <div class="actions">
+      <button type="button" class="run-confirm" (click)="run()">Create the tasks</button>
+      <button type="button" class="dismiss" (click)="cancelRun()">Cancel</button>
+    </div>
+  </section>
+}

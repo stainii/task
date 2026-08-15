@@ -2,6 +2,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { TaskPatch } from '../domain/task';
+import { TaskTemplate } from '../domain/template';
 import { LocalStore } from './local-store';
 
 /**
@@ -232,8 +233,47 @@ describe('the local store', () => {
     });
   });
 
+  /**
+   * **Templates are held, not patched** — the client reads them offline (the reminding list, the
+   * omnibox rows, and the render behind *"I already did this"*) and writes them only online, per
+   * `CONTEXT.md`. So the store keeps the server's answer verbatim, with no fold and no local model
+   * to diverge from it.
+   */
+  describe('the templates it holds', () => {
+    const BINS = { id: 'bins', name: 'Vuilbakken' } as unknown as TaskTemplate;
+    const BOILER = { id: 'boiler', name: 'Onderhoud ketels' } as unknown as TaskTemplate;
+
+    it('keeps what the server last said', async () => {
+      await store.replaceTemplates([BINS, BOILER]);
+
+      expect((await store.templates()).map((template) => template.id).sort()).toEqual([
+        'bins',
+        'boiler',
+      ]);
+    });
+
+    /**
+     * **Replace, never merge.** `GET /api/task-templates` answers with the whole list, so a
+     * template that has been deleted — or that the author deactivated on another device — is
+     * absent rather than marked. Merging would leave it on this device's reminding list for ever,
+     * offering a ✓ against a rule that no longer exists.
+     */
+    it('forgets a template the server no longer lists', async () => {
+      await store.replaceTemplates([BINS, BOILER]);
+
+      await store.replaceTemplates([BINS]);
+
+      expect((await store.templates()).map((template) => template.id)).toEqual(['bins']);
+    });
+
+    it('holds nothing before the first sync', async () => {
+      expect(await store.templates()).toEqual([]);
+    });
+  });
+
   it('empties everything on a hard reset', async () => {
     await store.recordLocalPatch(CREATED);
+    await store.replaceTemplates([{ id: 'bins' } as unknown as TaskTemplate]);
 
     await store.hardReset();
 
@@ -241,6 +281,29 @@ describe('the local store', () => {
     expect(await store.pending()).toEqual([]);
     expect(await store.task(TASK)).toBeNull();
     expect(await store.cursor()).toBeNull();
+    expect(await store.templates()).toEqual([]);
+  });
+
+  /**
+   * **A newer version must be able to take over.** #61 is the first schema bump this store has ever
+   * had, so this path had never run: a connection still on the old version makes the upgrading open
+   * fire `blocked` and never `success`, the open rejects, and `storeUnavailable` takes the whole app
+   * down — because this app *is* its store. Found by driving the real app, where an installed PWA
+   * and a browser tab are two connections as a matter of course.
+   */
+  it('lets go when something asks for a newer version, instead of blocking it', async () => {
+    await store.recordLocalPatch(CREATED);
+
+    const upgraded = await new Promise<IDBDatabase | string>((resolve) => {
+      const request = indexedDB.open(LocalStore.DATABASE, LocalStore.VERSION + 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve('errored');
+      request.onblocked = () => resolve('blocked');
+    });
+
+    expect(upgraded).not.toBe('blocked');
+    expect((upgraded as IDBDatabase).version).toBe(LocalStore.VERSION + 1);
+    (upgraded as IDBDatabase).close();
   });
 
   it('records whether the browser granted persistent storage', async () => {

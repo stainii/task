@@ -9,6 +9,8 @@ import { NOW } from '../clock';
 import { foldOf } from '../domain/fold';
 import { Task, TaskPatch } from '../domain/task';
 import { aTask } from '../domain/task.mother';
+import { TaskTemplate } from '../domain/template';
+import { aDefinition, aTemplate, minMax } from '../domain/template.mother';
 import { LocalStore } from '../store/local-store';
 import { SyncService } from '../sync/sync';
 import { Omnibox } from './omnibox';
@@ -29,6 +31,7 @@ const NOW_AT = new Date('2026-08-14T10:00:00Z');
 let at = NOW_AT;
 
 let held: Task[] = [];
+let heldTemplates: TaskTemplate[] = [];
 let recorded: TaskPatch[] = [];
 let lastContext: string | null = null;
 let revision = signal(0);
@@ -93,6 +96,7 @@ function captured(): Task {
 
 beforeEach(() => {
   held = [];
+  heldTemplates = [];
   recorded = [];
   lastContext = null;
   at = NOW_AT;
@@ -105,6 +109,7 @@ beforeEach(() => {
         provide: LocalStore,
         useValue: {
           tasks: () => Promise.resolve([...held]),
+          templates: () => Promise.resolve([...heldTemplates]),
           // Reached only by *Add details*, which really navigates to the task dialog: the harness
           // renders whatever the route lands on, so the boundary has to answer for that screen too.
           task: (id: string) => Promise.resolve(held.find((task) => task.id === id) ?? null),
@@ -497,5 +502,90 @@ describe('the date the omnibox measures against', () => {
 
     const field = page.querySelector<HTMLInputElement>("app-date-confirm input[type='date']");
     expect(field?.value).toBe('2026-08-15');
+  });
+});
+
+/**
+ * **The template half of the one list** — the seam #60 stopped at, because it needs templates held
+ * on the client and the TypeScript renderer, and neither existed until this ticket.
+ */
+describe('saying you did a chore that is showing nothing', () => {
+  it('offers a template that is not yet due, in the same list as the tasks', async () => {
+    held = [aTask({ id: 'bed', name: 'Beddengoed opnieuw kopen' })];
+    heldTemplates = [
+      aTemplate({
+        id: 'bins',
+        name: 'Beddengoed wassen',
+        taskDefinitions: [aDefinition({ name: 'Beddengoed wassen' })],
+      }),
+    ];
+    await standingAt('/');
+
+    await type('bedden');
+
+    // One list, not two groups: ADR-0014 collapsed the split once every row opened the same
+    // confirm, because it was invisible and it listed a due template twice.
+    expect(texts('.suggestion .name')).toEqual(['Beddengoed wassen', 'Beddengoed opnieuw kopen']);
+  });
+
+  it('says which state each row is in, in words', async () => {
+    heldTemplates = [
+      aTemplate({ name: 'Vuilbakken', taskDefinitions: [aDefinition({ name: 'Vuilbakken' })] }),
+    ];
+    held = [];
+    await standingAt('/');
+
+    await type('vuilbak');
+
+    expect(texts('.suggestion .state')).toEqual(['never done']);
+  });
+
+  /**
+   * ADR-0011's second shape, through the omnibox: a task created and completed in one breath. The
+   * confirm is the same one a task row opens, which is the whole reason two capture paths are
+   * affordable.
+   */
+  it('mints a task created and completed in one breath, on the day you say', async () => {
+    heldTemplates = [
+      aTemplate({
+        id: 'bins',
+        name: 'Vuilbakken',
+        trigger: minMax(10, 0),
+        taskDefinitions: [aDefinition({ name: 'Vuilbakken buitenzetten' })],
+      }),
+    ];
+    await standingAt('/');
+
+    await type('vuilbak');
+    await click('.suggestion');
+
+    const field = page.querySelector<HTMLInputElement>('app-date-confirm input[type=date]');
+    field!.value = '2026-08-11';
+    field!.dispatchEvent(new Event('input'));
+    await settle();
+    await click('app-date-confirm .confirm');
+
+    expect(recorded).toHaveLength(2);
+    const task = foldOf(recorded[0].taskId, recorded);
+    expect(task.name).toBe('Vuilbakken buitenzetten');
+    expect(task.status).toBe('COMPLETED');
+    expect(task.completedOn).toBe('2026-08-11');
+    expect(task.taskTemplateId).toBe('bins');
+  });
+
+  it('offers undo for it, exactly as it does for a task', async () => {
+    heldTemplates = [
+      aTemplate({ name: 'Vuilbakken', taskDefinitions: [aDefinition({ name: 'Vuilbakken' })] }),
+    ];
+    await standingAt('/');
+
+    await type('vuilbak');
+    await click('.suggestion');
+    await click('app-date-confirm .confirm');
+
+    await click('.undoable .undo');
+
+    const undo = recorded[recorded.length - 1];
+    expect(undo.voids).toBe(recorded[recorded.length - 2].id);
   });
 });

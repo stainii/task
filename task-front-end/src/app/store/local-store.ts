@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { closedAt, foldOf, IncompleteTaskHistoryError } from '../domain/fold';
 import { SyncCursor, SyncFailure } from '../domain/sync';
 import { Task, TaskPatch } from '../domain/task';
+import { TaskTemplate } from '../domain/template';
 import { committed, open, request } from './indexed-db';
 
 /**
@@ -50,8 +51,10 @@ export class LocalStore {
 
   static readonly DATABASE = 'task';
 
-  /** 2 adds #56's `meta` and `failures` stores to #55's three. */
-  static readonly VERSION = 2;
+  /**
+   * 2 adds #56's `meta` and `failures` stores to #55's three; 3 adds #61's `templates`.
+   */
+  static readonly VERSION = 3;
 
   /**
    * Whether the browser granted persistent storage: true, false, or null where it was never asked
@@ -115,16 +118,50 @@ export class LocalStore {
       if (!db.objectStoreNames.contains('failures')) {
         db.createObjectStore('failures', { keyPath: 'patchId' });
       }
+
+      // The templates, exactly as the server last listed them. Durable rather than in memory
+      // because the whole point is the offline read: the reminding list, the omnibox's template
+      // rows and the render behind *"I already did this"* all have to work on a cold boot with the
+      // radio off, and none of them can wait for a response that is not coming.
+      if (!db.objectStoreNames.contains('templates')) {
+        db.createObjectStore('templates', { keyPath: 'id' });
+      }
     });
 
-    // A failed open is forgotten rather than remembered as the answer. Caching the rejection would
-    // make one bad moment — a version-change race, a transient quota refusal — permanent for the
-    // life of the tab, and the caller's retry would get the old failure back without ever asking
-    // the browser again.
-    return opening.catch((error: unknown) => {
-      this.db = null;
-      throw error;
-    });
+    return (
+      opening
+        .then((database) => {
+          /**
+           * **Yield to a newer version rather than block it.**
+           *
+           * Found by driving the real app on the first schema bump this store has ever had — #61
+           * adds `templates`, taking it to version 3. Without this, a second connection still on
+           * version 2 makes the upgrading open fire `blocked` and never `success`, so the open
+           * rejects, `storeUnavailable` goes up, and **this app is its store**: it is dead until
+           * every other tab is closed. The author runs it as an installed PWA *and* opens it in a
+           * browser tab, which is exactly two connections.
+           *
+           * The remedy belongs on the **old** connection: a tab asked to make way closes and drops
+           * the cached promise, so the upgrade proceeds and this tab reopens on its very next call.
+           * There is no data to lose — every write is already committed, and the outbox is on disk.
+           * It costs nothing when there is only one tab, which is why it is unconditional.
+           *
+           * It only helps a tab running code that *has* it, so the deploy that introduces it is the
+           * one deploy it cannot protect. That is why `open` still reports `blocked` rather than
+           * waiting: a reload fixes it, and a silent hang would not.
+           */
+          database.onversionchange = () => void this.close();
+          return database;
+        })
+        // A failed open is forgotten rather than remembered as the answer. Caching the rejection would
+        // make one bad moment — a version-change race, a transient quota refusal — permanent for the
+        // life of the tab, and the caller's retry would get the old failure back without ever asking
+        // the browser again.
+        .catch((error: unknown) => {
+          this.db = null;
+          throw error;
+        })
+    );
   }
 
   private async requestPersistence(): Promise<void> {
@@ -231,6 +268,37 @@ export class LocalStore {
       db.transaction('tasks').objectStore('tasks').get(id),
     );
     return row?.task ?? null;
+  }
+
+  /**
+   * The templates this device holds, as the server last listed them.
+   *
+   * No fold and no local model: a template is not patched, so there is nothing to reconstruct and
+   * nothing that could disagree with what arrived. Unordered — {@link templateRows} decides the
+   * order, and a store that had an opinion about it would be a second one.
+   */
+  async templates(): Promise<TaskTemplate[]> {
+    const db = await this.database();
+    return request<TaskTemplate[]>(db.transaction('templates').objectStore('templates').getAll());
+  }
+
+  /**
+   * Replaces the held templates with the server's whole answer.
+   *
+   * **Replace, never merge**, in one transaction. `GET /api/task-templates` returns the entire
+   * list, so a template deleted — or deactivated on another device — comes back by being *absent*.
+   * Merging would leave it on this device's reminding list for ever, offering a ✓ against a rule
+   * that no longer exists, and nothing would ever tell the user which of their devices was right.
+   */
+  async replaceTemplates(templates: readonly TaskTemplate[]): Promise<void> {
+    const db = await this.database();
+    const tx = db.transaction('templates', 'readwrite');
+    const store = tx.objectStore('templates');
+    await request(store.clear());
+    for (const template of templates) {
+      await request(store.put(template));
+    }
+    await committed(tx);
   }
 
   /** The patches waiting to be sent, **in the order they were made**. */
@@ -429,8 +497,9 @@ export class LocalStore {
    */
   async hardReset(): Promise<void> {
     const db = await this.database();
-    const tx = db.transaction(['tasks', 'patches', 'outbox', 'meta', 'failures'], 'readwrite');
-    for (const name of ['tasks', 'patches', 'outbox', 'meta', 'failures']) {
+    const stores = ['tasks', 'patches', 'outbox', 'meta', 'failures', 'templates'];
+    const tx = db.transaction(stores, 'readwrite');
+    for (const name of stores) {
       await request(tx.objectStore(name).clear());
     }
     await committed(tx);

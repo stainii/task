@@ -1,0 +1,139 @@
+/*
+ * The reminding list.
+ *
+ * **It has to work at ~115 rows** (#35 counted the templates real tasks point at), so the row is
+ * deliberately cheap: a grid of three cells and no card, no shadow and no per-row surface. What
+ * keeps it readable at that length is ADR-0013's deactivation filter above, not density tricks here.
+ */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 16px 0;
+}
+
+h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 20px;
+}
+
+.new-template {
+  padding: 6px 12px;
+  font-size: 14px;
+  color: var(--app-accent);
+  background: var(--app-chip);
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.offline {
+  margin: 0;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.templates {
+  margin: 0;
+  padding: 0 8px 24px;
+  list-style: none;
+}
+
+/*
+ * Name and ✓ on the first line, the two date facts under the name. The ✓ spans both rows so it is a
+ * single 40px target however the words wrap — the row is tapped while holding something else.
+ */
+.template {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--app-line);
+}
+
+.template .name {
+  grid-column: 1;
+  color: var(--app-ink);
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.template .state,
+.template .last {
+  grid-column: 1;
+  margin: 0;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.did-it {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+}
+
+/* Deactivated rows are legible and plainly retired, never struck through: they are history. */
+.template.inactive .name {
+  color: var(--app-muted);
+}
+
+.nothing {
+  padding: 16px 8px;
+  font-size: 14px;
+  color: var(--app-muted);
+}
+
+.which {
+  position: fixed;
+  z-index: 13;
+  inset: auto 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+}
+
+.which .prompt {
+  margin: 0;
+  font-size: 14px;
+  color: var(--app-muted);
+}
+
+.which button {
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.which .dismiss {
+  color: var(--app-muted);
+  background: transparent;
+}
+
+@media (min-width: 780px) {
+  .which {
+    inset: auto auto 16px 50%;
+    transform: translateX(-50%);
+    width: min(620px, calc(100% - 48px));
+  }
+}

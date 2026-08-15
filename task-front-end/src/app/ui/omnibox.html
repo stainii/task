@@ -40,10 +40,10 @@
     </div>
 
     <ul class="offers">
-      @for (suggestion of suggestions(); track suggestion.task.id) {
+      @for (suggestion of suggestions(); track suggestion.key) {
         <li>
-          <button type="button" class="suggestion" (click)="choose(suggestion.task)">
-            <span class="name">{{ suggestion.task.name }}</span>
+          <button type="button" class="suggestion" (click)="choose(suggestion)">
+            <span class="name">{{ suggestion.name }}</span>
             <span class="state">{{ suggestion.state }}</span>
           </button>
         </li>
@@ -83,15 +83,12 @@
   *Done* is pressed.
 -->
 @if (undoable(); as completion) {
-  <div class="undoable" role="status">
-    <span class="what">Completed — {{ completion.name }}</span>
-    <button type="button" class="undo" (click)="undo()">Undo</button>
-  </div>
+  <app-undo-toast [what]="'Completed — ' + completion.name" (undo)="undo()" />
 }
 
-@if (confirming(); as task) {
+@if (confirming(); as suggestion) {
   <app-date-confirm
-    [what]="task.name"
+    [what]="suggestion.name"
     [today]="today()"
     (confirmed)="completed($event)"
     (cancelled)="cancelConfirm()"

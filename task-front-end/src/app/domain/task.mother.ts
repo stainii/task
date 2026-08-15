@@ -23,6 +23,8 @@ export interface TaskOverrides {
   readonly description?: string | null;
   readonly status?: TaskStatus;
   readonly completedOn?: IsoDate | null;
+  readonly taskTemplateId?: string | null;
+  readonly occurrenceId?: string | null;
   readonly history?: readonly TaskPatch[];
 }
 
@@ -42,8 +44,8 @@ export function aTask(overrides: TaskOverrides = {}): Task {
     description: overrides.description ?? null,
     status: overrides.status ?? 'OPEN',
     completedOn: overrides.completedOn ?? null,
-    taskTemplateId: null,
-    occurrenceId: null,
+    taskTemplateId: overrides.taskTemplateId ?? null,
+    occurrenceId: overrides.occurrenceId ?? null,
     history: [],
   } satisfies Task;
 
@@ -70,6 +72,8 @@ export function aTask(overrides: TaskOverrides = {}): Task {
           description: task.description,
           status: task.status,
           completedOn: task.completedOn,
+          taskTemplateId: task.taskTemplateId,
+          occurrenceId: task.occurrenceId,
         },
       },
     ],

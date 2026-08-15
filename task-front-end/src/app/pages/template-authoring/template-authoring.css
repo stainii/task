@@ -1,0 +1,291 @@
+/*
+ * The one authoring screen.
+ *
+ * ADR-0013's named risk is that a form carrying trigger, offsets, anchors, variables and context
+ * becomes a **control panel**. What answers it is the shape of the thing rather than its styling:
+ * the trigger's fields are the only ones that swap, and a task collapses to two controls. This file
+ * mostly gets out of the way — the sentences read as sentences, and the drawer is plainly a drawer.
+ */
+
+.head {
+  padding: 12px 16px 0;
+}
+
+h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+h3 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+  color: var(--app-muted);
+}
+
+.offline {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.fields {
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+}
+
+.field {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.field > span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+input,
+select,
+textarea {
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--app-ink);
+  background: var(--app-bg);
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+}
+
+.field > input,
+.field > select,
+.field > textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+textarea {
+  min-height: 72px;
+}
+
+/*
+ * The trigger's own fields, written as a sentence: *comes round every 10 days, and I have 3 days to
+ * do it*. An editable sentence for the **whole** template was built as a foil and rejected — it
+ * reads beautifully for one task and has nowhere to put four — but for the trigger alone, which is
+ * two numbers, it is exactly right.
+ */
+.sentence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.sentence input[type='number'] {
+  width: 72px;
+}
+
+.aside {
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.weekday {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-ink);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.weekday.on {
+  color: var(--app-bg);
+  background: var(--app-accent);
+}
+
+.variables {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.variable {
+  padding: 3px 8px;
+  font-size: 13px;
+  color: var(--app-accent);
+  background: var(--app-chip);
+  border-radius: 999px;
+}
+
+.definitions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.definition {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--app-line);
+}
+
+/* Name and importance, and nothing else. Everything rare is behind the `▾`. */
+.collapsed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.collapsed input[type='text'] {
+  flex: 1;
+  min-width: 160px;
+}
+
+.drawer,
+.remove,
+.add-definition {
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-muted);
+  background: transparent;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.drawer[aria-expanded='true'] {
+  color: var(--app-accent);
+}
+
+.drawer-contents {
+  padding: 12px 0 0 8px;
+  border-left: 2px solid var(--app-line);
+  margin-left: 4px;
+}
+
+.add-definition {
+  margin-top: 12px;
+}
+
+/*
+ * The timeline. Hidden below the breakpoint rather than removed from the DOM: ADR-0013 says it
+ * appears on mobile *only when there is room*, which is a viewport question and therefore CSS's,
+ * not a second rule in the component that would have to guess at a width.
+ */
+.timeline {
+  display: none;
+}
+
+@media (min-width: 620px) {
+  .timeline {
+    display: block;
+    margin: 16px 0 0;
+    padding: 12px;
+    list-style: none;
+    background: var(--app-chip);
+    border-radius: 8px;
+  }
+
+  .timeline li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+
+  .timeline .when {
+    color: var(--app-muted);
+  }
+}
+
+.problem {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--app-cancel);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 24px;
+}
+
+.actions button {
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.actions .save,
+.actions .run-confirm {
+  color: var(--app-bg);
+  background: var(--app-accent);
+}
+
+.actions .delete {
+  color: var(--app-cancel);
+}
+
+.run-form {
+  position: fixed;
+  z-index: 13;
+  inset: auto 12px 12px;
+  padding: 12px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+}
+
+.run-form .preview {
+  margin: 0 0 8px;
+  padding: 8px;
+  list-style: none;
+  background: var(--app-chip);
+  border-radius: 8px;
+}
+
+.run-form .preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.run-form .when {
+  color: var(--app-muted);
+}
+
+.run-form .actions {
+  padding: 0;
+}
+
+@media (min-width: 780px) {
+  .run-form {
+    inset: auto auto 16px 50%;
+    transform: translateX(-50%);
+    width: min(620px, calc(100% - 48px));
+  }
+}

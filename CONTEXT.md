@@ -123,6 +123,12 @@ is exactly the one that is protected.
 Templates are **online-write-only**: plain CRUD, no patches and no outbox. Patching works for tasks
 precisely because a task is inert; a template is a rule that keeps running in your absence.
 
+They are, however, **held on the client for reading** — the whole list, as the server last sent it,
+replaced wholesale rather than merged. Three things need them with the radio off: the templates
+list's ✓, the **omnibox**'s template rows, and the rendering behind *"I already did this"*. A fetch
+that fails leaves what is held alone, because an empty reminding list is a screen saying you have no
+chores.
+
 ### Active since
 
 **The date a task template began firing under its current rule.**
@@ -392,8 +398,28 @@ reaching a closed task through the omnibox is functionality the author does not 
 Resolved in [#37](https://github.com/stainii/task/issues/37),
 [ADR-0014](docs/adr/0014-two-destinations-and-you-capture-by-typing.md); instant creation settled in
 [#38](https://github.com/stainii/task/issues/38); built in
-[#60](https://github.com/stainii/task/issues/60), where the template rows were left to
-[#61](https://github.com/stainii/task/issues/61) — the client holds no templates until then.
+[#60](https://github.com/stainii/task/issues/60) and completed in
+[#61](https://github.com/stainii/task/issues/61), which added the template rows once the client
+began holding templates. A template row is **one task definition**, not one template: portal's
+*"What did you do?"* dropdown listed one name each, and with several definitions the equivalent is
+naming which one — so typing the second chore of a two-chore template finds it.
+
+### Templates list
+
+**The reminding surface**, and the other half of capture. The **omnibox** assumes you know what you
+did; this list is for when you do not. Every row carries when the template was last done — **as an
+elapsed count *and* a calendar date**, because *798 days ago* is arithmetic and *7 Jun '24* is a
+memory — and a **✓** that opens the same date confirm the omnibox opens.
+
+**Not-yet-due first.** A template with an open task is already asking, on the overview, and you
+complete it there; the ✓ exists for the ones showing nothing.
+
+Deactivated templates are hidden behind a filter, never deleted, which is what keeps the list at the
+44 the author keeps rather than the ~115 that real tasks point at.
+
+Resolved in [#37](https://github.com/stainii/task/issues/37),
+[ADR-0014](docs/adr/0014-two-destinations-and-you-capture-by-typing.md); built in
+[#61](https://github.com/stainii/task/issues/61).
 
 ### Grouping axis
 

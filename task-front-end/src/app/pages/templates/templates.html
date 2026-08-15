@@ -1,0 +1,95 @@
+<header class="head">
+  <h2>Templates</h2>
+
+  <!--
+    ADR-0004: template editing is **visibly** unavailable offline, not silently failing. The ✓ below
+    is unaffected — that writes a patch on a *task*, which is exactly what the outbox is for.
+  -->
+  @if (writable()) {
+    <a class="new-template" routerLink="/templates/new">New template</a>
+  } @else {
+    <p class="offline" role="status">Templates can only be changed online.</p>
+  }
+</header>
+
+<!--
+  ADR-0013's escape hatch. Nothing is ever deleted once it has fired, so the list would otherwise
+  grow to the ~115 templates #35 measured; deactivation is what keeps it at the 44 the author keeps.
+-->
+<label class="filter">
+  <input
+    type="checkbox"
+    class="show-inactive"
+    [checked]="showInactive()"
+    (change)="showInactive.set(!showInactive())"
+  />
+  Show deactivated
+</label>
+
+<ul class="templates">
+  @for (row of rows(); track row.template.id) {
+    <li class="template" [class.inactive]="!row.template.active">
+      <!--
+        The name is a link to authoring, and the ✓ is a button beside it. Two targets rather than a
+        row that means one thing and hides the other: the ✓ is the daily job (ADR-0014) and editing
+        is the thing you do twice a year.
+      -->
+      <a class="name" [routerLink]="['/templates', row.template.id]">{{ row.template.name }}</a>
+
+      <!--
+        Two lines that answer two questions, and a row that is currently asking gets both. *62 days
+        overdue* is what this template wants from you now; *last 798 days ago · 7 Jun '24* is how
+        long it has wanted it — which on the rows that matter most is the more damning of the two.
+      -->
+      @if (row.openTask !== null) {
+        <p class="state">{{ due(row.openTask) }}</p>
+      }
+      <p class="last">{{ lastDone(row) }}</p>
+
+      <app-glyph-button
+        class="did-it"
+        verb="complete"
+        tone="good"
+        label="I already did this"
+        (click)="didIt(row)"
+      />
+    </li>
+  } @empty {
+    <li class="nothing">No templates yet.</li>
+  }
+</ul>
+
+<!--
+  Which definition was done. ADR-0011: the affordance picks **a task, not a template** — conjuring
+  every definition as completed would complete tasks nobody named, which is template-level
+  completion in a different hat. 44 of the 47 real templates never reach this.
+-->
+@if (choosing(); as row) {
+  <div class="which" role="dialog" aria-modal="true" aria-label="Which one did you do?">
+    <p class="prompt">Which one did you do?</p>
+    @for (definition of row.template.taskDefinitions; track $index) {
+      <button type="button" class="definition" (click)="chose(row, $index)">
+        {{ definition.name }}
+      </button>
+    }
+    <button type="button" class="dismiss" (click)="cancelConfirm()">Cancel</button>
+  </div>
+}
+
+<!--
+  The same confirm the omnibox opens, deliberately: ADR-0014 affords two capture paths *because*
+  they converge before anything is written, so two confirms would be two chances to write a
+  different `completedOn` for one gesture.
+-->
+@if (confirming(); as chosen) {
+  <app-date-confirm
+    [what]="chosen.what"
+    [today]="today()"
+    (confirmed)="completed($event)"
+    (cancelled)="cancelConfirm()"
+  />
+}
+
+@if (undoable(); as completion) {
+  <app-undo-toast [what]="'Completed — ' + completion.what" (undo)="undo()" />
+}

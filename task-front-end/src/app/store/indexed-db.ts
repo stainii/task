@@ -37,6 +37,9 @@ export function open(
     req.onsuccess = () => resolve(req.result);
     req.onerror = () =>
       reject(req.error ?? new Error(`Could not open IndexedDB database ${name}.`));
+    // Reported rather than waited out. Whoever is blocking has to let go, and only the *owner* of a
+    // connection can do that — see `LocalStore.openDatabase`, which is where the yielding lives
+    // because that is where the connection is cached.
     req.onblocked = () =>
       reject(new Error(`Opening ${name} is blocked by another tab holding an older version.`));
   });

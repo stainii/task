@@ -1,4 +1,4 @@
-import { dueIn, IsoDate } from '../domain/dates';
+import { daysUntil, dueIn, IsoDate } from '../domain/dates';
 import { Importance } from '../domain/task';
 
 /**
@@ -69,6 +69,37 @@ export function dateLabel(date: IsoDate, today: IsoDate): string {
   const [year, month, day] = date.split('-');
   const said = `${Number(day)} ${MONTHS[Number(month) - 1]}`;
   return year === today.slice(0, 4) ? said : `${said} '${year.slice(2)}`;
+}
+
+/**
+ * *When was this template last done?* — **as an elapsed count and a calendar date, both**.
+ *
+ * The two halves answer different questions and neither substitutes for the other, which is the
+ * whole of ADR-0014's argument for the templates list existing beside the omnibox: *792 days ago*
+ * is arithmetic, and *7 Jun '24* is a memory. A pruning pass that collapsed this row to one date
+ * was built, driven and rejected by the author on exactly that — it deleted a distinction they had
+ * added themselves, and it is the leading example in this file's own note about not deleting words.
+ *
+ * The two nearest days are the exception, and it is not pruning: *last 0 days ago · 14 Aug* on the
+ * fourteenth is the same fact said twice, and the date has stopped being a memory because it is
+ * today.
+ */
+export function lastDoneLabel(lastCompletedOn: IsoDate | null, today: IsoDate): string {
+  if (lastCompletedOn === null) {
+    // Said out loud rather than left blank. An empty cell reads as *this row has no data*, where
+    // the fact is *this has never been done* — which on the reminding list is the loudest fact there
+    // is, and the reason the row sorts to the top.
+    return 'never done';
+  }
+
+  const days = -daysUntil(today, lastCompletedOn);
+  if (days === 0) {
+    return 'last done today';
+  }
+  if (days === 1) {
+    return 'last done yesterday';
+  }
+  return `last ${plural(days, 'day')} ago · ${dateLabel(lastCompletedOn, today)}`;
 }
 
 /**

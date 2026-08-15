@@ -1,0 +1,48 @@
+/*
+ * The undo toast, lifted out of `omnibox.css` when #61 gave it a second caller. One rule set rather
+ * than two, because a toast that sat somewhere else on the templates list would read as a different
+ * kind of thing — and the whole argument for sharing it is that it is not.
+ *
+ * `position: fixed` on the inner element rather than the host: the host is a component tag inside
+ * whatever screen used it, and pinning that would make the toast's placement depend on which
+ * ancestor happened to establish a containing block. Overlay stacking as a whole is #67's.
+ */
+.undoable {
+  position: fixed;
+  z-index: 13;
+  inset: auto 12px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+}
+
+.undoable .what {
+  flex: 1;
+  min-width: 0;
+}
+
+.undoable button {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-accent);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+@media (min-width: 780px) {
+  .undoable {
+    inset: auto auto 16px 50%;
+    transform: translateX(-50%);
+    width: min(620px, calc(100% - 48px));
+  }
+}

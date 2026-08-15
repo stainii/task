@@ -107,30 +107,12 @@
  * kind of thing — an offer with a deadline, about something that has already happened.
  */
 .created,
-.undoable {
-  position: fixed;
-  z-index: 13;
-  inset: auto 12px 12px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
-  color: var(--app-ink);
-  background: var(--app-surface);
-  border: 1px solid var(--app-line);
-  border-radius: 10px;
-}
-
-.created .what,
-.undoable .what {
+.created .what {
   flex: 1;
   min-width: 0;
 }
 
-.created button,
-.undoable button {
+.created button {
   padding: 4px 10px;
   font: inherit;
   font-size: 13px;
@@ -142,8 +124,7 @@
 }
 
 @media (min-width: 780px) {
-  .created,
-  .undoable {
+  .created {
     inset: auto auto 16px 50%;
     transform: translateX(-50%);
     width: min(620px, calc(100% - 48px));

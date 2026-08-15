@@ -22,6 +22,8 @@ export const routes: Routes = [
   { path: '', component: Overview, title: 'Tasks' },
   { path: 'in/:value', component: Overview, title: 'Tasks' },
   { path: 'templates', component: Templates, title: 'Templates' },
+  // `new` is a template id the server will never mint, so authoring a fresh one is the same route
+  // as editing an existing one rather than a second component with the same form in it.
   { path: 'templates/:id', component: TemplateAuthoring, title: 'Template' },
   {
     // The guard is how **hardware back** gets asked about. A component sees the scrim and Escape;

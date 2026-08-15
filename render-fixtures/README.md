@@ -70,8 +70,18 @@ its tasks produces **none**, where portal produced a task called `"No name"`.
 
 ## Status
 
-Written by [#50](https://github.com/stainii/task/issues/50) alongside the template API; the
-TypeScript side runs the same files in [#61](https://github.com/stainii/task/issues/61). Java runner:
-`task-back-end/src/test/java/…/template/domain/RenderFixtureTest.java`.
+**Both sides now run them.** Written by [#50](https://github.com/stainii/task/issues/50) alongside
+the template API, and joined by the TypeScript half in
+[#61](https://github.com/stainii/task/issues/61) — which is the half that made the duplication real:
+the front-end previews what running a template will create, and mints the task for *"I already did
+this"* offline, where no server call is possible.
+
+- Java: `task-back-end/src/test/java/…/template/domain/RenderFixtureTest.java`
+- TypeScript: `task-front-end/src/app/domain/render.fixtures.spec.ts`, over
+  `task-front-end/src/app/domain/render.ts`
+
+Both enumerate this directory dynamically and both assert a non-zero count, so **adding a file here
+adds a test on both sides with nothing to register** — and a fixture only one of them can satisfy
+fails on the other.
 
 Conventions: `docs/quality-bar.md`.

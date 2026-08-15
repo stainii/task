@@ -12,22 +12,22 @@ schematic sweep would only churn formatting.**
 **Kept current with the code, on purpose.** A compliance snapshot that has quietly gone stale is
 this project's recurring shape — a gate that still reports success after it stopped describing
 anything — so a ticket that adds a component or an effect updates the counts below with it. Last
-moved by [#60](https://github.com/stainii/task/issues/60), which added the omnibox and the shared
-date confirm.
+moved by [#61](https://github.com/stainii/task/issues/61), which added the templates list, the
+authoring screen and the shared undo toast.
 
 ## What was checked
 
-Angular 22, zoneless (no `zone.js` dependency at all), 11 components.
+Angular 22, zoneless (no `zone.js` dependency at all), 13 components.
 
 | Guidance                                      | State                                                                    |
 | --------------------------------------------- | ------------------------------------------------------------------------ |
 | Standalone components                         | Zero `NgModule`; zero vestigial `standalone: true`                       |
-| Native control flow                           | 18 uses of `@if`/`@for`; zero `*ngIf`/`*ngFor`/`ngClass`/`ngStyle`       |
+| Native control flow                           | 62 uses of `@if`/`@for`/`@switch`; zero `*ngIf`/`*ngFor`/`ngClass`/`ngStyle` |
 | `input()` / `output()`                        | Used throughout; zero `@Input`/`@Output`/`EventEmitter`                  |
 | `inject()`                                    | All DI; no constructor-parameter injection                               |
-| `ChangeDetectionStrategy.OnPush`              | All 9 components                                                         |
-| Signals for state                             | 15 `computed`, 11 `signal`, plus `linkedSignal`, `resource`, `untracked` |
-| Effects for side effects only                 | Exactly 3, all genuinely imperative (navigation; two store re-reads)     |
+| `ChangeDetectionStrategy.OnPush`              | All 13 components                                                        |
+| Signals for state                             | `computed`/`signal` throughout, plus `linkedSignal`, `resource`, `untracked`, `PendingTasks` |
+| Effects for side effects only                 | Exactly 5, all genuinely imperative (navigation; four store re-reads)    |
 | `provideHttpClient` + functional interceptors | `src/app/app.config.ts`                                                  |
 | Host bindings via `host` metadata             | e.g. the Escape binding on `TaskPage`                                    |
 
@@ -36,10 +36,31 @@ principles: `task-page.ts:109` explains why the dialog's load is a `resource` ra
 `effect` that assigns, and `client-config.ts` explains why one call deliberately uses plain `fetch`
 instead of `HttpClient` (the bearer interceptor would deadlock on the config it is fetching).
 
-## The one open candidate: Signal Forms
+## Signal Forms: offered at the trigger it named, and declined
 
-The task dialog is the app's only form and it is hand-rolled — `@angular/forms` is not a dependency
-of this project at all. In `pages/task/task-page.ts` and `task-page.html`:
+**This section predicted its own test and the test has now happened.** It said *"the natural trigger
+is the next new form, not this one"*, and named template authoring
+(`pages/template-authoring/`) as the clean first use. [#61](https://github.com/stainii/task/issues/61)
+built that screen, put the choice to the author, and **the author chose hand-rolled**, on two
+grounds:
+
+- **the app keeps one form idiom** rather than two that have to be learned separately, and
+- **what the authoring form mostly is** — a discriminated union whose selected branch swaps the
+  fields under it, plus a list of sub-forms with a drawer — **is not the flat field set Signal Forms
+  is aimed at.** Its trigger section has three shapes and its calendar section four; the part a
+  signal form would simplify is the six plain inputs around them.
+
+So the candidate is **closed by decision, not still open**. Reopening it needs a new argument, not a
+new form.
+
+One factual correction to what follows: **`@angular/forms` *is* a dependency today** — it arrives
+with `@angular/material` — so adopting Signal Forms would cost an import rather than an install. The
+reasoning below never rested on that, and stands.
+
+### The original argument, kept
+
+The task dialog is the app's only other form and it is hand-rolled. In `pages/task/task-page.ts` and
+`task-page.html`:
 
 - the draft is a `linkedSignal<Task | null, TaskDraft>` (`task-page.ts:134`) that resets when the
   routed task changes
@@ -79,7 +100,7 @@ rediscovered:
 4. **The code is new and working.** It landed as #59 and was reviewed; rewriting it buys a modest
    reduction in boilerplate against the three costs above.
 
-### If it is revisited
+### If it is revisited anyway
 
 - `form()` accepts any `WritableSignal` as its model, and `linkedSignal` is one. The existing
   reset-when-the-routed-task-changes behaviour can be passed straight to `form()` rather than
@@ -87,7 +108,7 @@ rediscovered:
 - The tests address controls by `[data-field='…']` (`task-page.spec.ts:62`) and assert there are six
   (`:171`). Those attributes are independent of `[formField]`, so the selectors survive; what
   changes is the interaction helper at `:89`, which dispatches `input`/`change` by hand.
-- **The natural trigger is the next new form, not this one.** Template authoring
-  (`pages/template-authoring/`) is an 18-line stub today and would be a clean first use — matching
-  the skill's own rule that new forms on v21+ prefer Signal Forms while existing forms keep the
-  app's current strategy.
+- **The trigger this section was waiting for has been and gone.** Template authoring
+  (`pages/template-authoring/`) was the named candidate; #61 built it hand-rolled with the author's
+  agreement, so the app now has two hand-rolled forms rather than one, and a Signal Forms adoption
+  would be a migration rather than a first use. That raises the bar, deliberately.
