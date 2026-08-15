@@ -55,15 +55,46 @@ export async function openWitness(browser: Browser): Promise<Page> {
 }
 
 /**
- * Types a name into the omnibox and hands back the row for the open task of that name.
+ * How long a patch is given to cross the wire.
  *
- * The query is left in the box on purpose. The dropdown recomputes from the store whenever sync
- * says it changed, so the returned locator is a live answer to *does this device hold this task?* —
- * which is what lets a caller wait on a patch arriving instead of polling with reloads.
+ * Generous, and deliberately not the 90-second test timeout: the outbox retries with backoff, so a
+ * write made while the radio was off can wait a few seconds for the next attempt before anything is
+ * wrong. Short enough that a patch which is never coming still fails the test rather than the suite.
  */
-export async function search(page: Page, name: string): Promise<Locator> {
+export const SYNCED = { timeout: 60_000 };
+
+/** Types a name into the omnibox — *find*, the second of its three jobs (ADR-0014). */
+export async function typeToFind(page: Page, name: string): Promise<void> {
   await omnibox(page).fill(name);
+}
+
+/**
+ * The dropdown rows for an open task of this name — a live answer to *does this device hold it?*
+ *
+ * The query is left in the box on purpose, and the dropdown recomputes from the store whenever sync
+ * says it changed. That is what lets a caller wait on a patch *arriving* rather than polling with
+ * reloads.
+ */
+export function rowsFound(page: Page, name: string): Locator {
   return page.locator('.offers .suggestion').filter({ hasText: name });
+}
+
+/**
+ * Signs in through Keycloak's login form, wherever the app has just sent the browser.
+ *
+ * The credentials are the ones in `task-back-end/compose/keycloak/realm-export.json` — a
+ * **deliberately worthless dev fixture**, never the production realm (#31). Nothing here is a
+ * secret, which is what lets a pull request from a fork run this suite in full (`docs/ci.md` §5).
+ */
+export async function signIn(page: Page): Promise<void> {
+  await page.getByLabel('Username or email').fill('stijnhooft@hotmail.com');
+  await page.getByLabel('Password', { exact: true }).fill('test');
+  await page.getByRole('button', { name: 'Sign In' }).click();
+}
+
+/** The bar a stalled sync raises, and the only way into a session (ADR-0004). */
+export function signInPrompt(page: Page): Locator {
+  return page.getByRole('button', { name: 'Sign in' });
 }
 
 /**
@@ -155,8 +186,8 @@ export async function renameFromToast(page: Page, to: string): Promise<void> {
  * completed in front of the app means.
  */
 export async function completeByName(page: Page, name: string): Promise<void> {
-  const row = await search(page, name);
-  await row.click();
+  await typeToFind(page, name);
+  await rowsFound(page, name).click();
 
   const confirm = page.locator('.confirm-dialog');
   await expect(confirm).toContainText(name);

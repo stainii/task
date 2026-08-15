@@ -6,7 +6,9 @@ import {
   openApp,
   openWitness,
   renameFromToast,
-  search,
+  rowsFound,
+  SYNCED,
+  typeToFind,
   uniqueName,
 } from './app';
 
@@ -41,7 +43,8 @@ test('a device that loses the stream catches up on exactly what it missed', asyn
   // Its own patch, which the server echoes back on the stream. That echo is the acknowledgement
   // (ADR-0004), and it is also the standing chance to fold the same patch twice.
   await capture(page, mine);
-  await expect(await search(page, mine)).toHaveCount(1);
+  await typeToFind(page, mine);
+  await expect(rowsFound(page, mine)).toHaveCount(1);
 
   // Only the stream is broken, and only its `GET`: `context.setOffline(true)` would not do, because
   // it leaves an *established* connection alone — the reader would go on receiving everything and
@@ -50,21 +53,24 @@ test('a device that loses the stream catches up on exactly what it missed', asyn
   await context.route('**/api/task-patches*', (route) =>
     route.request().method() === 'GET' ? route.abort() : route.continue(),
   );
-  await expect(notSyncing(page)).toBeVisible({ timeout: 60_000 });
+  await expect(notSyncing(page)).toBeVisible(SYNCED);
 
   // The other device does its work while this one is not listening.
   const other = await openWitness(browser);
   await capture(other, theirs);
   await renameFromToast(other, renamed);
-  await expect(await search(page, renamed)).toHaveCount(0);
+  await typeToFind(page, renamed);
+  await expect(rowsFound(page, renamed)).toHaveCount(0);
 
   await context.unroute('**/api/task-patches*');
-  await expect(notSyncing(page)).toBeHidden({ timeout: 60_000 });
+  await expect(notSyncing(page)).toBeHidden(SYNCED);
 
   // Exactly one row, carrying the name from the *second* patch: resuming from the persisted cursor
   // delivered both patches it missed, in order, and folded them once.
-  await expect(await search(page, renamed)).toHaveCount(1, { timeout: 60_000 });
+  await typeToFind(page, renamed);
+  await expect(rowsFound(page, renamed)).toHaveCount(1, SYNCED);
 
   // And the resume did not re-deliver what this device already had as a second copy.
-  await expect(await search(page, mine)).toHaveCount(1);
+  await typeToFind(page, mine);
+  await expect(rowsFound(page, mine)).toHaveCount(1);
 });

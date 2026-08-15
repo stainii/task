@@ -1,6 +1,15 @@
 import { expect, test } from '@playwright/test';
 
-import { capture, offline, openApp, search, serviceWorkerReady, uniqueName } from './app';
+import {
+  capture,
+  offline,
+  openApp,
+  rowsFound,
+  serviceWorkerReady,
+  signInPrompt,
+  typeToFind,
+  uniqueName,
+} from './app';
 
 /**
  * **A cold start with no radio and no token still shows you your tasks.**
@@ -37,9 +46,10 @@ test('the app cold-starts from IndexedDB with no network and no session', async 
   expect(reload?.fromServiceWorker()).toBe(true);
 
   // The shell came from the worker and the task came from IndexedDB. Neither asked anything.
-  await expect(await search(page, task)).toBeVisible();
+  await typeToFind(page, task);
+  await expect(rowsFound(page, task)).toBeVisible();
 
   // And it did not turn a dead radio into a login screen. Offline there is nothing to prompt for,
   // so the bar the sync stall raises must stay down.
-  await expect(page.getByRole('button', { name: 'Sign in' })).toBeHidden();
+  await expect(signInPrompt(page)).toBeHidden();
 });

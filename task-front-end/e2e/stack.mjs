@@ -62,6 +62,7 @@ const ISSUER_URI = `http://localhost:${APP_PORT}/realms/stijnhooft-realm`;
  */
 const SSE_LIFETIME = '10s';
 
+/** @type {import('node:child_process').ChildProcess[]} */
 const children = [];
 
 async function main() {
@@ -141,7 +142,14 @@ async function defaultJar() {
   return jar;
 }
 
-/** Runs a command to completion, rejecting on a non-zero exit. */
+/**
+ * Runs a command to completion, rejecting on a non-zero exit.
+ *
+ * @param {string} command
+ * @param {readonly string[]} args
+ * @param {import('node:child_process').SpawnOptions} [options]
+ * @returns {Promise<void>}
+ */
 function run(command, args, options) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: 'inherit', ...options });
@@ -154,22 +162,34 @@ function run(command, args, options) {
   });
 }
 
-/** Waits until something is listening, so the next step's failure is its own and not a race. */
+/**
+ * Waits until something is listening, so the next step's failure is its own and not a race.
+ *
+ * @param {number} port
+ * @param {string} what
+ */
 async function waitForPort(port, what) {
   await until(
     () =>
-      new Promise((resolve) => {
-        const socket = connect({ host: '127.0.0.1', port }, () => {
-          socket.end();
-          resolve(true);
-        });
-        socket.on('error', () => resolve(false));
-      }),
+      /** @type {Promise<boolean>} */ (
+        new Promise((resolve) => {
+          const socket = connect({ host: '127.0.0.1', port }, () => {
+            socket.end();
+            resolve(true);
+          });
+          socket.on('error', () => resolve(false));
+        })
+      ),
     what,
   );
 }
 
-/** Waits until a URL answers `2xx`. */
+/**
+ * Waits until a URL answers `2xx`.
+ *
+ * @param {string} url
+ * @param {string} what
+ */
 async function waitForOk(url, what) {
   await until(async () => {
     try {
@@ -185,6 +205,10 @@ async function waitForOk(url, what) {
  *
  * Two minutes: Keycloak's realm import on a cold container is the slow one, and a timeout that
  * fires under it would make a working stack look broken on the first run of the day.
+ *
+ * @param {() => Promise<boolean>} condition
+ * @param {string} what
+ * @param {number} [timeoutMs]
  */
 async function until(condition, what, timeoutMs = 120_000) {
   const deadline = Date.now() + timeoutMs;
@@ -206,6 +230,8 @@ async function until(condition, what, timeoutMs = 120_000) {
  * The jar is a child process rather than a container, so nothing else would ever stop it: a run
  * that left one behind would hold port 8080 and the next run would silently test the previous
  * build.
+ *
+ * @param {number} code
  */
 function shutdown(code) {
   for (const child of children) {

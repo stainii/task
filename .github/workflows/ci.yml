@@ -232,11 +232,18 @@ jobs:
       - name: The suite must contain tests
         # #32's pitest run measured its own exclusion for four months, and #10 made both fold-fixture
         # suites assert a non-zero count for the same reason. A suite that matches no files passes.
+        #
+        # It counts the `chromium` rows rather than the `Total:` line, and that is the whole point
+        # (#64). `sign-in.setup.ts` lives in the same testDir and is a dependency of every run, so
+        # `Total:` never drops below 1 — delete all four scenarios and the total still says one.
+        # That is this check measuring its own exclusion, which is precisely #32's lesson.
         working-directory: task-front-end
         run: |
           npx playwright test --list > playwright-list.txt 2>&1 || { cat playwright-list.txt; exit 1; }
           cat playwright-list.txt
-          grep -qE 'Total: *[1-9]' playwright-list.txt || { echo "::error::Playwright is configured but matched no tests."; exit 1; }
+          scenarios="$(grep -c '\[chromium\]' playwright-list.txt || true)"
+          echo "Scenarios: $scenarios"
+          test "$scenarios" -ge 1 || { echo "::error::Playwright is configured but matched no scenarios; only the sign-in setup was found."; exit 1; }
 
       - name: npm run e2e
         working-directory: task-front-end

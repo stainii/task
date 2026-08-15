@@ -4,7 +4,12 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/e2e",
-    "types": ["node"]
+    "types": ["node"],
+    /* The harness is `.mjs`, so without these two its JSDoc `@param` types are decorative and `tsc`
+       never opens the file at all. `e2e/stack.mjs` and `e2e/serve.mjs` are 350 lines of the thing
+       that brings the real stack up; they are not exempt from being checked. */
+    "allowJs": true,
+    "checkJs": true
   },
-  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+  "include": ["e2e/**/*.ts", "e2e/**/*.mjs", "playwright.config.ts"]
 }

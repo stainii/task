@@ -145,21 +145,18 @@ here — so it is a convention, and the band arithmetic
 
 Against the **real stack** — the app, Postgres and Keycloak from compose — not a mocked API.
 
-Covers **critical user journeys** (create a task, complete it, swipe to cancel, create a template
-and see it fire) **and the offline behaviour nothing else can reach**:
+`browserContext.setOffline(true)` is the only mechanism in the whole stack that can test ADR-0004's
+offline contract end to end. The shared fold fixtures prove the *rule*; only these prove the browser
+actually queues and replays. **That, and only that, is what the suite carries.**
 
-- go offline, edit, come back online: the outbox drains in order
-- two browser contexts converge on the same task
-- a cold reload renders from IndexedDB with no network
-- the service worker does not serve a stale resync
+This section originally also promised critical user journeys — *create a task, complete it, swipe to
+cancel, create a template and see it fire*. [#64](https://github.com/stainii/task/issues/64)
+deliberately did not build them, and the list is deleted rather than left standing: a journey a
+vitest can assert is a vitest, and a documented promise nobody kept is the fiction #10 found in
+Error Prone. Creating and completing a task are exercised here anyway, because the offline scenarios
+need them; swiping and template firing are not covered end to end at all.
 
-That last group is why Playwright is here at all. `browserContext.setOffline(true)` is the only
-mechanism in the whole stack that can test ADR-0004's offline contract end to end. The shared fold
-fixtures prove the *rule*; only these prove the browser actually queues and replays.
-
-**Installed by [#64](https://github.com/stainii/task/issues/64).** Four scenarios, in
-`task-front-end/e2e/`, and no more — the suite is narrow on purpose, because it is the most
-expensive test in the repo and anything a vitest could assert belongs there:
+**Installed by #64.** Four scenarios, in `task-front-end/e2e/`, and no more:
 
 | file | what only it can see |
 |---|---|
@@ -188,9 +185,26 @@ Three rules the suite is written to, each of which cost a debugging session:
 - **Wait for a state, never for a duration.** `navigator.onLine`, the not-syncing banner and
   `/ngsw/state` are the three the suite waits on, and each is the app's or the browser's own answer.
 
-It has already earned itself: it found that the service worker answered the navigation to Keycloak's
-login page with the app shell, which made logging in impossible and was invisible to every other
-check in the build (`src/app/pwa/ngsw-config.spec.ts` now holds the cheap version of that test).
+**What it deliberately does not cover, and cannot.** #64: the nginx limits ADR-0007 names —
+`proxy_read_timeout` under the stream's lifetime, and `proxy_buffering` on — "must not be faked".
+`e2e/serve.mjs` is a stand-in for nginx's *shape*, one origin with `/api` and `/realms` behind it,
+and it is unbuffered by construction with no read timeout: it **cannot express either fault**, so a
+green suite says nothing about them. They stay untested here, and belong to
+[#24](https://github.com/stainii/task/issues/24) with the real nginx config. Nor does the suite
+prove a migration against real rows ([#29](https://github.com/stainii/task/issues/29)).
+
+**And one deviation, stated rather than quietly adopted.** #64 says *assert only on data you
+created, **by id***. The suite asserts by unique **name**: an id never appears on any surface a
+person can drive, and reading one out of IndexedDB would be the store-poking the whole suite
+avoids. `uniqueName()` makes the name as unrepeatable as an id.
+
+It has already earned itself twice over, on two defects nothing else in the build could see:
+
+- the service worker answered the navigation to Keycloak's login page with the app shell, which made
+  logging in impossible (`src/app/pwa/ngsw-config.spec.ts` now holds the cheap version of that test);
+- the create toast had been missing its whole positioning block since #61 split `undo-toast.css` out
+  — rendering inline inside the appbar with `Add details` off the right of the screen. It surfaced on
+  CI and not on a Mac, because it is geometry and fonts differ.
 
 ---
 

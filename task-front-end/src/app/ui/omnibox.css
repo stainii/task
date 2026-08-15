@@ -105,8 +105,38 @@
 /*
  * The create toast. Bottom of the screen like the overview's undo toast, because it is the same
  * kind of thing — an offer with a deadline, about something that has already happened.
+ *
+ * The block below was **missing**, and had been since #61 lifted the undo toast into
+ * `undo-toast.css`: the two shared one rule set, and only `.undoable`'s half moved. What was left
+ * was `.created, .created .what { flex: 1 }` — a selector list that reads like a positioned toast
+ * and is not one. So the toast rendered inline **inside the appbar**, unpainted, with `Add details`
+ * pushed off the right of the screen wherever the text was a little wider. The `@media` block
+ * underneath is the tell: `inset` on an element with no `position` does nothing at all.
+ *
+ * Found by #64's end-to-end suite, on CI, where the fonts are wider than a Mac's — the click on
+ * `Add details` retried for eight seconds against an element outside the viewport and then lost it
+ * to the toast's own deadline. No unit test can see this: it is geometry.
+ *
+ * `position: fixed` on this element rather than on the host, for `undo-toast.css`'s stated reason —
+ * pinning a component tag makes placement depend on whichever ancestor established a containing
+ * block. `z-index` matches `.undoable`'s: the two share one slot and are mutually exclusive.
  */
-.created,
+.created {
+  position: fixed;
+  z-index: 13;
+  inset: auto 12px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+}
+
 .created .what {
   flex: 1;
   min-width: 0;

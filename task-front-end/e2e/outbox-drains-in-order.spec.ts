@@ -7,7 +7,9 @@ import {
   openApp,
   openWitness,
   renameFromToast,
-  search,
+  rowsFound,
+  SYNCED,
+  typeToFind,
   uniqueName,
 } from './app';
 
@@ -36,7 +38,8 @@ test('an offline create, edit and completion reach the server in the order they 
   // Cold-booted and streaming before anything happens, so it sees the patches arrive rather than
   // being asked afterwards whether they did.
   const witness = await openWitness(browser);
-  await expect(await search(witness, original)).toHaveCount(0);
+  await typeToFind(witness, original);
+  await expect(rowsFound(witness, original)).toHaveCount(0);
 
   await openApp(page);
   await context.setOffline(true);
@@ -48,13 +51,15 @@ test('an offline create, edit and completion reach the server in the order they 
   await renameFromToast(page, edited);
 
   // Still nothing on the server, which is the state the whole contract is about.
-  await expect(await search(witness, edited)).toHaveCount(0);
+  await typeToFind(witness, edited);
+  await expect(rowsFound(witness, edited)).toHaveCount(0);
 
   await context.setOffline(false);
 
   // The rename can only be found if the create landed *first*: a patch naming a task the server has
   // never heard of is a `404`, and a dropped one at that.
-  await expect(await search(witness, edited)).toBeVisible({ timeout: 60_000 });
+  await typeToFind(witness, edited);
+  await expect(rowsFound(witness, edited)).toBeVisible(SYNCED);
 
   await context.setOffline(true);
   await offline(page);
@@ -63,5 +68,6 @@ test('an offline create, edit and completion reach the server in the order they 
 
   // And the completion landed on that same task rather than on nothing: the row leaves the witness's
   // list, which holds open tasks only.
-  await expect(await search(witness, edited)).toHaveCount(0, { timeout: 60_000 });
+  await typeToFind(witness, edited);
+  await expect(rowsFound(witness, edited)).toHaveCount(0, SYNCED);
 });
