@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dateLabel, lastDoneLabel } from './wording';
+import { builtLabel, dateLabel, lastDoneLabel, syncedLabel } from './wording';
 
 /**
  * Facts are words (ADR-0019). This is the calendar date said out loud, which the dialog needs
@@ -61,5 +61,45 @@ describe('lastDoneLabel', () => {
     ['the day before that', '2026-08-12', 'last 2 days ago · 12 Aug'],
   ])('says %s plainly, where a count and a date would repeat themselves', (_case, on, expected) => {
     expect(lastDoneLabel(on, TODAY)).toBe(expected);
+  });
+});
+
+/**
+ * ADR-0009's two facts, said out loud on `/status`.
+ *
+ * They are the passive half of the design: the banners handle the two conditions that need no
+ * threshold, and these answer the question no rule can — *have I actually pushed anything this
+ * month?* A grey line that can never alarm is worthless on its own, which is why the banners exist;
+ * it is not worthless *beside* them.
+ */
+describe('the facts on the status screen', () => {
+  const NOW_AT = new Date('2026-08-14T09:12:00+02:00');
+
+  it('says the clock time for a sync that happened today', () => {
+    // The question today is *how long ago*, and a date would answer it with today's date — true,
+    // and no help at all.
+    expect(syncedLabel('2026-08-14T08:12:00+02:00', NOW_AT)).toBe('08:12');
+  });
+
+  it('says the date for a sync from any other day', () => {
+    // And the moment it is not today, the clock time stops mattering and the day is the fact.
+    expect(syncedLabel('2026-08-03T22:40:00+02:00', NOW_AT)).toBe('3 Aug');
+    expect(syncedLabel('2024-06-07T10:00:00+02:00', NOW_AT)).toBe("7 Jun '24");
+  });
+
+  it('says a device has never synced rather than showing nothing', () => {
+    // An empty value reads as *this line is broken*; the fact is *this device has never reached the
+    // server*, which on this screen is the loudest thing there is.
+    expect(syncedLabel(null, NOW_AT)).toBe('never');
+  });
+
+  it('says a build date as a date, because a date is self-evidently stale', () => {
+    expect(builtLabel('2026-08-14T02:10:00Z', NOW_AT)).toBe('14 Aug');
+    expect(builtLabel('2026-07-12T02:10:00Z', NOW_AT)).toBe('12 Jul');
+  });
+
+  it('says a build date it does not know rather than inventing one', () => {
+    // Offline the server's date has never been fetched, and in development the bundle carries none.
+    expect(builtLabel(null, NOW_AT)).toBe('unknown');
   });
 });

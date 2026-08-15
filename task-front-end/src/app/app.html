@@ -17,9 +17,12 @@
   </button>
 
   <mat-menu #moreMenu>
+    <!--
+      One item. Log out lives on `/status` beside the push toggle (#63), not here as well: FE-030
+      shrank to a single log-out item, and two paths to one verb is how the shorter one quietly
+      becomes the real settings screen.
+    -->
     <a mat-menu-item routerLink="/status">Status &amp; settings</a>
-    <!-- Log out is the whole of FE-030 (ADR-0014). No profile, no account screen. -->
-    <button mat-menu-item type="button" (click)="logOut()">Log out</button>
   </mat-menu>
 </header>
 
@@ -32,6 +35,34 @@
   <div class="login-prompt" role="status">
     <span>Sign in to sync your changes. Nothing is lost in the meantime.</span>
     <button type="button" (click)="logIn()">Sign in</button>
+  </div>
+}
+
+<!--
+  ADR-0009's two banners, and the whole of this application's monitoring. There is no Prometheus, no
+  Grafana, no uptime pinger and no dead-man's switch: the app reports on itself, on the one surface
+  with guaranteed attention. They live in the shell rather than on a screen because health must
+  *come to you* — a page you have to remember to open is a dashboard, which that ADR rejected as an
+  alert channel.
+
+  Neither has a threshold. Both are states the client can already answer, which is what stops them
+  crying wolf on a holiday and staying silent through a week of bad signal.
+-->
+@if (notSyncing()) {
+  <div class="banner not-syncing" role="alert">
+    <span>
+      This device is online, but the server is not answering. Your changes are safe here and will
+      sync when it comes back.
+    </span>
+  </div>
+}
+
+@if (buildSkew()) {
+  <div class="banner build-skew" role="alert">
+    <span>
+      The app and the server are running different versions, and an update has not fixed it. A
+      deploy has probably half-landed.
+    </span>
   </div>
 }
 

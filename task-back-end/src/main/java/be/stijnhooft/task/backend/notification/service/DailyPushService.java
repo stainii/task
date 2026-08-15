@@ -59,7 +59,11 @@ public class DailyPushService {
             return;
         }
 
-        var payload = MAPPER.writeValueAsString(digest.get()).getBytes(StandardCharsets.UTF_8);
+        // The envelope, never the record: `ngsw-worker.js` shows nothing for a payload without a
+        // `notification` object, and every layer below this one would still report success. See
+        // `DailyDigest#asServiceWorkerPayload`.
+        var payload = MAPPER.writeValueAsString(digest.get().asServiceWorkerPayload())
+                .getBytes(StandardCharsets.UTF_8);
         var delivered = 0;
         for (PushSubscription device : devices) {
             if (send(device, payload) == PushOutcome.DELIVERED) {

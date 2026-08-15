@@ -409,6 +409,25 @@ export class LocalStore {
     await this.putMeta('lastContext', context);
   }
 
+  /**
+   * Whether **this device** asked for the 07:30 push (ADR-0012), defaulting to no.
+   *
+   * Not derivable from the browser's own state, which is why it is stored at all: notification
+   * permission survives the toggle being turned off, so *permission is granted* cannot be the
+   * trigger for `PushService`'s silent repair — a device that deliberately went quiet would come
+   * back on at the next launch.
+   *
+   * Here rather than in `localStorage` for {@link lastContext}'s reason: one hard reset erases
+   * everything this device remembers, and nothing survives it in a second place.
+   */
+  async pushWanted(): Promise<boolean> {
+    return (await this.meta<boolean>('pushWanted')) ?? false;
+  }
+
+  async setPushWanted(wanted: boolean): Promise<void> {
+    await this.putMeta('pushWanted', wanted);
+  }
+
   private async meta<T>(key: string): Promise<T | undefined> {
     const db = await this.database();
     return request<T | undefined>(db.transaction('meta').objectStore('meta').get(key));

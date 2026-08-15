@@ -6,11 +6,32 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
+import { SwPush, SwUpdate } from '@angular/service-worker';
+import { BehaviorSubject } from 'rxjs';
+
 import { App } from './app';
 import { routes } from './app.routes';
 import { aTask } from './domain/task.mother';
+import { BuildSkew } from './pwa/build-skew';
 import { LocalStore } from './store/local-store';
+import { SyncStatus } from './sync/sync-status';
 import { Notices } from './ui/notices';
+
+/**
+ * The service-worker surfaces, which `provideServiceWorker` supplies in the real app and nothing
+ * supplies here. Both are stubbed as *present but doing nothing*, which is what a browser without a
+ * registered worker actually looks like.
+ */
+const SERVICE_WORKER_STUBS = [
+  {
+    provide: SwUpdate,
+    useValue: { isEnabled: false, checkForUpdate: () => Promise.resolve(false) },
+  },
+  {
+    provide: SwPush,
+    useValue: { isEnabled: false, subscription: new BehaviorSubject(null) },
+  },
+];
 
 /**
  * The shell's two claims: every route in ADR-0014 resolves, and entering a context does not look
@@ -26,6 +47,7 @@ describe('App', () => {
         provideRouter(routes, withComponentInputBinding()),
         provideHttpClient(),
         provideHttpClientTesting(),
+        ...SERVICE_WORKER_STUBS,
       ],
     });
   });
@@ -89,5 +111,59 @@ describe('App', () => {
     await navigate('/nowhere');
 
     expect(TestBed.inject(Router).url).toBe('/');
+  });
+
+  /**
+   * **ADR-0009's whole detection strategy**, and it lives here because a banner has to *come to
+   * you*. There is no Prometheus, no Grafana, no uptime pinger and no dead-man's switch; the app
+   * reports on itself, on the surface with guaranteed attention.
+   *
+   * Neither banner has a threshold, deliberately: *warn if not synced for three days* cries wolf on
+   * a holiday and stays silent through a week of bad signal. Both conditions are states, not
+   * numbers.
+   */
+  describe('the two banners', () => {
+    it('says nothing at all on a healthy day', async () => {
+      const shell = await navigate('/');
+
+      expect(shell.querySelector('.not-syncing')).toBeNull();
+      expect(shell.querySelector('.build-skew')).toBeNull();
+    });
+
+    it('reports a working radio and a server that will not answer', async () => {
+      // The first banner, and the one case ADR-0004 is built to conceal: the outbox stalls on `5xx`
+      // by design and the PWA renders from IndexedDB regardless, so a back end dead for four days
+      // and four days of poor signal are otherwise the same experience.
+      const shell = await navigate('/');
+      const status = TestBed.inject(SyncStatus);
+      status.online.set(true);
+      status.unreachable();
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(shell.querySelector('.not-syncing')?.textContent).toContain('not answering');
+    });
+
+    it('stays quiet in a tunnel, where there is nothing wrong to report', async () => {
+      // Offline is the ordinary state of this app, not a fault. This is the half that makes the
+      // first banner need no threshold at all.
+      const shell = await navigate('/');
+      const status = TestBed.inject(SyncStatus);
+      status.online.set(false);
+      status.unreachable();
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(shell.querySelector('.not-syncing')).toBeNull();
+    });
+
+    it('reports a build-date mismatch the service worker has already failed to fix', async () => {
+      // Half a deploy: one container recreated and the other not. ADR-0007 tags both images with one
+      // commit SHA precisely because the fold lives in two languages, but nothing verified that at
+      // runtime until this line.
+      const shell = await navigate('/');
+      TestBed.inject(BuildSkew).persistentMismatch.set(true);
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(shell.querySelector('.build-skew')?.textContent).toContain('different versions');
+    });
   });
 });

@@ -1,6 +1,7 @@
 package be.stijnhooft.task.backend.notification.domain;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /// **What one morning looks like in a notification shade** — the whole of ADR-0012's content
@@ -42,6 +43,30 @@ public record DailyDigest(String title, String body, String url) {
             return Optional.empty();
         }
         return Optional.of(new DailyDigest(TITLE, bodyOf(namesOfTasksDueToday), OVERVIEW));
+    }
+
+    /// **What actually goes on the wire**, and it is not this record's own three fields.
+    ///
+    /// `ngsw-worker.js` owns the `push` event — ADR-0012 chose Angular's `SwPush`, and that is the
+    /// price of it — and its handler returns without showing anything unless the decrypted payload
+    /// is `{"notification": {"title": …}}`. So a digest serialized as `{title, body, url}` is
+    /// encrypted correctly, signed correctly, accepted by the push service with a `201`, logged as
+    /// delivered, and displayed **nowhere**. Every failure in this feature is the same one — a
+    /// channel that reports success it did not have — which is why the shape is asserted key by key
+    /// in `DailyDigestTest` rather than left to a serializer.
+    ///
+    /// `onActionClick` is ngsw's vocabulary for *what a tap does*: `openWindow` on the overview,
+    /// because ADR-0006's always-visible band **is** the list this notification is about.
+    ///
+    /// A `Map` rather than a nest of records because one of ngsw's keys is `default`, which is a
+    /// Java keyword — three records and a `@JsonProperty` to describe a shape that is not ours to
+    /// model.
+    public Map<String, Object> asServiceWorkerPayload() {
+        return Map.of("notification", Map.of(
+                "title", title,
+                "body", body,
+                "data", Map.of("onActionClick", Map.of(
+                        "default", Map.of("operation", "openWindow", "url", url)))));
     }
 
     private static String bodyOf(List<String> names) {

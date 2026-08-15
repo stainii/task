@@ -1,4 +1,4 @@
-import { daysUntil, dueIn, IsoDate } from '../domain/dates';
+import { daysUntil, dueIn, IsoDate, today } from '../domain/dates';
 import { Importance } from '../domain/task';
 
 /**
@@ -118,3 +118,40 @@ const IMPORTANCE_LABELS: Record<Importance, string> = {
   IMPORTANT: 'Important',
   VERY_IMPORTANT: 'Very important',
 };
+
+/**
+ * **When a sync last actually worked** — ADR-0009's first fact, on `/status`.
+ *
+ * The clock time while it is still today, because *how long ago* is the question and today's date
+ * answers it with something true and useless. From tomorrow the time stops mattering and the day is
+ * the whole fact — the same coarsening ladder {@link dueLabel} uses, one rung long.
+ *
+ * `never` rather than a blank, for {@link lastDoneLabel}'s reason: an empty value reads as a broken
+ * line, where the fact is a device that has never reached the server.
+ */
+export function syncedLabel(at: string | null, now: Date): string {
+  if (at === null) {
+    return 'never';
+  }
+  const when = new Date(at);
+  const day = today(when);
+  if (day === today(now)) {
+    return `${pad2(when.getHours())}:${pad2(when.getMinutes())}`;
+  }
+  return dateLabel(day, today(now));
+}
+
+/**
+ * **When something was built** — said as a calendar date, and that is the whole argument.
+ *
+ * ADR-0009 took a date over a commit SHA precisely here: a SHA that has not moved says nothing to a
+ * reader, while *12 Jul* on a screen opened in August is self-evidently wrong with no rule, no
+ * threshold and nothing to compare against.
+ */
+export function builtLabel(at: string | null, now: Date): string {
+  return at === null ? 'unknown' : dateLabel(today(new Date(at)), today(now));
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, '0');
+}

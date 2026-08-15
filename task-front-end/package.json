@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build --define=\"TASK_BUILT_AT='$(date -u +%Y-%m-%dT%H:%M:%SZ)'\"",
     "watch": "ng build --watch --configuration development",
     "test": "TZ=Europe/Brussels ng test",
     "lint": "eslint .",

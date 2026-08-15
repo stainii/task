@@ -1,0 +1,59 @@
+<h2>Status &amp; settings</h2>
+
+<!--
+  ADR-0009's facts, passive on purpose. They can never alarm — that is the banners' job — and they
+  are here for the question no rule can answer: *have I actually pushed anything this month?*
+-->
+<section class="facts" aria-label="This device and the server">
+  <p class="fact">
+    <span class="what">Last synced</span>&ngsp;<span class="value">{{ lastSynced() }}</span>
+  </p>
+  <p class="fact">
+    <span class="what">App built</span>&ngsp;<span class="value">{{ appBuilt() }}</span>
+  </p>
+  <p class="fact">
+    <span class="what">Server built</span>&ngsp;<span class="value">{{ serverBuilt() }}</span>
+  </p>
+</section>
+
+@if (storeUnavailable()) {
+  <!--
+    Not a sync problem and not retryable: this app *is* its store, so nothing works. Said here
+    because a write that cannot be stored is never acknowledged (ADR-0004's durable-ack amendment),
+    which stops it looking like a completed tick but does not explain why nothing sticks.
+  -->
+  <p class="store-unavailable" role="alert">
+    This device’s local storage cannot be reached, so nothing can be saved or synced. A private
+    window or a full disk is the usual cause.
+  </p>
+}
+
+<section class="setting" aria-label="Daily notification">
+  @if (pushAvailable) {
+    <label class="toggle">
+      <input class="push" type="checkbox" [checked]="pushEnabled()" (change)="togglePush()" />
+      <span>Tell me at 07:30 what is due today</span>
+    </label>
+
+    @if (pushBlocked()) {
+      <!--
+        The one push failure a human has to act on. Chrome will not re-prompt after a denial, so
+        saying "try again" would be a lie; only site settings can undo it.
+      -->
+      <p class="push-blocked" role="alert">
+        This browser refused notification permission. Only site settings can turn it back on.
+      </p>
+    }
+  } @else {
+    <!--
+      A toggle that cannot do anything is worse than a sentence: it invites the one tap that spends
+      a close-to-one-shot permission for nothing.
+    -->
+    <p class="push-unavailable">
+      Notifications need the installed app. Add it to your home screen, then come back here.
+    </p>
+  }
+</section>
+
+<!-- FE-030, entire: no profile, no account screen, one account. -->
+<button class="log-out" type="button" (click)="logOut()">Log out</button>

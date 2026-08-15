@@ -312,3 +312,36 @@ starts cleanly and logs nothing. This map's *guarantee broken by something outsi
 pre-installed rather than found, and deleted rather than documented. See
 [ADR-0016](0016-the-due-check-ticks-hourly-and-starts-with-the-app.md), whose one-annotation rule is
 otherwise untouched.
+
+### Choosing `SwPush` chose a wire format, and the wire format was wrong
+
+Found by [#63](https://github.com/stainii/task/issues/63), 2026-08-15, while building the toggle.
+
+This ADR chose Angular's `SwPush` on the front end and left the payload to the back end, which
+serialized `DailyDigest`'s own three fields — `{title, body, url}`. **`ngsw-worker.js` shows nothing
+for that.** It owns the `push` event and its handler returns without displaying anything unless the
+decrypted payload is `{"notification": {"title": …}}`.
+
+So the whole path succeeded and delivered nothing: the message encrypted correctly, the VAPID
+signature verified, the push service answered `201`, `DailyPushService` logged *Notified 1 of 1
+device(s)*, and the phone stayed dark. **Not one existing test could see it** —
+`DailyPushIntegrationTest` asserts what a *push service* receives, and a push service never reads
+the plaintext.
+
+The envelope is now `DailyDigest#asServiceWorkerPayload` and is asserted key by key, including
+`data.onActionClick`, which is ngsw's vocabulary for *what a tap does*. Nothing about the content
+decision changes. What changes is that a contract owned by a generated file nobody wrote is written
+down and tested, instead of assumed — the same reason `/fold-fixtures/` exists.
+
+### The re-subscribe rule needed one more fact than the browser holds
+
+Also #63. This ADR's repair mechanism is *the client re-reads its subscription on every app open
+and, if it is missing, silently re-subscribes*. Taken literally that is wrong in one case, and it is
+not a rare one: **notification permission survives the toggle being turned off.** A device that
+deliberately went quiet would find permission still granted and no subscription at the next launch —
+the exact shape the rule fires on — and would silently turn itself back on.
+
+So *did this device ask for push?* is stored, as `pushWanted` in the client's `meta` store beside the
+sync cursor (never a second durable place — one hard reset erases everything this device remembers).
+Repair is gated on it. Everything else in the mechanism is unchanged, including that the server still
+never raises a banner.

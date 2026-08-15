@@ -16,6 +16,16 @@ import { Injectable } from '@angular/core';
  */
 export interface ClientConfig {
   readonly keycloak: KeycloakConfig;
+
+  /**
+   * When the **back end** was built, as an ISO-8601 instant.
+   *
+   * ADR-0009's answer to *did the deploy stop happening?*, and it rides here rather than on
+   * `/actuator/info` so there is one public endpoint rather than two. Only the back end can state
+   * this: `ngsw` serves a cached bundle, so a server build date compiled into the front end reports
+   * when this device's cache was built, which after a failed deploy looks exactly like success.
+   */
+  readonly buildTime: string;
 }
 
 export interface KeycloakConfig {
@@ -45,6 +55,19 @@ export class ClientConfigService {
     }
     this.inFlight ??= this.fetchConfig().finally(() => (this.inFlight = null));
     return this.inFlight;
+  }
+
+  /**
+   * The configuration again, from the server, ignoring what is remembered.
+   *
+   * The auth half never changes in the life of a deployment; the build date is the whole point.
+   * Reading it through the cache would freeze it at whatever the tab first saw, so an installed PWA
+   * left open across a night of deploys could never notice a skew — the banner would be a
+   * one-shot check disguised as a standing one.
+   */
+  async refresh(): Promise<ClientConfig> {
+    this.cached = null;
+    return this.config();
   }
 
   private async fetchConfig(): Promise<ClientConfig> {

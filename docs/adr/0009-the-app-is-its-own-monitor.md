@@ -250,3 +250,35 @@ a JWT and the compose health check would have failed on the first deploy that us
 asked for: `/actuator/health` is `permitAll` in Spring Security **and** absent from nginx's
 allowlist. The health check reaches it container-to-container inside the Docker network, and it is
 not on the internet at all. Its real protection is the allowlist, not the Spring rule.
+
+### *Persistent* means the service worker has been asked and has nothing
+
+Enacted by [#63](https://github.com/stainii/task/issues/63), 2026-08-15.
+
+This ADR made *persistent* load-bearing in the second banner — *"the banner waits until the service
+worker has had its chance and the dates still disagree"* — without saying what *had its chance*
+would be measured by. A duration would have reintroduced the very thing both banners were designed
+without: a number nobody could derive, crying wolf on a slow morning and staying silent through a
+half-landed deploy.
+
+It is a **state**, and the browser already answers it: `SwUpdate.checkForUpdate()`. A mismatch plus
+*an update is available* is the routine morning after a nightly deploy, and says nothing; a mismatch
+plus *there is no newer version* is a deploy that half-landed. Where there is no service worker at
+all, nothing is ever going to swap the bundle, so the mismatch is persistent immediately — waiting
+for a fix that cannot come is silence indistinguishable from health. Where the check itself throws,
+the banner stays down: an alarm raised because the update machinery could not be asked is an alarm
+about the wrong thing.
+
+Two consequences of the shape, both stated rather than discovered later:
+
+- **The comparison is of calendar days, in the reader's own zone.** ADR-0007 builds the two images
+  minutes apart in one CI run, so comparing instants would fire on every deploy that ever worked;
+  and 23:30 UTC is already tomorrow in Brussels, so comparing UTC days would report skew across a
+  line the reader cannot see.
+- **The front end's own build date is stamped into the bundle at build time**, by `--define` in
+  `npm run build`. That stamp is the one thing here that can silently stop happening, so
+  `pwa/build-stamp.spec.ts` asserts the build command still carries it — a gate that keeps reporting
+  success after it has stopped running is this document's own recurring subject.
+
+The check runs at app open and nowhere else, which for a daily driver is the under-a-day latency
+this ADR already accepted for a total outage.

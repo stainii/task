@@ -60,6 +60,35 @@
   cursor: pointer;
 }
 
+/*
+ * ADR-0009's two banners. Deliberately *not* the grey footer this ADR rejected: a passive line in
+ * the same colour as everything else reports and can never alarm — `echo "Backup completed"` in a
+ * nicer font. These use the overdue tone the task panels already use for *something is wrong*, so
+ * the app has one vocabulary for it rather than two.
+ */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--app-ink);
+  /*
+   * Tinted from the overdue token rather than given its own colour, so light and dark are one
+   * definition and the app has a single vocabulary for *something is wrong* (ADR-0019).
+   */
+  background: color-mix(in srgb, var(--app-overdue) 22%, var(--app-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--app-overdue) 45%, var(--app-surface));
+  border-left: var(--app-stripe-width) solid var(--app-overdue);
+  font-weight: 600;
+}
+
+.banner span {
+  flex: 1;
+  min-width: 0;
+}
+
 .tabs {
   display: flex;
   gap: 4px;
@@ -96,7 +125,8 @@ main {
     padding: 0 22px;
   }
 
-  .login-prompt {
+  .login-prompt,
+  .banner {
     padding: 12px 26px;
   }
 

@@ -1,0 +1,88 @@
+:host {
+  display: block;
+  max-width: 640px;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 20px;
+}
+
+/*
+ * Grey, small and calm — this is the passive half of ADR-0009 and it must not look like an alert.
+ * The banners in the shell are the only thing here allowed to raise its voice.
+ */
+.facts {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+}
+
+.fact {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.fact .what {
+  flex: 1;
+  min-width: 0;
+  color: var(--app-muted);
+}
+
+.fact .value {
+  flex: none;
+  font-weight: 600;
+  color: var(--app-ink);
+}
+
+.setting {
+  margin: 0 0 20px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.toggle input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--app-accent);
+}
+
+.push-blocked,
+.push-unavailable,
+.store-unavailable {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--app-muted);
+  line-height: 1.5;
+}
+
+.store-unavailable {
+  color: var(--app-ink);
+  padding: 10px 14px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  background: var(--app-chip);
+}
+
+.log-out {
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--app-ink);
+  background: var(--app-surface);
+  cursor: pointer;
+}

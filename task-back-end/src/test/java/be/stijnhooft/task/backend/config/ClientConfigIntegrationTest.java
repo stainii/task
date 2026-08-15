@@ -9,6 +9,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /// The one endpoint that must answer a client carrying nothing at all.
@@ -52,5 +54,24 @@ class ClientConfigIntegrationTest extends AbstractIntegrationTestCases {
                     assertThat(config.keycloak().clientId())
                             .isEqualTo("task");
                 });
+    }
+
+    /// **ADR-0009's second fact, and the one that answers *did the deploy stop happening?*.**
+    ///
+    /// It rides here rather than on `/actuator/info` because a client that cannot authenticate can
+    /// still reach this, and one public endpoint beats two.
+    ///
+    /// Asserted as a parseable instant rather than as a string, because the whole value of the fact
+    /// is that a front end can compare it to its own build date. A `null` — which is what an absent
+    /// `build-info.properties` would produce — would leave the banner permanently silent while
+    /// every other test stayed green, so the controller refuses to start instead and this asserts
+    /// the fact is really there.
+    @Test
+    void tellsAnyClientWhenTheBackEndWasBuilt() {
+        restTestClient.get().uri("/api/config").exchange()
+                .expectStatus().isEqualTo(HttpStatus.OK)
+                .expectBody(ClientConfigDto.class)
+                .value(config -> assertThat(Instant.parse(config.buildTime()))
+                        .isBefore(Instant.now().plusSeconds(60)));
     }
 }

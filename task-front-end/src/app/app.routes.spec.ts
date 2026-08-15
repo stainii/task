@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { SwPush, SwUpdate } from '@angular/service-worker';
+import { BehaviorSubject } from 'rxjs';
 
 import { routes } from './app.routes';
 import { Overview } from './pages/overview/overview';
@@ -12,7 +14,19 @@ import { Templates } from './pages/templates/templates';
 describe('routes', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes, withComponentInputBinding())],
+      providers: [
+        provideRouter(routes, withComponentInputBinding()),
+        // Supplied by `provideServiceWorker` in the real app and by nothing here. Stubbed as
+        // *present but doing nothing*, which is what a browser with no registered worker looks like.
+        {
+          provide: SwUpdate,
+          useValue: { isEnabled: false, checkForUpdate: () => Promise.resolve(false) },
+        },
+        {
+          provide: SwPush,
+          useValue: { isEnabled: false, subscription: new BehaviorSubject(null) },
+        },
+      ],
     });
   });
 
