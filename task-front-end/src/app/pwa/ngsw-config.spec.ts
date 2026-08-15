@@ -18,20 +18,30 @@ import { describe, expect, it } from 'vitest';
  */
 
 const CONFIG = resolve(process.cwd(), 'ngsw-config.json');
+const SCHEMA = 'node_modules/@angular/service-worker/config/schema.json';
 
 interface NgswConfig {
-  readonly $comment?: unknown;
+  readonly appData?: unknown;
   readonly index: string;
-  readonly assetGroups?: readonly { readonly resources: { readonly urls?: readonly string[] } }[];
+  readonly assetGroups?: readonly {
+    readonly name: string;
+    readonly resources: { readonly urls?: readonly string[]; readonly files?: readonly string[] };
+  }[];
   readonly dataGroups?: readonly { readonly urls?: readonly string[] }[];
+}
+
+interface SchemaShape {
+  readonly additionalProperties: boolean;
+  readonly properties: Record<string, unknown>;
 }
 
 const raw = readFileSync(CONFIG, 'utf8');
 
 /**
  * The build reads this file with `JSON.parse` (`@angular/build/src/utils/service-worker.js`), so
- * the explanation the ticket asks for cannot be a `//` comment — it has to be a `$comment` key,
- * and this parse is what proves the choice still holds if the file is ever hand-edited.
+ * the explanation the ticket asks for cannot be a `//` comment — it has to be a key. Which key is
+ * not free either: the schema sets `additionalProperties: false`, so it goes in `appData`, the one
+ * free-form slot. This parse is what proves the file is still strict JSON if it is hand-edited.
  */
 const config = JSON.parse(raw) as NgswConfig;
 
@@ -65,11 +75,25 @@ describe('ngsw-config.json', () => {
     expect(config.dataGroups).toEqual([]);
   });
 
+  it('uses no key the ngsw schema rejects', () => {
+    // `additionalProperties: false`, so an invented key is not a harmless annotation — the build's
+    // own `JSON.parse` tolerates anything, and the disagreement only ever surfaces in an editor or
+    // in whatever validates this next. Read from the installed schema rather than listed here, so
+    // the check follows the version actually in use.
+    const schema = JSON.parse(readFileSync(resolve(process.cwd(), SCHEMA), 'utf8')) as SchemaShape;
+    expect(schema.additionalProperties).toBe(false);
+
+    const allowed = Object.keys(schema.properties);
+    expect(Object.keys(config).filter((key) => !allowed.includes(key))).toEqual([]);
+  });
+
   it('says in the file itself why dataGroups is empty', () => {
     // An empty array is indistinguishable from an oversight, and the next person to want offline
-    // reads will fill it in. The reason has to travel with the file.
-    expect(String(config.$comment)).toMatch(/dataGroups/);
-    expect(String(config.$comment)).toMatch(/sequence|watermark|resync/i);
+    // reads will fill it in. The reason has to travel with the file — in `appData`, which is the
+    // only free-form key the schema sanctions.
+    const reason = JSON.stringify(config.appData);
+    expect(reason).toMatch(/dataGroups/);
+    expect(reason).toMatch(/sequence|watermark|resync/i);
   });
 
   it('has a matcher that would actually catch portal', () => {
@@ -113,5 +137,26 @@ describe('ngsw-config.json', () => {
     const shell = (config.assetGroups ?? []).find((group) => 'installMode' in group);
     expect(shell).toMatchObject({ installMode: 'prefetch' });
     expect(config.index).toBe('/index.html');
+  });
+
+  it('prefetches the icons the manifest declares', () => {
+    // Lazy is the wrong mode for the install artwork: a device that installs and then goes offline
+    // before anything happened to request an icon has none on disk, and the icon is the thing the
+    // user taps. Read from the manifest rather than listed here, so adding a size cannot leave the
+    // caching behind.
+    const manifest = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'public', 'manifest.webmanifest'), 'utf8'),
+    ) as { icons: readonly { src: string }[] };
+
+    const prefetched = (config.assetGroups ?? [])
+      .filter((group) => 'installMode' in group && group.resources.files)
+      .flatMap((group) => group.resources.files ?? []);
+
+    for (const icon of manifest.icons) {
+      expect(
+        prefetched.some((glob) => matches(glob, icon.src)),
+        `${icon.src} is not prefetched`,
+      ).toBe(true);
+    }
   });
 });

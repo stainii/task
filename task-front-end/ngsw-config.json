@@ -1,23 +1,33 @@
 {
   "$schema": "./node_modules/@angular/service-worker/config/schema.json",
-  "$comment": [
-    "dataGroups is empty on purpose, and this is the reason (#62).",
-    "Portal cached five /api/** paths with strategy 'freshness' because it had no offline store.",
-    "ADR-0004 replaced that with IndexedDB, an ordered outbox and a shared fold, so a service-worker",
-    "cache over the API is now a second, dumber copy with no fold and no sequence.",
-    "Worse: ngsw caches GET, and the resync path is a GET. A stale cached snapshot hands the client a",
-    "stale sequence watermark, so the stream resumes from the wrong point and the patches in the gap",
-    "are lost permanently and invisibly - the ?since= defect ADR-0004 was written to kill, reintroduced",
-    "by configuration instead of by code.",
-    "Offline reads come from IndexedDB. Nothing here. See src/app/pwa/ngsw-config.spec.ts."
-  ],
+  "appData": {
+    "dataGroupsAreEmptyBecause": [
+      "dataGroups is empty on purpose, and this is the reason (#62). It lives in appData because the",
+      "schema sets additionalProperties: false, so there is no comment key to put it in.",
+      "Portal cached five /api/** paths with strategy 'freshness' because it had no offline store.",
+      "ADR-0004 replaced that with IndexedDB, an ordered outbox and a shared fold, so a service-worker",
+      "cache over the API is now a second, dumber copy with no fold and no sequence.",
+      "Worse: ngsw caches GET, and the resync path is a GET. A stale cached snapshot hands the client a",
+      "stale sequence watermark, so the stream resumes from the wrong point and the patches in the gap",
+      "are lost permanently and invisibly - the ?since= defect ADR-0004 was written to kill,",
+      "reintroduced by configuration instead of by code.",
+      "Offline reads come from IndexedDB. Nothing here. See src/app/pwa/ngsw-config.spec.ts."
+    ]
+  },
   "index": "/index.html",
   "assetGroups": [
     {
       "name": "app",
       "installMode": "prefetch",
       "resources": {
-        "files": ["/favicon.ico", "/index.html", "/manifest.webmanifest", "/*.css", "/*.js"]
+        "files": [
+          "/favicon.ico",
+          "/index.html",
+          "/manifest.webmanifest",
+          "/icons/*.png",
+          "/*.css",
+          "/*.js"
+        ]
       }
     },
     {

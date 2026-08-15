@@ -270,6 +270,6 @@ Not omissions — each is owned by a ticket that predates #11.
 | RES-010 | drop | #51 | The service dies; the requirement it served is ADR-0012's push. |
 | RES-011 | transform | #15 | Discharged inside its own triage ticket — the eight README findings are folded into the ledger. |
 | RES-012 | drop | — |  |
-| RES-013 | transform | #62 |  |
+| RES-013 | transform | #62 | Built: service worker, manifest, regenerated icons. `dataGroups` empty on purpose — an `ngsw` cache over `/api` would hand the client a stale `sequence` watermark. |
 | RES-014 | drop | — |  |
-| RES-015 | drop | #62 | Art drops with the gamification layer; the *nothing to do* image is kept for #38 to accept or reject. |
+| RES-015 | drop | #62 | Art drops with the gamification layer. The *nothing to do* image is kept for #38 to accept or reject, but **deliberately not committed** — its licence is unestablished and this repo is public (#31); it stays in `portal-front-end/src/assets/todo/imgs/`. |

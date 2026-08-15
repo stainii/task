@@ -48,6 +48,31 @@ function pixelSize(file: string): string {
   return `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`;
 }
 
+const STYLES = readFileSync(resolve(process.cwd(), 'src', 'styles.css'), 'utf8');
+
+/**
+ * The two halves of a `light-dark(light, dark)` custom property, straight out of `styles.css`.
+ * A manifest cannot express a media query, so its one colour has to be the *light* half — and the
+ * dark half has to be declared separately in `index.html`.
+ */
+function halvesOf(property: string): { light: string; dark: string } {
+  const declaration = new RegExp(`${property}:\\s*light-dark\\(([^,]+),\\s*([^)]+)\\)`).exec(
+    STYLES,
+  );
+  if (!declaration) {
+    throw new Error(`${property} is not declared as light-dark() in styles.css`);
+  }
+  return { light: declaration[1].trim(), dark: declaration[2].trim() };
+}
+
+function lightValueOf(property: string): string {
+  return halvesOf(property).light;
+}
+
+function darkValueOf(property: string): string {
+  return halvesOf(property).dark;
+}
+
 describe('manifest.webmanifest', () => {
   it('is installable as a standalone app', () => {
     expect(manifest.display).toBe('standalone');
@@ -78,10 +103,26 @@ describe('manifest.webmanifest', () => {
     expect(maskable.length).toBeGreaterThan(0);
   });
 
-  it('paints its splash in the colours the app already uses', () => {
-    // The values are the ones `styles.css` resolves to, so the launch screen is not a white flash
-    // in front of a dark app.
-    expect(manifest.theme_color).toBe('#3f51b5');
-    expect(manifest.background_color).toBe('#f6f6f8');
+  it('paints its splash in the colours the app actually uses', () => {
+    // Read out of `styles.css` rather than written here as literals. A hardcoded `#3f51b5` is a
+    // check that goes on passing after the thing it describes has changed — the shape
+    // `docs/quality-bar.md` keeps returning to. Change the accent and this fails, which is the
+    // point.
+    expect(manifest.theme_color).toBe(lightValueOf('--app-accent'));
+    expect(manifest.background_color).toBe(lightValueOf('--app-bg'));
+  });
+
+  it('paints the browser chrome correctly in both themes', () => {
+    // A manifest carries one `theme_color` and there is no media query in it, so the dark answer
+    // has to come from `index.html`. ADR-0015 has no toggle — `prefers-color-scheme` decides — so a
+    // single unconditional value is wrong half the time.
+    const html = readFileSync(resolve(process.cwd(), 'src', 'index.html'), 'utf8');
+
+    expect(html).toContain(
+      `<meta name="theme-color" media="(prefers-color-scheme: light)" content="${lightValueOf('--app-accent')}" />`,
+    );
+    expect(html).toContain(
+      `<meta name="theme-color" media="(prefers-color-scheme: dark)" content="${darkValueOf('--app-bg')}" />`,
+    );
   });
 });

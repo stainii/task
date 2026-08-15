@@ -77,7 +77,11 @@ configuration alone), so `ng serve` never has one.
 Regenerated, not ported from portal. The artwork is
 [ADR-0019](../docs/adr/0019-verbs-are-glyphs-facts-are-words.md)'s own `complete` glyph — the exact
 path string from `src/app/ui/glyph.ts` — in white on `--app-accent`, which makes the app's icon a
-member of its own four-glyph vocabulary rather than a new drawing, and keeps it legible at 16 pixels.
+member of its own four-glyph vocabulary rather than a new drawing.
+
+`icon-small.svg`, which produces the favicon, is the **one** redrawing: a heavier stroke on a
+slightly shorter path, because the production glyph turns to mush at 16 pixels. It is the same mark,
+not the same path string.
 
 The SVG sources live in `icons/`. To regenerate every size:
 
@@ -85,11 +89,13 @@ The SVG sources live in `icons/`. To regenerate every size:
 ./icons/generate.sh
 ```
 
-`public/nothing-to-do.png` is the **one** asset RES-015 keeps from portal, parked for the empty-state
-redesign to accept or reject. Nothing references it yet, and **its licence is unestablished** — it
-arrived in portal as stock art with no licence file, and this repo is public by choice
-([#31](https://github.com/stainii/task/issues/31)). Establish the licence before using it, or delete
-it.
+RES-015 keeps **one** asset from portal — the _"nothing to do"_ image — for the empty-state redesign
+to accept or reject. **It is deliberately not in this repo.** It arrived in portal as stock art with
+no licence file, this repo is public by choice
+([#31](https://github.com/stainii/task/issues/31)), and committing it is what publishes it. It stays
+where it already is, at `portal-front-end/src/assets/todo/imgs/nothing_to_do.png`, until a redesign
+actually wants it and its licence has been established. The overview currently shows FE-006's words
+alone (`Relax! Nothing else to do.`).
 
 ## Running end-to-end tests
 

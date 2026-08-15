@@ -183,7 +183,11 @@ The sequence:
 1. Open **every device** once, confirm the outbox is empty.
 2. Freeze portal's front end, leave the databases up, take the final dump.
 3. Run the importer; read the diff report; **decide**.
-4. Hard-unregister the portal service worker on every device before installing the new app.
+4. Hard-unregister the portal service worker on every device before installing the new app —
+   the per-device procedure is [`portal-service-worker-removal.md`](../portal-service-worker-removal.md),
+   written by [#62](https://github.com/stainii/task/issues/62). It is manual, it is not code in this
+   repo, and installing `task` does **not** do it: the two apps are on different hostnames, so
+   `task`'s worker can neither see nor replace portal's.
 5. Stop portal's stack.
 
 No dual-run — two writable systems over the same data manufacture exactly the divergence this map

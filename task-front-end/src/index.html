@@ -16,7 +16,14 @@
     -->
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <meta name="theme-color" content="#3f51b5" />
+    <!--
+      Two theme colours, because ADR-0015 has no toggle and `prefers-color-scheme` decides — one
+      unconditional value paints the browser's own chrome in the wrong theme for half the time. The
+      values are `--app-accent` and `--app-bg` from `styles.css`, and `pwa/manifest.spec.ts` reads
+      that file rather than these literals, so an accent change cannot leave them behind.
+    -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#3f51b5" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141317" />
     <!--
       No web fonts and no icon font, deliberately. ADR-0019 spends four inline SVG glyphs on the
       four verbs, so there is nothing to fetch; the type is the system stack. Both used to be
