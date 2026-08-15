@@ -45,7 +45,14 @@ export default defineConfig({
 
   reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : [['list']],
 
-  timeout: 90_000,
+  /**
+   * Longer than it looks like it needs to be, and for a stated reason.
+   *
+   * A test here may wait out the outbox's 60-second retry cap twice over — see `SYNCED` in
+   * `e2e/app.ts`. A timeout under that budget does not make the suite faster, it makes it report a
+   * conforming client as a broken one.
+   */
+  timeout: 300_000,
 
   use: {
     baseURL: 'http://localhost:4200',

@@ -57,11 +57,17 @@ export async function openWitness(browser: Browser): Promise<Page> {
 /**
  * How long a patch is given to cross the wire.
  *
- * Generous, and deliberately not the 90-second test timeout: the outbox retries with backoff, so a
- * write made while the radio was off can wait a few seconds for the next attempt before anything is
- * wrong. Short enough that a patch which is never coming still fails the test rather than the suite.
+ * **Derived, not picked.** `SyncService.MAX_BACKOFF_MS` is 60 seconds, so a stalled outbox can sit
+ * a full minute between attempts. Coming back online is *supposed* to cut that short —
+ * `SyncService` wakes the pump on the browser's `online` event — but that event is the one part of
+ * this the test harness emulates rather than causes, and on a loaded CI runner it does not always
+ * arrive. Then the queue drains on its own timer, and anything at or under 60 seconds fails a
+ * client that is behaving exactly as ADR-0004 says it should. This was measured: 60s was green on a
+ * laptop for a week and red on the runner.
+ *
+ * Twice the cap, so a wait that expires means the patch is not coming at all.
  */
-export const SYNCED = { timeout: 60_000 };
+export const SYNCED = { timeout: 120_000 };
 
 /** Types a name into the omnibox — *find*, the second of its three jobs (ADR-0014). */
 export async function typeToFind(page: Page, name: string): Promise<void> {
