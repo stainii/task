@@ -21,6 +21,14 @@ export const NOTIFICATION_PERMISSION = new InjectionToken<() => NotificationPerm
 );
 
 /**
+ * Why the 07:30 toggle is not doing what it was asked.
+ *
+ * `refused` is permanent until the user visits site settings; `unreachable` is weather. Collapsing
+ * the two is how a transient `503` comes to be reported as a browser permission problem.
+ */
+export type PushProblem = 'refused' | 'unreachable' | null;
+
+/**
  * **One device's registration for the 07:30 push**
  * ([ADR-0012](../../../../docs/adr/0012-one-push-at-0730-derived-not-stored.md)), and the repair
  * that keeps it alive.
@@ -63,18 +71,20 @@ export class PushService {
   readonly available = this.swPush.isEnabled;
 
   private readonly on = signal(false);
-  private readonly refused = signal(false);
+  private readonly wrong = signal<PushProblem>(null);
 
   /** Whether this device is registered for the 07:30 push right now. */
   readonly enabled = this.on.asReadonly();
 
   /**
-   * Permission was refused, so the toggle cannot be honoured from inside the app.
+   * Why the toggle is not doing what it was asked, or null while nothing is wrong.
    *
-   * The one case ADR-0012 says a banner is warranted for: everything else repairs itself silently,
-   * and this is the one thing only site settings can undo.
+   * **The two values are kept apart because they mean opposite things**, and they arrive at the
+   * same `catch`. *Only site settings can turn this back on* is true of a refusal and false of a
+   * `503`: it points at the wrong remedy, and it asserts something this client does not know —
+   * which is the shape ADR-0009 exists to refuse, arriving inside the feature that ADR is about.
    */
-  readonly blocked = this.refused.asReadonly();
+  readonly problem = this.wrong.asReadonly();
 
   /**
    * On every app open: re-send what this device holds, or quietly get it back.
@@ -91,16 +101,22 @@ export class PushService {
       // The server may have pruned this endpoint on a `410` since the last launch. Re-registering
       // is idempotent, and it is the only thing that would ever put the row back.
       await this.register(held);
-      this.on.set(true);
-      this.refused.set(false);
+      this.settle(true, null);
       return;
     }
 
-    if (this.permission() !== 'granted') {
-      // Revoked in site settings. Nothing here can undo that, and pretending otherwise by raising
-      // the prompt would spend a permission Chrome will not grant.
-      this.on.set(false);
-      this.refused.set(true);
+    const permission = this.permission();
+    if (permission === 'denied') {
+      // Revoked in site settings. Nothing here can undo that, and raising the prompt anyway would
+      // spend a permission Chrome will not grant.
+      this.settle(false, 'refused');
+      return;
+    }
+    if (permission !== 'granted') {
+      // `default` — the permission was cleared rather than denied, so Chrome will ask again. The
+      // toggle sitting off is the whole message: one tap re-prompts, where *only site settings can
+      // turn this back on* would send the author digging through a menu for nothing.
+      this.settle(false, null);
       return;
     }
 
@@ -126,8 +142,7 @@ export class PushService {
    */
   async disable(): Promise<void> {
     await this.store.setPushWanted(false);
-    this.on.set(false);
-    this.refused.set(false);
+    this.settle(false, null);
 
     const held = await firstValueFrom(this.swPush.subscription);
     if (held === null) {
@@ -140,23 +155,42 @@ export class PushService {
     ).catch(() => undefined);
   }
 
+  /**
+   * Fetch the key, subscribe, register — and **say which of those failed.**
+   *
+   * The distinction is not cosmetic. A refusal is permanent until the user visits site settings, so
+   * the answer is forgotten and repair stops asking. A server that will not hand out its key is
+   * weather: the answer is kept, so the next app open tries again — otherwise one `503` turns into
+   * a silent, permanent opt-out, which is the failure this feature's whole repair mechanism exists
+   * to prevent.
+   */
   private async subscribe(): Promise<void> {
+    let serverPublicKey: string;
     try {
-      const serverPublicKey = await firstValueFrom(
+      serverPublicKey = await firstValueFrom(
         this.http.get('/api/push-subscriptions/application-server-key', { responseType: 'text' }),
       );
+    } catch {
+      this.settle(false, 'unreachable');
+      return;
+    }
+
+    try {
       const subscription = await this.swPush.requestSubscription({ serverPublicKey });
       await this.register(subscription);
-      this.on.set(true);
-      this.refused.set(false);
+      this.settle(true, null);
     } catch {
-      // Either the permission was refused, or the server could not be reached to hand out its key.
-      // Both leave the device unsubscribed, and both are things the user has to see: a toggle that
-      // silently springs back is the *reports success it did not have* shape ADR-0009 is about.
-      this.on.set(false);
-      this.refused.set(true);
+      // The prompt was refused or dismissed. A toggle that silently springs back is the *reports
+      // success it did not have* shape ADR-0009 is about, so this is said out loud.
+      this.settle(false, 'refused');
       await this.store.setPushWanted(false);
     }
+  }
+
+  /** The two facts always move together, so they move in one place. */
+  private settle(on: boolean, problem: PushProblem): void {
+    this.on.set(on);
+    this.wrong.set(problem);
   }
 
   /**

@@ -164,7 +164,7 @@ describe('the push toggle', () => {
     // leave a client subscribing against the old one.
     expect(requested).toEqual([{ serverPublicKey: 'a-vapid-public-key' }]);
     expect(service().enabled()).toBe(true);
-    expect(service().blocked()).toBe(false);
+    expect(service().problem()).toBeNull();
   });
 
   it('reports a refused permission rather than a toggle that quietly did nothing', async () => {
@@ -175,8 +175,43 @@ describe('the push toggle', () => {
     await enabling;
 
     expect(service().enabled()).toBe(false);
-    expect(service().blocked()).toBe(true);
+    expect(service().problem()).toBe('refused');
     http.verify();
+  });
+
+  it('does not blame the browser for a server that would not hand out its key', async () => {
+    // These two failures land in the same place and mean opposite things. *Only site settings can
+    // turn this back on* is false after a `503`, points at the wrong remedy, and is precisely the
+    // *reporting something you do not know* shape ADR-0009 exists to refuse.
+    const enabling = service().enable();
+    await settle();
+    http
+      .expectOne('/api/push-subscriptions/application-server-key')
+      .flush('down', { status: 503, statusText: 'Service Unavailable' });
+    await enabling;
+
+    expect(service().enabled()).toBe(false);
+    expect(service().problem()).toBe('unreachable');
+  });
+
+  it('keeps trying at the next app open after the server was down', async () => {
+    // The repair only ever runs for a device that asked for push, so forgetting the answer because
+    // one request failed would turn a transient outage into a permanent opt-out with nothing said.
+    const enabling = service().enable();
+    await settle();
+    http
+      .expectOne('/api/push-subscriptions/application-server-key')
+      .flush('down', { status: 503, statusText: 'Service Unavailable' });
+    await enabling;
+
+    permission = 'granted';
+    const restoring = service().restore();
+    await answerTheKey();
+    await acceptTheRegistration();
+    await restoring;
+
+    expect(service().enabled()).toBe(true);
+    expect(service().problem()).toBeNull();
   });
 
   it('re-registers on every app open, because the server prunes what a push service calls gone', async () => {
@@ -230,7 +265,22 @@ describe('the push toggle', () => {
     await service().restore();
 
     expect(service().enabled()).toBe(false);
-    expect(service().blocked()).toBe(true);
+    expect(service().problem()).toBe('refused');
+    expect(requested).toEqual([]);
+    http.verify();
+  });
+
+  it('does not call a cleared permission a refusal', async () => {
+    // `default` is permission reset rather than denied — Chrome will prompt again. Saying *only
+    // site settings can turn this back on* would send the author digging through a menu for
+    // something one tap on the toggle would fix.
+    wantedHere();
+    permission = 'default';
+
+    await service().restore();
+
+    expect(service().enabled()).toBe(false);
+    expect(service().problem()).toBeNull();
     expect(requested).toEqual([]);
     http.verify();
   });

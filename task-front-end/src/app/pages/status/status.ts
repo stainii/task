@@ -48,7 +48,7 @@ export class Status {
 
   protected readonly pushAvailable = this.push.available;
   protected readonly pushEnabled = this.push.enabled;
-  protected readonly pushBlocked = this.push.blocked;
+  protected readonly pushProblem = this.push.problem;
 
   /**
    * The tap is the gesture the permission prompt needs, so this may not be moved behind anything

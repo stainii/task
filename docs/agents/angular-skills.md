@@ -12,20 +12,22 @@ schematic sweep would only churn formatting.**
 **Kept current with the code, on purpose.** A compliance snapshot that has quietly gone stale is
 this project's recurring shape — a gate that still reports success after it stopped describing
 anything — so a ticket that adds a component or an effect updates the counts below with it. Last
-moved by [#61](https://github.com/stainii/task/issues/61), which added the templates list, the
-authoring screen and the shared undo toast.
+moved by [#63](https://github.com/stainii/task/issues/63), which gave `/status` a real screen — a
+template file and a stylesheet where there had been an inline placeholder — and put ADR-0009's two
+banners in the shell.
 
 ## What was checked
 
-Angular 22, zoneless (no `zone.js` dependency at all), 13 components.
+Angular 22, zoneless (no `zone.js` dependency at all), 12 components. (The count read **13** until
+#63 recounted it and found 12 — this note's own warning, arriving on schedule.)
 
 | Guidance                                      | State                                                                    |
 | --------------------------------------------- | ------------------------------------------------------------------------ |
 | Standalone components                         | Zero `NgModule`; zero vestigial `standalone: true`                       |
-| Native control flow                           | 62 uses of `@if`/`@for`/`@switch`; zero `*ngIf`/`*ngFor`/`ngClass`/`ngStyle` |
+| Native control flow                           | 70 uses of `@if`/`@for`/`@switch`, including `@else if` on `/status`'s two push failures; zero `*ngIf`/`*ngFor`/`ngClass`/`ngStyle` |
 | `input()` / `output()`                        | Used throughout; zero `@Input`/`@Output`/`EventEmitter`                  |
 | `inject()`                                    | All DI; no constructor-parameter injection                               |
-| `ChangeDetectionStrategy.OnPush`              | All 13 components                                                        |
+| `ChangeDetectionStrategy.OnPush`              | All 12 components                                                        |
 | Signals for state                             | `computed`/`signal` throughout, plus `linkedSignal`, `resource`, `untracked`, `PendingTasks` |
 | Effects for side effects only                 | Exactly 5, all genuinely imperative (navigation; four store re-reads)    |
 | `provideHttpClient` + functional interceptors | `src/app/app.config.ts`                                                  |

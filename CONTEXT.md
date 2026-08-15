@@ -436,9 +436,15 @@ Resolved in [#9](https://github.com/stainii/task/issues/9),
 that device and grant permission; deleted by the server when the push service answers `410 Gone`. One
 row per device, all of them sent to.
 
-It is the **only** thing this app persists about notifications. There is no notification entity, no
-inbox and no read state: a notification is a projection of the tasks due that day, computed at 07:30
-and not remembered.
+It is the **only** thing the *server* persists about notifications. There is no notification entity,
+no inbox and no read state: a notification is a projection of the tasks due that day, computed at
+07:30 and not remembered.
+
+The client keeps one fact of its own — **whether this device asked for push** — and it is not
+redundant with the subscription. Notification permission survives the toggle being turned off, so
+*permission is granted* cannot be what triggers the silent re-subscribe; without the stored answer a
+device that deliberately went quiet would turn itself back on at the next launch. Found by
+[#63](https://github.com/stainii/task/issues/63) while building the toggle.
 
 Resolved in [#34](https://github.com/stainii/task/issues/34),
 [ADR-0012](docs/adr/0012-one-push-at-0730-derived-not-stored.md).

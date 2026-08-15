@@ -31,7 +31,7 @@ describe('the status screen', () => {
   let backEndBuiltAt: string | null;
   let pushAvailable: boolean;
   let pushEnabled: ReturnType<typeof signal<boolean>>;
-  let pushBlocked: ReturnType<typeof signal<boolean>>;
+  let pushProblem: ReturnType<typeof signal<'refused' | 'unreachable' | null>>;
   let pushCalls: string[];
   let loggedOut: number;
 
@@ -42,7 +42,7 @@ describe('the status screen', () => {
     backEndBuiltAt = '2026-08-14T02:14:00Z';
     pushAvailable = true;
     pushEnabled = signal(false);
-    pushBlocked = signal(false);
+    pushProblem = signal<'refused' | 'unreachable' | null>(null);
     pushCalls = [];
     loggedOut = 0;
 
@@ -74,7 +74,7 @@ describe('the status screen', () => {
               return pushAvailable;
             },
             enabled: pushEnabled,
-            blocked: pushBlocked,
+            problem: pushProblem,
             enable: () => {
               pushCalls.push('enable');
               pushEnabled.set(true);
@@ -159,12 +159,22 @@ describe('the status screen', () => {
   });
 
   it('says permission was refused rather than springing the toggle back in silence', async () => {
-    pushBlocked.set(true);
+    pushProblem.set('refused');
     const screen = await render();
 
     // The one push failure a human has to act on. Everything else repairs itself from the client,
     // and only site settings can undo this one.
     expect(screen.querySelector('.push-blocked')?.textContent).toContain('site settings');
+  });
+
+  it('does not blame the browser when the server was the one that could not be reached', async () => {
+    pushProblem.set('unreachable');
+    const screen = await render();
+
+    // Sending the reader into site settings for a `503` is worse than saying nothing: it is a
+    // confident answer to the wrong question, on the screen whose whole job is telling the truth.
+    expect(screen.querySelector('.push-blocked')).toBeNull();
+    expect(screen.querySelector('.push-unreachable')?.textContent).toContain('server');
   });
 
   it('says so plainly where no push can arrive at all', async () => {

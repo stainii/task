@@ -35,13 +35,20 @@
       <span>Tell me at 07:30 what is due today</span>
     </label>
 
-    @if (pushBlocked()) {
-      <!--
-        The one push failure a human has to act on. Chrome will not re-prompt after a denial, so
-        saying "try again" would be a lie; only site settings can undo it.
-      -->
+    <!--
+      Two failures, two sentences, because they need opposite things from the reader. Chrome will
+      not re-prompt after a denial, so "try again" would be a lie there; a server that would not
+      hand out its key is weather, and "only site settings can turn it back on" would send the
+      reader digging through a menu for something that fixes itself.
+    -->
+    @if (pushProblem() === 'refused') {
       <p class="push-blocked" role="alert">
         This browser refused notification permission. Only site settings can turn it back on.
+      </p>
+    } @else if (pushProblem() === 'unreachable') {
+      <p class="push-unreachable" role="alert">
+        The server could not be reached to set this up. Nothing is wrong with this device — try
+        again once it is back.
       </p>
     }
   } @else {

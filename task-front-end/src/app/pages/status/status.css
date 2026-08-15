@@ -60,6 +60,7 @@ h2 {
 }
 
 .push-blocked,
+.push-unreachable,
 .push-unavailable,
 .store-unavailable {
   margin: 10px 0 0;
