@@ -1,0 +1,379 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #58.
+  "A context card carries a count and a badge. Where does a SLEEPING task go?"
+
+  ANSWERED — 2026-08-16. The author chose variant 1, AND reversed the rule underneath it.
+
+  ADR-0015 said the overdue badge COUNTS sleeping tasks — the honesty valve for postpone.
+  The author reversed that: the badge counts STARTED TASKS ONLY, and nothing replaces the
+  valve. A card that claims `1 overdue` over a context containing no overdue row is a card
+  that does not survive being clicked, and pressure you learn to distrust is not pressure.
+  Postpone is now deliberately unmitigated. ADR-0015 and CONTEXT.md are amended.
+
+  Declined on the way, recorded so they are not re-proposed: "2 open · 3 asleep" in the
+  header; "2 overdue · 1 asleep" as a subset inside the badge; and the "what comes after"
+  line naming the soonest sleeper. All three turn postponing into a number, which is the
+  `postponeCount` ADR-0015 refused twice arriving through the UI instead of a column.
+
+  SECOND QUESTION — also answered: variant 1, the BASELINE. Nothing on the card marks a
+  sleeping task at all. The count stays a true total (the author's call: a count that is
+  not a total is not a count), the bar draws everything, and the "what comes next" line
+  will happily name a sleeper. The badge is the ONLY part scoped to started work, because
+  it is the only part making a claim about urgency.
+    1  DECIDED        — bar unchanged; nothing on the card says one of the four is asleep.
+    2  Declined       — a separate thinner bar beneath, one segment per sleeper.
+    3  Declined       — one bar; sleeping segments keep their bucket colour, at low opacity.
+    4  Declined       — one bar; sleepers go purple.
+
+  Two findings from drawing 2-4, both folded into ADR-0015:
+    * a fifth colour destroys the bar — a purple segment cannot say focus vs back-burner,
+      which is ADR-0015:128's objection holding INSIDE the card, not just against it;
+    * a second bar must share the first one's scale, or one sleeper flexes to full width
+      and a single postponed task reads as a crisis. That artefact nearly decided the
+      question on its own.
+
+  Three scenarios, because the variants only separate under load:
+    normal    — a bit of everything
+    all-asleep— a context whose every task is postponed
+    collision — overdue AND asleep in the same context
+
+  Light theme only: the question is structure, not colour.
+  DELETE ME once #58 is built and this is captured on its throwaway branch.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — context card &amp; the sleeping task</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --cancel: #c62828; --sleep: #6d5bbd;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 40px;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+
+  /* prototype scaffolding — deliberately ugly, not part of the design */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--line);
+    padding: 8px 20px; font-size: 12px; color: var(--muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    position: sticky; top: 45px; z-index: 5;
+  }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  main { max-width: 1500px; margin: 0 auto; padding: 20px; }
+
+  .note {
+    background: #fffbe6; border: 1px solid #f0e2a8; border-radius: 8px;
+    padding: 10px 13px; font-size: 13px; margin: 0 0 18px; color: #6b5b12;
+  }
+  .note b { color: #4a3f08; }
+
+  /* ---- the card row ---- */
+  .strip {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px; margin-bottom: 22px;
+  }
+  .ctxcard {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 8px;
+  }
+  .ctxcard:hover { border-color: var(--accent); }
+  .ctxcard.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(63,81,181,.14); }
+  .ctxcard > header { display: flex; align-items: baseline; gap: 8px; }
+  .ctxcard h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .ctxcard .count { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .ctxcard .alarm { font-size: 12px; color: var(--cancel); font-weight: 600; }
+  .ctxcard .todaycount { font-size: 12px; color: var(--ink); font-weight: 600; }
+  .ctxcard .asleep { font-size: 12px; color: var(--sleep); font-weight: 600; }
+  .ctxcard .spark { display: flex; gap: 3px; height: 6px; }
+  .ctxcard .spark i { flex: 1; border-radius: 2px; }
+  .ctxcard .spark i.none { background: var(--line); }
+  .ctxcard .spark i.gap { background: transparent; }
+  .ctxcard .sleepbar { height: 4px; margin-top: -3px; }
+  .ctxcard .sleepbar i { background: var(--sleep); opacity: .45; }
+  .ctxcard .sleepbar i.gap { background: transparent; }
+  .ctxcard .after { font-size: 12px; color: var(--muted); }
+  .ctxcard .after .q { font-style: italic; }
+  .ctxcard .after .sleepword { color: var(--sleep); }
+
+  /* ---- the bands below, so a card can be caught lying ---- */
+  .scope {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 14px;
+    font-size: 14px;
+  }
+  .scope .clear {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+    padding: 3px 11px; font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  h2.band {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .row {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  }
+  .row .bucket { width: 4px; align-self: stretch; border-radius: 2px; }
+  .row .n { flex: 1; font-size: 14px; }
+  .row .when { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .row .when.over { color: var(--cancel); font-weight: 600; }
+  .row .when.sleep { color: var(--sleep); }
+  .foldbar {
+    width: 100%; text-align: left; border: 1px dashed #c9c8d2; background: transparent;
+    border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 13px;
+    color: var(--muted); cursor: pointer; margin-bottom: 20px;
+  }
+  .empty { color: var(--muted); font-style: italic; }
+</style>
+</head>
+<body>
+
+<header class="app"><h1>task</h1></header>
+
+<div id="rig">
+  <span class="grp"><b>variant:</b>
+    <button data-v="1">1 decided — baseline</button>
+    <button data-v="2">2 declined — second bar</button>
+    <button data-v="3">3 declined — dimmed</button>
+    <button data-v="4">4 declined — fifth colour</button>
+  </span>
+  <span class="grp"><b>scenario:</b>
+    <button data-s="normal">normal</button>
+    <button data-s="asleep">all-asleep</button>
+    <button data-s="collision">collision</button>
+  </span>
+  <span id="what"></span>
+</div>
+
+<main>
+  <p class="note" id="note"></p>
+  <div class="strip" id="strip"></div>
+  <div id="bands"></div>
+</main>
+
+<script>
+// ---------------------------------------------------------------- data
+// dueIn: days from today (negative = overdue, null = no due date)
+// wakeIn: days until the start date arrives (0 or less = awake/started)
+const SCENARIOS = {
+  normal: [
+    { c: "house",   n: "Vacuum the living room",        dueIn: 0,    wakeIn: 0,  b: "fit-in" },
+    { c: "house",   n: "Renew bike insurance",          dueIn: 9,    wakeIn: 0,  b: "long-game" },
+    { c: "house",   n: "Onderhoud ketels",              dueIn: -62,  wakeIn: 4,  b: "focus" },
+    { c: "house",   n: "Descale the coffee machine",    dueIn: 21,   wakeIn: 0,  b: "back-burner" },
+    { c: "work",    n: "Write the quarter's review",    dueIn: -1,   wakeIn: 0,  b: "focus" },
+    { c: "work",    n: "Book the team offsite",         dueIn: 5,    wakeIn: 0,  b: "long-game" },
+    { c: "health",  n: "Book dentist appointment",      dueIn: 0,    wakeIn: 0,  b: "focus" },
+    { c: "health",  n: "Order new insoles",             dueIn: 12,   wakeIn: 0,  b: "fit-in" },
+    { c: "setlist", n: "Learn the bridge of Waltz #2",  dueIn: null, wakeIn: 0,  b: "long-game" },
+    { c: "social",  n: "Ring Oma",                      dueIn: 2,    wakeIn: 0,  b: "focus" }
+  ],
+  asleep: [
+    { c: "house",   n: "Onderhoud ketels",              dueIn: -62,  wakeIn: 4,  b: "focus" },
+    { c: "house",   n: "Fix the shed door",             dueIn: 8,    wakeIn: 3,  b: "fit-in" },
+    { c: "house",   n: "Sort the loft",                 dueIn: 30,   wakeIn: 11, b: "back-burner" },
+    { c: "house",   n: "Repaint the hallway",           dueIn: null, wakeIn: 6,  b: "long-game" },
+    { c: "work",    n: "Write the quarter's review",    dueIn: -1,   wakeIn: 0,  b: "focus" },
+    { c: "health",  n: "Book dentist appointment",      dueIn: 0,    wakeIn: 0,  b: "focus" },
+    { c: "social",  n: "Ring Oma",                      dueIn: 2,    wakeIn: 0,  b: "focus" }
+  ],
+  collision: [
+    { c: "house",   n: "Bleed the radiators",           dueIn: -3,   wakeIn: 0,  b: "focus" },
+    { c: "house",   n: "Onderhoud ketels",              dueIn: -62,  wakeIn: 4,  b: "focus" },
+    { c: "house",   n: "Fix the shed door",             dueIn: 8,    wakeIn: 3,  b: "fit-in" },
+    { c: "house",   n: "Sort the loft",                 dueIn: 30,   wakeIn: 11, b: "back-burner" },
+    { c: "house",   n: "Vacuum the living room",        dueIn: 0,    wakeIn: 0,  b: "fit-in" },
+    { c: "work",    n: "Write the quarter's review",    dueIn: -1,   wakeIn: 0,  b: "focus" },
+    { c: "work",    n: "Chase the invoice",             dueIn: -8,   wakeIn: 2,  b: "focus" },
+    { c: "health",  n: "Book dentist appointment",      dueIn: 0,    wakeIn: 0,  b: "focus" },
+    { c: "setlist", n: "Learn the bridge of Waltz #2",  dueIn: null, wakeIn: 0,  b: "long-game" },
+    { c: "social",  n: "Ring Oma",                      dueIn: 2,    wakeIn: 0,  b: "focus" }
+  ]
+};
+
+const NOTES = {
+  1: "<b>1 — DECIDED: the bar is untouched.</b> <em>house</em> counts <b>4</b>, and nothing anywhere says that one of the four is asleep. This is the state the second question exists to fix — look at <b>all-asleep</b>, where the card counts 4 over a context with no reachable work at all and the bar looks exactly like a busy context.",
+  2: "<b>2 — A second bar.</b> The importance bar keeps meaning <em>exactly one thing</em> and holds started tasks only; sleepers get a thin bar of their own beneath it. No collision with ADR-0015:128, because it is a different element rather than a new word in the same vocabulary. Cost: a second graphical element on a 210px card, and it says nothing about <em>how</em> asleep — one segment is one task, whether it wakes tomorrow or in three weeks.",
+  3: "<b>3 — Dimmed segments.</b> One bar. Sleeping tasks keep their real bucket colour at low opacity, so the bar still means importance and the <em>treatment</em> means asleep — colour and state stay on separate channels. Cost: dimming is easy to miss on a phone in daylight, and it competes with the grey <em>back-burner</em> bucket, which is already the quiet one.",
+  4: "<b>4 — A fifth colour.</b> Sleepers go purple. Read it against <b>collision</b>: <em>house</em>'s bar now says two of five are purple, and the bar has stopped being an importance bar — a purple segment tells you nothing about whether the sleeping task is a <em>focus</em> or a <em>back-burner</em>. This is ADR-0015:128's objection drawn rather than argued."
+};
+
+let variant = 1, scenario = "normal", entered = null;
+
+// ---------------------------------------------------------------- helpers
+const label = (d) =>
+  d === null ? "no due date" :
+  d === -1 ? "1 day overdue" :
+  d < 0 ? `${-d} days overdue` :
+  d === 0 ? "today" :
+  d === 1 ? "tomorrow" : `in ${d} days`;
+
+const wakeLabel = (w) =>
+  w === 1 ? "asleep until tomorrow" :
+  w <= 7 ? `asleep for ${w} days` : `asleep for ${w} days`;
+
+const awake  = (t) => t.wakeIn <= 0;
+const asleep = (t) => t.wakeIn > 0;
+const isDue  = (t) => t.dueIn !== null && t.dueIn <= 0;
+
+// ADR-0006's visible-work rule, scoped to started tasks by ADR-0015.
+function split(tasks) {
+  const started = tasks.filter(awake);
+  const notStarted = tasks.filter(asleep);
+  const due = started.filter(isDue);
+  const rest = started.filter((t) => !isDue(t));
+  const topUp = Math.max(0, 5 - due.length);
+  return { visible: [...due, ...rest.slice(0, topUp)], also: rest.slice(topUp), notStarted };
+}
+
+// ---------------------------------------------------------------- the card
+function card(ctx, mine) {
+  const sleepers  = mine.filter(asleep);
+  const awakeOnes = mine.filter(awake);
+  // DECIDED (#58): the badge counts STARTED tasks only. ADR-0015 had it counting sleepers as the
+  // honesty valve; the author reversed that, because a card must survive being clicked into.
+  // Variants 2-4 still compute over `mine` so the declined options remain drivable.
+  const over  = awakeOnes.filter((t) => t.dueIn !== null && t.dueIn < 0).length;
+  const today = awakeOnes.filter((t) => t.dueIn === 0).length;
+  const overAll = mine.filter((t) => t.dueIn !== null && t.dueIn < 0).length;
+
+  // The colour bar: importance buckets of the soonest six.
+  const soonest = mine.slice().sort((a, b) => (a.dueIn ?? 999) - (b.dueIn ?? 999)).slice(0, 6);
+  const seg = (t) => {
+    // Variant 2 pulls the sleepers out into a bar of their own, so the importance bar keeps
+    // meaning exactly one thing — but it holds their slot open so the two bars line up.
+    if (variant === 2 && asleep(t)) return `<i class="gap"></i>`;
+    if (variant === 3 && asleep(t)) return `<i style="background:var(--${t.b});opacity:.28"></i>`;
+    if (variant === 4 && asleep(t)) return `<i style="background:var(--sleep)"></i>`;
+    return `<i style="background:var(--${t.b})"></i>`;
+  };
+  const bars = soonest.map(seg).join("") || `<i class="none"></i>`;
+  // The two bars must share a scale, or one sleeper renders as a full-width underline and gets
+  // judged on the flexbox rather than on the idea. Same slot count as the main bar; the
+  // non-sleeping slots are held open and empty.
+  const sleepBar = (variant === 2 && sleepers.length)
+    ? `<div class="spark sleepbar" title="${sleepers.length} asleep">${
+        soonest.map((t) => asleep(t) ? `<i></i>` : `<i class="gap"></i>`).join("")}</div>`
+    : ``;
+
+  // "What comes next after the visible work" — the first thing NOT already on screen.
+  const { visible } = split(mine);
+  const shown = new Set(visible.map((t) => t.n));
+  const queue = mine.filter((t) => !shown.has(t.n))
+    .sort((a, b) => (a.dueIn ?? 999) - (b.dueIn ?? 999));
+  const next = queue[0];
+  const nextSleeper = queue.find(asleep);
+
+  let badge = "", count = "", after = "";
+
+  // SETTLED and identical across all four: the badge counts started tasks only; the count is
+  // the true total of everything open in the context. Only the bar differs below.
+  badge = over ? `<span class="alarm">${over} overdue</span>`
+        : today ? `<span class="todaycount">${today} today</span>` : ``;
+  count = `<span class="count">${mine.length}</span>`;
+  after = next ? `next: ${next.n} · ${label(next.dueIn)}`
+               : `<span class="q">nothing pending</span>`;
+
+  return `
+    <div class="ctxcard ${entered === ctx ? "active" : ""}" data-ctx="${ctx}">
+      <header><h3>${ctx}</h3>${badge}${count}</header>
+      <div class="spark">${bars}</div>
+      ${sleepBar}
+      <div class="after">${after}</div>
+    </div>`;
+}
+
+// ---------------------------------------------------------------- the bands
+function rowHTML(t, sleeping) {
+  const cls = sleeping ? "sleep" : (t.dueIn !== null && t.dueIn < 0 ? "over" : "");
+  const text = sleeping ? `${label(t.dueIn)} · ${wakeLabel(t.wakeIn)}` : label(t.dueIn);
+  return `<div class="row">
+      <span class="bucket" style="background:var(--${t.b})"></span>
+      <span class="n">${t.n}</span>
+      <span class="when ${cls}">${text}</span>
+    </div>`;
+}
+
+function bands(tasks) {
+  const { visible, also, notStarted } = split(tasks);
+  if (!visible.length && !also.length && !notStarted.length) {
+    return `<p class="empty">Relax! Nothing else to do.</p>`;
+  }
+  const dueCount = visible.filter(isDue).length;
+  const title = dueCount > 5 ? `Due today — all ${dueCount}, the cap does not apply`
+              : dueCount ? `Due today` : `Next up`;
+  let html = "";
+  // `Relax!` needs BOTH the day's work and the folds empty (overview.ts:138). With everything
+  // asleep there is no due band at all — just the fold bar.
+  if (visible.length) {
+    html += `<h2 class="band">${title}</h2><div class="grid">${visible.map((t) => rowHTML(t, false)).join("")}</div>`;
+  }
+  if (also.length) html += `<button class="foldbar">Also… (${also.length})</button>`;
+  if (notStarted.length) html += `<button class="foldbar">Starting in the future… (${notStarted.length})</button>`;
+  return html;
+}
+
+// ---------------------------------------------------------------- paint
+function paint() {
+  const all = SCENARIOS[scenario];
+  const contexts = [...new Set(all.map((t) => t.c))];
+
+  document.getElementById("note").innerHTML = NOTES[variant];
+  document.getElementById("strip").innerHTML =
+    contexts.map((c) => card(c, all.filter((t) => t.c === c))).join("");
+
+  const shown = entered ? all.filter((t) => t.c === entered) : all;
+  const scope = entered
+    ? `<div class="scope"><strong>${entered}</strong> — ${shown.filter(awake).length} open
+         <button class="clear">← everything</button></div>`
+    : ``;
+  document.getElementById("bands").innerHTML = scope + bands(shown);
+
+  document.querySelectorAll("#rig button[data-v]").forEach((b) =>
+    b.classList.toggle("on", +b.dataset.v === variant));
+  document.querySelectorAll("#rig button[data-s]").forEach((b) =>
+    b.classList.toggle("on", b.dataset.s === scenario));
+
+  document.querySelectorAll(".ctxcard").forEach((c) =>
+    c.addEventListener("click", () => {
+      entered = entered === c.dataset.ctx ? null : c.dataset.ctx;
+      paint();
+    }));
+  const clear = document.querySelector(".scope .clear");
+  if (clear) clear.addEventListener("click", (e) => { e.stopPropagation(); entered = null; paint(); });
+}
+
+document.querySelectorAll("#rig button[data-v]").forEach((b) =>
+  b.addEventListener("click", () => { variant = +b.dataset.v; paint(); }));
+document.querySelectorAll("#rig button[data-s]").forEach((b) =>
+  b.addEventListener("click", () => { scenario = b.dataset.s; paint(); }));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight") { variant = variant === 4 ? 1 : variant + 1; paint(); }
+  if (e.key === "ArrowLeft")  { variant = variant === 1 ? 4 : variant - 1; paint(); }
+});
+
+paint();
+</script>
+</body>
+</html>

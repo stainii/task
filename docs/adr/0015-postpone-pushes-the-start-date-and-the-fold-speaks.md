@@ -161,6 +161,10 @@ space saving; it is the thing that stops the screen showing more work than you c
   `house — 3 overdue` stays true while the rows sleep. This is the honesty valve that makes postpone
   a deferral rather than a hiding place.
 
+  > **Reversed by [#58](https://github.com/stainii/task/issues/58).** The badge counts **started
+  > tasks only**, and postpone has no mitigation at all. See *The honesty valve is removed, and
+  > postpone is deliberately unmitigated* below.
+
 ### Rejected: a keyboard layer
 
 Proposed as the answer to ADR-0006's desktop-efficiency requirement and **rejected by the author**:
@@ -180,6 +184,11 @@ maintain forever, for a single-user app that is primarily a phone in a hand.
   `postponeCount` field was considered twice and refused twice; if dogfooding
   ([#39](https://github.com/stainii/task/issues/39)) shows a real postpone-forever loop, the cheapest
   fix is a string change in the 07:30 push, not a column.
+
+  > **Amended by [#58](https://github.com/stainii/task/issues/58).** There is now **no** mitigation —
+  > the badge no longer counts sleepers and nothing replaced it. `postponeCount` stays refused, but
+  > the reason it was safe to refuse has gone, so [#39](https://github.com/stainii/task/issues/39) is
+  > the only thing standing between a postpone-forever loop and nobody noticing.
 - The task create/edit screen becomes a tracked ticket rather than an assumption, and it is on the
   critical path to cutover for the same reason
   [#36](https://github.com/stainii/task/issues/36) is.
@@ -221,3 +230,66 @@ replaces it with **`Tomorrow / In 3 days / Next week`** in the panel, and the sa
 **`Today`** on the task edit screen — because 1,210 of the 3,726 pushes set the start date to the
 current day, which is a task being pulled *back* into the day's work and which postpone, moving
 forward only, cannot express.
+
+### The honesty valve is removed, and postpone is deliberately unmitigated
+
+Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
+2026-08-16.
+
+**A context card's badge counts started tasks only.** A sleeping task — one whose *ask me from* has
+not arrived — is not counted as overdue anywhere on the card, however late its due date is. This
+reverses *Context card badges count sleeping tasks* above, and it is **the author's ruling**, taken
+against the recommendation.
+
+**The badge is the only part of the card that is scoped that way.** The count stays a true total of
+everything open in the context, the six-segment bar keeps drawing all of them, and the *what comes
+next* line names the genuinely soonest task whether or not it is asleep. So `house · 4` over three
+reachable rows is the intended reading: a count that is not a total is not a count, and the card
+describes the context, not the subset of it you can act on today. Only the **badge** makes a claim
+about urgency, and only that claim has to survive being clicked into.
+
+The reason the badge was kept was that a card is a pressure surface. The reason it goes is that it
+is also a **description**: `house — 1 overdue` above a context you can click into and find nothing
+overdue in is a card that does not survive being checked. The ADR defended the badge as the thing
+that keeps postpone honest and never considered that the badge itself has to stay believable —
+pressure you learn to distrust is not pressure, so the valve was at risk of defeating itself. Both
+halves are true; the author weighed them and chose the believable card.
+
+**Nothing replaces it, and the card gains nothing to compensate.** Seven candidates were put up and
+all seven declined, which is worth listing because each will otherwise be re-proposed by whoever
+next notices that a postponed task can vanish: the fold bar carrying the fact instead; a softened
+fourth badge state (`1 waiting`); a split count (`2 open · 3 asleep`); a subset inside the badge
+(`2 overdue · 1 asleep`); the *what comes next* line naming the soonest sleeper; a second colour bar
+for sleeping tasks; and dimming the sleeping segments of the existing bar. **Postpone is unmitigated
+on purpose** — recorded as a decision so nobody later reads it as a gap and quietly plugs it.
+
+The last three were **built and driven** rather than argued
+(`task-front-end/prototypes/PROTOTYPE-context-card-sleeping.html`), and two findings came out of
+drawing them:
+
+- **A fifth colour in the six-segment bar destroys the bar**, confirming this ADR's own objection at
+  *The collapsed band says what is behind the door*. With two of five segments purple, the bar has
+  stopped saying anything about importance — a purple segment cannot tell you whether the sleeping
+  task is a `focus` or a `back-burner`, and in the driven case it was one of each. The objection was
+  recorded there about stripes on a **fold bar**; it turns out to hold just as hard *inside* the card
+  bar, which is a stronger claim than the original made.
+- **A second bar has to share the first one's scale**, or it decides the question by accident. The
+  first cut let the sleep bar flex to fill the card, so one postponed task rendered as a full-width
+  underline — a single sleeper looking like a crisis. Any future *add a second indicator* proposal
+  inherits this trap.
+
+What this costs, stated plainly so the trade is not rediscovered:
+
+- **A sufficiently postponed task is invisible as *urgent* from the overview.** `Onderhoud ketels`,
+  62 days overdue and asleep, raises no badge and appears in no band; it is still inside the card's
+  count and can still be the name on the *what comes next* line, but nothing says it is late. The
+  only surface that says so is `Starting in the future…`, behind a fold, inside a context you have to
+  enter. *The app stops asking, it does not stop knowing* still holds — but the knowing is now two
+  clicks deep rather than one glance.
+- **`postponeCount` loses the argument that killed it.** It was refused twice on the grounds that
+  the badge already did the job. The field stays refused, but that reason is now void; if it is
+  raised a third time it must be argued on its own merits.
+- **[#39](https://github.com/stainii/task/issues/39) becomes the only detector.** Dogfooding on
+  throwaway data is where a postpone-forever loop would surface, and there is no longer anything on
+  the screen that would surface it first. The cheapest fix remains a string change in ADR-0012's
+  07:30 push, not a column.

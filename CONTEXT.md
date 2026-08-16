@@ -324,6 +324,25 @@ task produces, and 40% of the author's real tasks look like it. Nothing validate
 Resolved in [#42](https://github.com/stainii/task/issues/42),
 [ADR-0018](docs/adr/0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md).
 
+### Sleeping
+
+**A task whose *ask me from* has not arrived.** It is not visible work, whatever its due date says,
+and it lives in the `Starting in the future…` band. Usually it got there by being **postponed**, but
+a task can be born asleep — an *ask me from* set at creation does the same thing.
+
+The word is informal and appears nowhere a user can see it. It exists because *not started yet* is
+the band's name and reads like a status, which sleeping is not: nothing is stored, no column changes
+meaning, and the task wakes by the calendar reaching its date rather than by anything acting on it.
+
+A sleeping task **keeps its true overdue count** — it is not counted as overdue anywhere on a context
+card, but the row itself still says `62 days overdue` when you open the fold. It is otherwise an
+ordinary member of its context: inside the card's count, inside the card's colour bar, and eligible
+to be the name on the card's *what comes next* line. Only the **overdue badge** excludes it. That
+split is deliberate; see **postpone**.
+
+Named in [ADR-0015](docs/adr/0015-postpone-pushes-the-start-date-and-the-fold-speaks.md), defined
+here in [#58](https://github.com/stainii/task/issues/58).
+
 ### Importance bucket
 
 **One of four names for the quadrant a task falls in**, computed in the front end from importance ×
@@ -361,8 +380,11 @@ never touched, so a postponed task keeps its true overdue count and comes back s
 stops asking, it does not stop knowing.
 
 Postponing writes an ordinary patch on an ordinary column. It is not a status, not a counter and not
-a record of its own: how often a task has been pushed is deliberately not stored. What keeps it
-honest is that **context cards count sleeping tasks in their overdue badge**.
+a record of its own: how often a task has been pushed is deliberately not stored. **Nothing keeps it
+honest, and that is deliberate** — a context card's badge counts **started tasks only**, so a
+sufficiently postponed task appears on no card and in no band. It is reachable, and still carries its
+true overdue count, only inside `Starting in the future…`. Postpone is trusted; if that turns out to
+be wrong, [#39](https://github.com/stainii/task/issues/39) is what finds out.
 
 Offered as `Tomorrow · In 3 days · Next week`, measured against six years of real pushes rather than
 guessed. The un-postpone lives on the edit dialog as **ask me from**'s `Today`.
