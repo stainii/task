@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { routes } from '../../app.routes';
 import { NOW } from '../../clock';
+import { RANDOM } from '../../random';
 import { Task } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
 import { TaskTemplate } from '../../domain/template';
@@ -14,6 +15,10 @@ import { TemplateService } from '../../sync/templates';
 import { TemplateAuthoring } from './template-authoring';
 
 const NOW_AT = new Date('2026-08-14T10:00:00Z');
+
+/** A different fraction on every call, so *picked once* is something a test can tell apart. */
+let drawn = 0;
+const picks = () => [0, 0.5, 0.75][drawn++ % 3];
 
 /**
  * **One screen, and the trigger is the first field on it** (ADR-0013).
@@ -93,6 +98,7 @@ beforeEach(() => {
   heldTemplates = [];
   heldTasks = [];
   saved = null;
+  drawn = 0;
   writable.set(true);
   vi.clearAllMocks();
   TestBed.configureTestingModule({
@@ -103,6 +109,7 @@ beforeEach(() => {
       // reads green, so a spec that navigates has to be able to arrive.
       provideRouter(routes),
       { provide: NOW, useValue: () => NOW_AT },
+      { provide: RANDOM, useValue: picks },
       {
         provide: LocalStore,
         useValue: {
@@ -116,6 +123,25 @@ beforeEach(() => {
 });
 
 describe('a new template', () => {
+  /**
+   * FE-034, the last surviving row of portal's `funny-details/`.
+   *
+   * `picks` hands out a *different* fraction each time it is called, which is what makes the second
+   * half of this an assertion rather than a coincidence: the word is chosen once for the visit, so a
+   * placeholder that re-picked on every change detection — an ordinary `computed` in the template
+   * would — flickers a new word at you as you type, and against a fixed value it would still read
+   * green.
+   */
+  it('offers a name with a personality, and keeps it while you type', async () => {
+    await open('new');
+
+    expect(field('name').getAttribute('placeholder')).toBe('My outgoing template name');
+
+    await fill('context', 'house');
+
+    expect(field('name').getAttribute('placeholder')).toBe('My outgoing template name');
+  });
+
   it('starts as one you run by hand, with one task on it', async () => {
     await open('new');
 

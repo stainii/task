@@ -29,8 +29,10 @@ import {
   variablesOfDraft,
 } from '../../domain/template-draft';
 import { Ordinal } from '../../domain/template';
+import { RANDOM } from '../../random';
 import { LocalStore } from '../../store/local-store';
 import { TemplateService } from '../../sync/templates';
+import { templateNamePlaceholder } from '../../ui/adjectives';
 import { importanceLabel } from '../../ui/wording';
 
 /**
@@ -70,6 +72,14 @@ export class TemplateAuthoring {
   private readonly router = inject(Router);
   private readonly now = inject(NOW);
   private readonly pending = inject(PendingTasks);
+
+  /**
+   * *My crazy template name* (FE-034) — drawn **once**, here in a field initialiser, rather than in
+   * a `computed` the template re-reads. `RANDOM` is a plain function and not a signal, so a computed
+   * over it has nothing to invalidate; what it would do instead is re-run on the first change
+   * detection that touches it and flicker a new word at you while you type.
+   */
+  protected readonly namePlaceholder = templateNamePlaceholder(inject(RANDOM)());
 
   protected readonly IMPORTANCES = IMPORTANCES;
   protected readonly WEEKDAYS = WEEKDAYS;

@@ -19,6 +19,7 @@
     <input
       data-field="name"
       type="text"
+      [placeholder]="namePlaceholder"
       [value]="draft().name"
       (input)="editText('name', $event)"
     />
