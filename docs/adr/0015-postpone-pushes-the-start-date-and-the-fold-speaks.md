@@ -134,6 +134,12 @@ visual language would mean two different things one band apart.
 The fold itself survives at every width, for the same reason the cap does. A collapsed band is not a
 space saving; it is the thing that stops the screen showing more work than you can do.
 
+> **Narrowed by [#58](https://github.com/stainii/task/issues/58).** The words are for `Also…`.
+> `Starting in the future…` is **count-only**, because nothing that has not started is taken into
+> consideration by anything that speaks about urgency — and that band holds nothing else. The
+> prototype that settled the wording here also expired: it bands on `dueIn > 35`, the rule this ADR
+> itself replaced. See *Not-started tasks are not taken into consideration* below.
+
 ### The other accepted improvements
 
 - **The omnibox creates immediately.** ADR-0014's third option — *create a task with what you typed*
@@ -293,3 +299,45 @@ What this costs, stated plainly so the trade is not rediscovered:
   throwaway data is where a postpone-forever loop would surface, and there is no longer anything on
   the screen that would surface it first. The cheapest fix remains a string change in ADR-0012's
   07:30 push, not a column.
+
+### Not-started tasks are not taken into consideration, and that is one rule, not two
+
+Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
+2026-08-16.
+
+*The collapsed band says what is behind the door* gives a fold bar two facts — **is anything in
+there important**, and **when does the next one arrive**. Both are claims about work you could be
+doing. So:
+
+> A task that has not started is not taken into consideration by anything that speaks about
+> urgency.
+
+This is the **same rule** that took sleeping tasks off the context card's badge, stated once and
+applied everywhere, and it settles the fold bars without a second decision:
+
+- **`Also…` is unchanged** — `Also… (9) · nothing urgent · soonest in 5 days`. The band holds
+  started tasks by construction, so there is nothing in it to exclude.
+- **`Starting in the future…` becomes count-only** — `Starting in the future… (4)`. The band holds
+  *nothing but* not-started tasks, so under the rule there is nothing to consider and therefore
+  nothing to say.
+
+**This was reached by correcting the question, not by driving it.** The prototype that settled the
+original wording (`PROTOTYPE-wide-screen-fold.html`) bands on `dueIn > 35` — the far-off-**due**
+rule this very ADR replaced with `startDate > today` — so its third band held far-off tasks and its
+words were chosen against contents the real band does not have. Under the corrected banding its
+`soonest` term breaks outright: a sleeping task's due date is not the next thing that happens to it,
+and a 62-day-overdue sleeper would render `soonest 62 days overdue`, which is true, unreadable as a
+sentence, and no answer at all to *should I open this*. **A prototype can expire when the rule
+underneath it moves, and this one did without anyone noticing.**
+
+**A rejected variant returns for one band, and the reason is not the rejected one.** Count-only was
+one of the four driven here and lost to words. It returns for `Starting in the future…` **not**
+because words lost their argument — they did not — but because that band has no sayable content
+under the rule above. Words still win wherever there is something to say. Recorded explicitly so
+this does not read as the four-variant test being quietly re-litigated.
+
+**Consequence: nothing on the overview announces a sleeping overdue task.** With the badge already
+scoped to started work, the future band's bar was the last surface that could have. It does not, by
+the same rule. `Onderhoud ketels` is now visible as late only by opening the fold and reading its
+row — which is `62 days overdue` in full, so the fact is never lost, only never volunteered. This
+is the accepted cost of *the app stops asking*, and it is deliberate; see the amendment above.
