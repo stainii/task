@@ -158,6 +158,11 @@ Completions are the most common patch in the system, so "mark it on the task" fa
 it matters. The variant needed an inline mark *and* a band, degenerating into this decision plus
 extra machinery.
 
+> **Read this sentence carefully — [#58](https://github.com/stainii/task/issues/58)'s body did not.**
+> *"needed an inline mark and a band"* is the **reason the variant lost**, not a specification. The
+> band alone is the decision; no inline mark is built. See *A rejected-change row names the act and
+> the reason* below, which also fixes the band's contents.
+
 ### Everything is a route, and the route does not name the axis
 
 ```
@@ -255,3 +260,52 @@ either half. *Decided by recommendation:* the quiet half leads with the one long
 done, and a template never done leads them all — which is the reminding question in order. The firing
 half keeps the overview's own `byRank`, because a second answer to *what matters most today* one tab
 away from the first is how portal's comparator and its buckets came to disagree for years.
+
+### A rejected-change row names the act and the reason, in words, with no status code
+
+Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
+2026-08-16.
+
+*Rejected changes are a band on the overview* fixed the band's **position** and left its **contents**
+unspecified; `PROTOTYPE-failed-to-sync.html` had four placements to compare and never asked what a
+row says. A row is:
+
+> **Boeken tandarts voor Elise — marked complete**
+> Tuesday, offline. You completed it on this device, so it has already left your list.
+> `Fix and retry`  `Discard`
+
+**No HTTP status code.** Drawn rather than argued
+(`task-front-end/prototypes/PROTOTYPE-rejected-band-contents.html`), and the drawing produced a
+better reason than the one this ADR would have given. *Rejected (400)* is not merely diagnostics in
+a band defined as not-diagnostics — it is **constant**: a validation refusal is a 400 essentially
+always, so the code is a fixed phrase repeated on every row of a band whose entire job is to say
+what went wrong *this time*. It occupies the position the eye reaches first and carries no per-row
+information. The technical detail remains recoverable on `/status`
+([#63](https://github.com/stainii/task/issues/63)).
+
+**Accepted cost:** nothing on the overview now distinguishes *the server refused this* from *the
+server never received it*. That distinction lives on `/status` and in the queued indicator. Put to
+the author as the reason to keep the code, and declined.
+
+**The two verbs are words, not glyphs**, which is [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md)
+applied rather than excepted: a glyph is spent on a verb, and anything a glyph would have to
+*explain* is a fact that gets a word. Drawing the glyph variant found a collision the rule predicts
+but nobody had named — **the bin for *discard this change* sits one band above the glyph for
+*cancel this task*, two destructive icons of similar weight meaning entirely different things one
+band apart.** `Discard` also throws away something you believe you did, which is the maximum
+consequence in the app carried by the minimum affordance. This spends no new glyphs, leaving
+ADR-0019's roughly-a-dozen tripwire untouched at four.
+
+**The inline mark is not built, and [#58](https://github.com/stainii/task/issues/58)'s body was
+wrong about it.** That ticket reads *"It needs an inline mark **and** the band"*, which inverts this
+ADR: the sentence it summarises — *"The variant needed an inline mark and a band, degenerating into
+this decision plus extra machinery"* — is the **reason marking-on-the-task lost**, not a
+requirement. The prototype is the evidence: its variant 3 renders orphaned rejections in a band
+anyway, so it is this decision with a partial duplicate bolted on for the minority of rejections
+that still have a row. The band alone covers every case. #58's body is corrected.
+
+**`PROTOTYPE-failed-to-sync.html` has not expired**, unlike the fold prototype that
+[ADR-0015](0015-postpone-pushes-the-start-date-and-the-fold-speaks.md) invalidated. Its bands predate
+ADR-0015's start-date banding and its markup needs rebuilding, but the finding it carries is
+untouched by that: a rejected completion has no row because the task is **closed**, and ADR-0015
+gave sleeping tasks a home while correctly giving closed ones none.

@@ -1,0 +1,272 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #58.
+  "The rejected-changes band is decided. What goes IN a row of it?"
+
+  Placement is NOT in question: ADR-0014 put the band on the overview, above Due today,
+  and rejected marking the rejection on the task row. PROTOTYPE-failed-to-sync.html
+  settled that and this file does not re-open it. What that prototype never asked is what
+  a row of the band actually SAYS.
+
+  ANSWERED — 2026-08-16. Code HIDDEN, verbs as WORDS. Both recorded in ADR-0014,
+  *A rejected-change row names the act and the reason*. A row is:
+
+      Boeken tandarts voor Elise — marked complete
+      Tuesday, offline. You completed it on this device, so it has already left your list.
+      [Fix and retry]  [Discard]
+
+  Drawing it produced a better reason than the argument that preceded it: the status code
+  is not merely diagnostics, it is CONSTANT — a validation refusal is a 400 essentially
+  always — so it is a fixed phrase repeated on every row of a band whose whole job is to
+  say what went wrong THIS time, sitting where the eye lands first. And the glyph variant
+  exposed a collision the rule predicts but nobody had named: the bin for *discard this
+  change* sits one band above the glyph for *cancel this task*.
+
+  Accepted cost, put to the author and declined: nothing on the overview now separates
+  "the server refused this" from "the server never received it". That lives on /status.
+
+  Two independent toggles, because they are two independent decisions:
+
+    code   — does the HTTP status appear?
+             ADR-0014 put this band above the work on the grounds that a rejection is NOT
+             diagnostics: it is something you believe you did that did not happen. A status
+             code is the register of a log file. But "400" is also the only thing that
+             distinguishes "the server refused this" from "the server never heard of it".
+
+    verbs  — words or glyphs?
+             ADR-0019 spends glyphs on the four row verbs and sets a tripwire at roughly a
+             dozen. These two are rare and one of them throws away something you believe you
+             did. But the four row verbs are already glyphs one band below, so words here
+             make the two bands speak differently about buttons.
+
+  THE TWO CASES ARE NOT ALIKE, and this is ADR-0014's finding, reproduced here so no
+  wording gets chosen against the easy one alone:
+    * "Boeken tandarts voor Elise — marked complete" has NO task row anywhere. The
+      completion succeeded locally, the fold closed the task, and the overview does not
+      show closed tasks. The band is the only thing that can speak for it.
+    * "Offerte dakwerken opvolgen — created" still has its row in Due today below, because
+      ADR-0004's client renders from local storage. The band and the row coexist.
+
+  Light theme only: the question is wording, not colour.
+  DELETE ME once #58 is built and this is captured on its throwaway branch.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — what a rejected-change row says</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --reject: #c62828; --reject-bg: #fffafa; --reject-line: #f0b7b2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 40px;
+  }
+  header.app {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+
+  /* prototype scaffolding — deliberately ugly, not part of the design */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--line);
+    padding: 8px 20px; font-size: 12px; color: var(--muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    position: sticky; top: 45px; z-index: 5;
+  }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .note {
+    background: #fffbe6; border: 1px solid #f0e2a8; border-radius: 8px;
+    padding: 10px 13px; font-size: 13px; margin: 0 0 18px; color: #6b5b12;
+  }
+  .note b { color: #4a3f08; }
+
+  h2.band {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  h2.band.bad { color: var(--reject); }
+  h2.band .why { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+  /* ---- a rejected change ---- */
+  .rejcard {
+    background: var(--reject-bg); border: 1px solid var(--reject-line);
+    border-radius: 10px; padding: 11px 13px; margin-bottom: 8px;
+  }
+  .rejcard .n { font-size: 14px; font-weight: 600; }
+  .rejcard .why2 { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .rejcard .acts { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+  .rejcard button {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+    padding: 5px 13px; font: inherit; font-size: 13px; cursor: pointer; color: var(--ink);
+  }
+  .rejcard button.pri { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .rejcard button.glyph {
+    padding: 6px; border-radius: 999px; line-height: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .rejcard button.glyph svg { width: 19px; height: 19px; }
+  .rejcard button.glyph.pri { color: var(--accent); }
+  .rejcard button.glyph.danger { color: var(--reject); border-color: var(--reject-line); }
+
+  /* ---- the ordinary work below, so placement reads ---- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .row {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  }
+  .row .bucket { width: 4px; align-self: stretch; border-radius: 2px; }
+  .row .n { flex: 1; font-size: 14px; }
+  .row .when { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .row .when.over { color: var(--reject); font-weight: 600; }
+  .foldbar {
+    width: 100%; text-align: left; border: 1px dashed #c9c8d2; background: transparent;
+    border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 13px;
+    color: var(--muted); cursor: pointer;
+  }
+  .allsynced { color: var(--muted); font-style: italic; font-size: 13px; margin: 0 0 18px; }
+</style>
+</head>
+<body>
+
+<header class="app"><h1>task</h1></header>
+
+<div id="rig">
+  <span class="grp"><b>code:</b>
+    <button data-code="on">declined — show 400</button>
+    <button data-code="off">DECIDED — hide it</button>
+  </span>
+  <span class="grp"><b>verbs:</b>
+    <button data-verbs="words">DECIDED — words</button>
+    <button data-verbs="glyphs">declined — glyphs</button>
+  </span>
+  <span class="grp"><b>rejections:</b>
+    <button data-n="2">2</button>
+    <button data-n="1">1 (the orphan)</button>
+    <button data-n="0">0</button>
+  </span>
+</div>
+
+<main>
+  <p class="note" id="note"></p>
+  <div id="screen"></div>
+</main>
+
+<script>
+// The two rejections, and they are deliberately not alike — see the header comment.
+const REJ = [
+  {
+    id: "R1", name: "Boeken tandarts voor Elise", what: "marked complete",
+    when: "Tuesday, offline", code: "400",
+    // The orphan. No row exists anywhere; the band is the only thing that can speak for it.
+    why: "You completed it on this device, so it has already left your list.",
+    orphan: true
+  },
+  {
+    id: "R2", name: "Offerte dakwerken opvolgen", what: "created",
+    when: "Tuesday, offline", code: "400",
+    why: "No due date was set.",
+    orphan: false
+  }
+];
+
+// Ordinary work, so the band's placement above it can be read rather than described.
+const TASKS = [
+  { n: "Vacuum the living room", when: "today", b: "fit-in" },
+  { n: "Write the quarter's review", when: "1 day overdue", over: true, b: "focus" },
+  { n: "Offerte dakwerken opvolgen", when: "no due date", b: "long-game" },
+  { n: "Book dentist appointment", when: "today", b: "focus" },
+  { n: "Renew bike insurance", when: "in 9 days", b: "long-game" }
+];
+
+const GLYPH = {
+  retry: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
+  discard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+    stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>`
+};
+
+let showCode = "off", verbs = "words", n = 2;   // the decided combination
+
+const NOTES = () => {
+  const bits = [];
+  bits.push(showCode === "on"
+    ? "<b>Code shown.</b> <em>Rejected (400)</em> is the only thing on the row that distinguishes <em>the server refused this</em> from <em>the server never heard of it</em> — but it is also the register of a log file, in the one band ADR-0014 defined as <b>not</b> diagnostics."
+    : "<b>Code hidden.</b> The row says only what happened and what you can do about it. Everything technical is recoverable on <code>/status</code>, which #63 owns. Read the orphan row: does it still tell you enough to choose between the two buttons?");
+  bits.push(verbs === "words"
+    ? "<b>Words.</b> ADR-0019: anything a glyph would have to explain is a fact and gets a word — and <em>Discard</em> throws away something you believe you did."
+    : "<b>Glyphs.</b> Consistent with the four row verbs one band below, and cheaper horizontally. But a bare bin icon on a change you thought had already happened is a lot of consequence behind no word — and ADR-0019's tripwire is roughly a dozen glyphs, of which this would be five and six.");
+  if (n === 0) bits.push("<b>Nothing rejected.</b> The band vanishes entirely — ADR-0014 requires it to leave no trace, so the common case costs nothing.");
+  return bits.join(" ");
+};
+
+function acts(r) {
+  if (verbs === "glyphs") {
+    return `<div class="acts">
+      <button class="glyph pri" title="Fix and retry" aria-label="Fix and retry">${GLYPH.retry}</button>
+      <button class="glyph danger" title="Discard" aria-label="Discard">${GLYPH.discard}</button>
+    </div>`;
+  }
+  return `<div class="acts">
+    <button class="pri">Fix and retry</button>
+    <button>Discard</button>
+  </div>`;
+}
+
+function rejCard(r) {
+  const code = showCode === "on" ? `Rejected (${r.code}). ` : ``;
+  return `<div class="rejcard">
+    <div class="n">${r.name} — ${r.what}</div>
+    <div class="why2">${r.when}. ${code}${r.why}</div>
+    ${acts(r)}
+  </div>`;
+}
+
+function paint() {
+  const rej = REJ.slice(0, n);
+  const band = rej.length
+    ? `<h2 class="band bad">Not saved
+         <span class="why">— ${rej.length} ${rej.length === 1 ? "change" : "changes"} the server refused</span>
+       </h2>${rej.map(rejCard).join("")}`
+    : `<p class="allsynced">(no band at all — nothing is rejected)</p>`;
+
+  document.getElementById("note").innerHTML = NOTES();
+  document.getElementById("screen").innerHTML = `
+    ${band}
+    <h2 class="band" style="margin-top:22px">Due today</h2>
+    <div class="grid">${TASKS.map((t) => `
+      <div class="row">
+        <span class="bucket" style="background:var(--${t.b})"></span>
+        <span class="n">${t.n}</span>
+        <span class="when ${t.over ? "over" : ""}">${t.when}</span>
+      </div>`).join("")}</div>
+    <button class="foldbar">Also… (4) · nothing urgent · soonest in 5 days</button>`;
+
+  document.querySelectorAll("#rig button[data-code]").forEach((b) => b.classList.toggle("on", b.dataset.code === showCode));
+  document.querySelectorAll("#rig button[data-verbs]").forEach((b) => b.classList.toggle("on", b.dataset.verbs === verbs));
+  document.querySelectorAll("#rig button[data-n]").forEach((b) => b.classList.toggle("on", +b.dataset.n === n));
+}
+
+document.querySelectorAll("#rig button[data-code]").forEach((b) => b.addEventListener("click", () => { showCode = b.dataset.code; paint(); }));
+document.querySelectorAll("#rig button[data-verbs]").forEach((b) => b.addEventListener("click", () => { verbs = b.dataset.verbs; paint(); }));
+document.querySelectorAll("#rig button[data-n]").forEach((b) => b.addEventListener("click", () => { n = +b.dataset.n; paint(); }));
+
+paint();
+</script>
+</body>
+</html>
