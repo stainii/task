@@ -139,6 +139,12 @@ inline can only be tested by waiting for the calendar. Nothing enforces it — t
 here — so it is a convention, and the band arithmetic
 [#57](https://github.com/stainii/task/issues/57) is about to write is exactly what it is for.
 
+**`Math.random()` goes through the `RANDOM` token** (`src/app/random.ts`), added by
+[#65](https://github.com/stainii/task/issues/65) and the same convention for the same reason. The
+evidence is portal's own: `random-adjective.service.spec.ts` asserted that two draws differ, which
+against 994 words is a coin flip that lands wrong once in a few hundred runs — a test that fails for
+no reason is a test that gets deleted. Behind the token, a spec says which word it wants.
+
 ---
 
 ## 4. End-to-end tests (Playwright)

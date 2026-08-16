@@ -14,10 +14,13 @@
  */
 
 /**
- * Portal's list, carried over whole, minus five words it held twice (`silent`, `dusty`,
- * `petite`, `sore`, `tense`) — 999 entries, 994 of them distinct. Deduplicated rather than
- * copied verbatim so that *every word is equally likely* is a property this file has rather than one
- * it nearly has, and so {@link templateNamePlaceholder}'s sweep can count what it reaches.
+ * **994 words** — portal's list carried over whole, minus the five it held twice (`silent`,
+ * `dusty`, `petite`, `sore`, `tense`, which made its own count 999).
+ *
+ * Deduplicated rather than copied verbatim so that *every word is equally likely* is a property this
+ * list has rather than one it nearly has. The count is load-bearing: `placeholders.spec.ts` sweeps
+ * exactly this many picks and asserts it reaches exactly this many words, so **adding or removing a
+ * word here means changing the number there**, and the test says so.
  */
 const ADJECTIVES: readonly string[] = [
   'outgoing',
@@ -1019,10 +1022,9 @@ const ADJECTIVES: readonly string[] = [
 /**
  * *My crazy template name* — the same word for the life of one visit to the screen.
  *
- * Takes the pick as a fraction of the list rather than reaching for `Math.random()`, for the reason
- * `clock.ts` gives about `new Date()`: a value drawn inline can only be tested by drawing it many
- * times and hoping. Portal's spec asserted that two draws differ, which is a coin flip that lands
- * wrong once in a few hundred runs; the caller injects {@link RANDOM} and a test hands in a number.
+ * Takes the pick as a fraction rather than reaching for `Math.random()`, so that this stays a plain
+ * function a plain test can pin. The caller injects `RANDOM`, which is where that argument is
+ * written down.
  *
  * Clamped rather than trusted. `Math.random()` cannot return 1, but this reads a token any test or
  * caller can provide, and an index off the end is not a crash — it is *My undefined template name*

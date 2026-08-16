@@ -222,7 +222,7 @@ Not omissions — each is owned by a ticket that predates #11.
 | FE-031 | transform | #54 |  |
 | FE-032 | transform | #54 |  |
 | FE-033 | transform | #55 |  |
-| FE-034 | keep | #65 |  |
+| FE-034 | keep | #65 | **Narrowed as built.** #65 named two surfaces, the template name field and the omnibox; it landed on the first only. ADR-0014 makes *add, find, or say what you did* the whole instruction for the app's one input and `omnibox.html` uses that string as its `aria-label`, so a rotating word there announces a different control on every visit. #65's *done when* names template creation, and that is met. Recorded here rather than left in a source comment, because this row exists so that keeping FE-034 stays a decision someone made — which binds half of it being dropped too. |
 
 ### Database schemas — DB-001…005
 

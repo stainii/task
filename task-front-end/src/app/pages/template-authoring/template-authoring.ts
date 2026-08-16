@@ -32,7 +32,7 @@ import { Ordinal } from '../../domain/template';
 import { RANDOM } from '../../random';
 import { LocalStore } from '../../store/local-store';
 import { TemplateService } from '../../sync/templates';
-import { templateNamePlaceholder } from '../../ui/adjectives';
+import { templateNamePlaceholder } from '../../ui/placeholders';
 import { importanceLabel } from '../../ui/wording';
 
 /**

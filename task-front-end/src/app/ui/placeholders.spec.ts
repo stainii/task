@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { templateNamePlaceholder } from './adjectives';
+import { templateNamePlaceholder } from './placeholders';
 
 /**
  * FE-034, the last surviving row of portal's `funny-details/` — *"My crazy template name"*.
  *
  * Tested through the placeholder rather than through the word, because the placeholder is what a
  * person reads. The fraction is the seam: the pick is a number handed in, so every one of these is
- * an ordinary assertion on a literal instead of portal's `expect(first).not.toEqual(second)`, which
- * is a coin flip that lands wrong once in every few hundred runs.
+ * an ordinary assertion on a literal — see `random.ts` for why that matters.
  */
 describe('the pimped template name', () => {
   it('says what the field is for, with a word from the list in it', () => {
@@ -30,6 +29,10 @@ describe('the pimped template name', () => {
    * a spot check: the mistakes available here — rounding instead of flooring, an off-by-one on the
    * length — all leave the function returning a perfectly ordinary word, so no single assertion can
    * see them. Counting what 994 evenly spaced picks reach can.
+   *
+   * The number is written out rather than read off `ADJECTIVES.length`, which would make this
+   * assertion agree with the list by construction and stop it saying anything. **Adding a word to
+   * the list means changing it here**, and `placeholders.ts` says so beside the list.
    */
   it('spreads its picks evenly across the whole list', () => {
     const count = 994;
