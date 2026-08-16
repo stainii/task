@@ -45,45 +45,6 @@ describe('Overlays', () => {
     expect(() => overlays.escape()).not.toThrow();
   });
 
-  describe('the one confirm', () => {
-    it('puts the question in the slot and resolves with the day answered', async () => {
-      const answered = overlays.ask('Beddengoed wassen', '2026-08-16');
-
-      expect(overlays.asking()?.what).toBe('Beddengoed wassen');
-      expect(overlays.asking()?.today).toBe('2026-08-16');
-
-      overlays.asking()?.answer('2026-08-11');
-
-      await expect(answered).resolves.toBe('2026-08-11');
-      // The slot empties itself: the shell renders whatever is in it, so a question left behind is
-      // a confirm that will not close.
-      expect(overlays.asking()).toBeNull();
-    });
-
-    it('resolves to nothing when the confirm is cancelled', async () => {
-      const answered = overlays.ask('Beddengoed wassen', '2026-08-16');
-
-      overlays.asking()?.answer(null);
-
-      await expect(answered).resolves.toBeNull();
-      expect(overlays.asking()).toBeNull();
-    });
-
-    it('is the topmost overlay while it is up, so Escape cancels it and nothing else', async () => {
-      const dismissed: string[] = [];
-      overlays.open(() => dismissed.push('dialog'));
-      const answered = overlays.ask('Beddengoed wassen', '2026-08-16');
-
-      overlays.escape();
-
-      await expect(answered).resolves.toBeNull();
-      expect(dismissed).toEqual([]);
-      // And the dialog underneath has the key back.
-      overlays.escape();
-      expect(dismissed).toEqual(['dialog']);
-    });
-  });
-
   it('lets an overlay close out of order without stranding the key', () => {
     // Nothing guarantees the stack unwinds top-first: a route can drop a screen while a confirm
     // opened over it is still up. Removing by identity rather than by popping is what keeps the

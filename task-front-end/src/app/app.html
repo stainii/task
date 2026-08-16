@@ -100,7 +100,7 @@
     through, and an `Undo` beside it would offer to reverse something that cannot be.
   -->
   @if (notice(); as notice) {
-    <div class="notice" role="status">
+    <div class="notice app-toast" role="status">
       <span>{{ notice }}</span>
       <button type="button" (click)="dismissNotice()">Dismiss</button>
     </div>

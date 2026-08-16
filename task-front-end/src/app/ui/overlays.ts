@@ -1,24 +1,8 @@
-import { Injectable, signal } from '@angular/core';
-
-import { IsoDate } from '../domain/dates';
+import { Injectable } from '@angular/core';
 
 /**
- * A question standing in the confirm slot, carrying its own way of being answered.
- *
- * The answer rides on the question rather than on the service, so there is no ambient *answer the
- * confirm* method that a second caller could reach for while somebody else's question is up.
- */
-export interface Ask {
-  /** What is being marked done, in words: a task's name, or a template's definition. */
-  readonly what: string;
-  /** The day the asking screen is measured against, so the default and the screen agree. */
-  readonly today: IsoDate;
-  /** The day it was done, or `null` for *cancelled*. */
-  readonly answer: (on: IsoDate | null) => void;
-}
-
-/**
- * The app's **one** Escape owner ([#67](https://github.com/stainii/task/issues/67)).
+ * The app's **one** Escape owner
+ * ([ADR-0020](../../../../docs/adr/0020-one-overlay-layer-and-one-owner-of-escape.md)).
  *
  * Before this, `TaskPage` and `DateConfirm` each bound `(document:keydown.escape)` unconditionally,
  * and `TaskPage`'s **navigates away** — so a confirm open over the task dialog took one press to
@@ -32,6 +16,12 @@ export interface Ask {
  *
  * **Removal is by identity, not by popping.** Nothing guarantees the stack unwinds top-first: a
  * route can drop a screen while something opened over it is still up.
+ *
+ * **Topmost means most recently opened, not highest painted**, and the two are the same only
+ * because every overlay in this app is opened by the thing that paints it, over what is already
+ * there. Nothing enforces it — a service cannot read the z-index of something it does not render —
+ * so it is stated here rather than assumed: an overlay that registers before something it paints
+ * *over* would take Escape in the wrong order.
  */
 @Injectable({ providedIn: 'root' })
 export class Overlays {
@@ -54,39 +44,5 @@ export class Overlays {
   /** One press, one overlay: the topmost, or nothing at all. */
   escape(): void {
     this.layers.at(-1)?.();
-  }
-
-  private readonly slot = signal<Ask | null>(null);
-
-  /**
-   * The question the shell is currently painting, or nothing.
-   *
-   * **One slot, in the shell.** ADR-0014 says the confirm *exists once* because the omnibox and the
-   * templates list differ only in how the thing was chosen; until #67 that was one component
-   * rendered from two places, which is one *class* and two instances. Rendering it here makes the
-   * sentence literally true — and is what lifts its scrim out of the appbar's stacking context,
-   * where `aria-modal="true"` was a promise the paint could not keep.
-   */
-  readonly asking = this.slot.asReadonly();
-
-  /**
-   * Asks *when did you do it?* and waits.
-   *
-   * The caller `await`s a date or `null`, which is the whole of the confirm's contract: the two
-   * capture paths converge here before anything is written, so neither can mint a different
-   * `completedOn` for the same gesture.
-   */
-  ask(what: string, today: IsoDate): Promise<IsoDate | null> {
-    return new Promise<IsoDate | null>((resolve) => {
-      const answer = (on: IsoDate | null): void => {
-        close();
-        this.slot.set(null);
-        resolve(on);
-      };
-      // Escape is a cancellation, like every other dismissal in the app — and now it is that by
-      // being the topmost overlay rather than by a listener of its own.
-      const close = this.open(() => answer(null));
-      this.slot.set({ what, today, answer });
-    });
   }
 }

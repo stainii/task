@@ -22,8 +22,9 @@ import { templateOffers, TemplateOffer } from '../domain/templates';
 import { dueLabel, lastDoneLabel } from './wording';
 import { LocalStore } from '../store/local-store';
 import { SyncService } from '../sync/sync';
+import { Confirms } from './confirms';
 import { Overlays } from './overlays';
-import { Toasts } from './toasts';
+import { Toast, Toasts } from './toasts';
 
 /**
  * One row of the dropdown: something you can mark done, and which state it is in.
@@ -89,6 +90,7 @@ export class Omnibox {
   private readonly sync = inject(SyncService);
   private readonly now = inject(NOW);
   private readonly overlays = inject(Overlays);
+  private readonly confirms = inject(Confirms);
   private readonly toasts = inject(Toasts);
 
   protected readonly query = signal('');
@@ -193,14 +195,14 @@ export class Omnibox {
   }
 
   /** One tap on the toast, giving the capture the due date it deliberately did not get. */
-  private async due(taskId: string, days: number): Promise<void> {
-    this.toasts.clear();
+  private async due(taskId: string, days: number, toast: Toast): Promise<void> {
+    this.toasts.dismiss(toast);
     await this.sync.record(dueDatePatch(taskId, days, this.now()));
   }
 
   /** *Add details*: an ordinary navigation to the task's own dialog (ADR-0018). */
-  private details(taskId: string): void {
-    this.toasts.clear();
+  private details(taskId: string, toast: Toast): void {
+    this.toasts.dismiss(toast);
     void this.router.navigate(['/task', taskId]);
   }
 
@@ -296,7 +298,7 @@ export class Omnibox {
    * patch undo takes back.
    */
   protected async choose(suggestion: Suggestion): Promise<void> {
-    const on = await this.overlays.ask(suggestion.name, this.today());
+    const on = await this.confirms.ask(suggestion.name, this.today());
     if (on === null) {
       return;
     }
@@ -308,16 +310,17 @@ export class Omnibox {
         : didItPatches(suggestion.offer.row, suggestion.offer.definitionIndex, on, this.now()),
     );
 
-    this.toasts.show({
-      kind: 'undo',
+    const toast: Toast = {
+      kind: 'undoable',
       what: `Completed — ${suggestion.name}`,
-      undo: () => void this.undo(undoable),
-    });
+      undo: () => void this.undo(undoable, toast),
+    };
+    this.toasts.show(toast);
   }
 
   /** Takes the completion back, as ADR-0004's void patch. The fold recomputes; nothing is edited. */
-  private async undo(patch: TaskPatch): Promise<void> {
-    this.toasts.clear();
+  private async undo(patch: TaskPatch, toast: Toast): Promise<void> {
+    this.toasts.dismiss(toast);
     await this.sync.record(undoPatch(patch, this.now()));
   }
 
@@ -341,13 +344,14 @@ export class Omnibox {
     await this.sync.record(patch);
     await this.store.setLastContext(context);
     this.remembered.set(context);
-    this.toasts.show({
+    const toast: Toast = {
       kind: 'created',
       name,
       context,
-      due: (days) => void this.due(patch.taskId, days),
-      details: () => this.details(patch.taskId),
-    });
+      due: (days) => void this.due(patch.taskId, days, toast),
+      details: () => this.details(patch.taskId, toast),
+    };
+    this.toasts.show(toast);
   }
 
   /** Escape puts the box down. It never navigates, because typing never navigated. */

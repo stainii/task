@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   effect,
   inject,
   PendingTasks,
@@ -21,8 +20,9 @@ import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TemplateService } from '../../sync/templates';
 import { GlyphButton } from '../../ui/glyph-button';
+import { Confirms } from '../../ui/confirms';
 import { Overlays } from '../../ui/overlays';
-import { Toasts } from '../../ui/toasts';
+import { Toast, Toasts } from '../../ui/toasts';
 import { dueLabel, lastDoneLabel } from '../../ui/wording';
 
 /** Which definition a ✓ is about, once one has been chosen. */
@@ -61,6 +61,7 @@ export class Templates {
   private readonly templates = inject(TemplateService);
   private readonly now = inject(NOW);
   private readonly overlays = inject(Overlays);
+  private readonly confirms = inject(Confirms);
   private readonly toasts = inject(Toasts);
 
   /**
@@ -127,8 +128,6 @@ export class Templates {
         onCleanup(this.overlays.open(() => this.choosing.set(null)));
       }
     });
-
-    inject(DestroyRef).onDestroy(() => this.toasts.clear());
   }
 
   /** What the template is asking for right now — only a row that has fired has one. */
@@ -187,7 +186,7 @@ export class Templates {
    * patches and must record them the same way, and it is what names the patch undo takes back.
    */
   private async confirm(chosen: Chosen): Promise<void> {
-    const on = await this.overlays.ask(chosen.what, this.today());
+    const on = await this.confirms.ask(chosen.what, this.today());
     if (on === null) {
       return;
     }
@@ -196,15 +195,16 @@ export class Templates {
       didItPatches(chosen.row, chosen.definitionIndex, on, this.now()),
     );
 
-    this.toasts.show({
-      kind: 'undo',
+    const toast: Toast = {
+      kind: 'undoable',
       what: `Completed — ${chosen.what}`,
-      undo: () => void this.undo(undoable),
-    });
+      undo: () => void this.undo(undoable, toast),
+    };
+    this.toasts.show(toast);
   }
 
-  private async undo(patch: TaskPatch): Promise<void> {
-    this.toasts.clear();
+  private async undo(patch: TaskPatch, toast: Toast): Promise<void> {
+    this.toasts.dismiss(toast);
     await this.sync.record(undoPatch(patch, this.now()));
   }
 

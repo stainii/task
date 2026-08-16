@@ -16,7 +16,7 @@ import { PanelAction, undoPatch } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
-import { Toasts } from '../../ui/toasts';
+import { Toast, Toasts } from '../../ui/toasts';
 import { TaskPanel } from './task-panel';
 
 /**
@@ -159,8 +159,6 @@ export class Overview {
       document.addEventListener('visibilitychange', onVisible);
       inject(DestroyRef).onDestroy(() => {
         document.removeEventListener('visibilitychange', onVisible);
-        // An offer whose verb belongs to a screen that has gone is not an offer.
-        this.toasts.clear();
       });
     }
   }
@@ -180,15 +178,20 @@ export class Overview {
    */
   protected async acted(action: PanelAction): Promise<void> {
     await this.record(action.patch);
-    this.toasts.show({
-      kind: 'undo',
+    // **It is not withdrawn when this screen goes.** Undo is a void patch through sync, which
+    // works from wherever you are standing, and the corner is the app's — so tidying up on the way
+    // out would have meant clearing whatever the corner happened to hold, including an offer the
+    // omnibox had just raised from the appbar that outlives every screen.
+    const toast: Toast = {
+      kind: 'undoable',
       what: action.done,
-      undo: () => void this.undo(action),
-    });
+      undo: () => void this.undo(action, toast),
+    };
+    this.toasts.show(toast);
   }
 
-  private async undo(action: PanelAction): Promise<void> {
-    this.toasts.clear();
+  private async undo(action: PanelAction, toast: Toast): Promise<void> {
+    this.toasts.dismiss(toast);
     await this.record(undoPatch(action.patch, this.now()));
   }
 

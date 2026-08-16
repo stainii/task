@@ -16,6 +16,7 @@ import { BuildSkew } from './pwa/build-skew';
 import { LocalStore } from './store/local-store';
 import { SyncStatus } from './sync/sync-status';
 import { Notices } from './ui/notices';
+import { Confirms } from './ui/confirms';
 import { Overlays } from './ui/overlays';
 import { Toasts } from './ui/toasts';
 
@@ -132,7 +133,7 @@ describe('App', () => {
     it('paints the one toast slot, whichever screen raised it', async () => {
       const shell = await navigate('/');
       TestBed.inject(Toasts).show({
-        kind: 'undo',
+        kind: 'undoable',
         what: 'Completed — Beddengoed wassen',
         undo: noop,
       });
@@ -145,7 +146,7 @@ describe('App', () => {
     it('stands the notice and a toast in the corner side by side rather than on top of each other', async () => {
       const shell = await navigate('/');
       TestBed.inject(Notices).say('Beddengoed wassen is already completed.');
-      TestBed.inject(Toasts).show({ kind: 'undo', what: 'Completed — Iets', undo: noop });
+      TestBed.inject(Toasts).show({ kind: 'undoable', what: 'Completed — Iets', undo: noop });
       await TestBed.inject(ApplicationRef).whenStable();
 
       // One corner, laid out once. `app.css` claimed *"only one is ever up"* and nothing enforced
@@ -157,7 +158,7 @@ describe('App', () => {
 
     it('paints the one confirm, and paints it outside the appbar', async () => {
       const shell = await navigate('/');
-      void TestBed.inject(Overlays).ask('Beddengoed wassen', '2026-08-16');
+      void TestBed.inject(Confirms).ask('Beddengoed wassen', '2026-08-16');
       await TestBed.inject(ApplicationRef).whenStable();
 
       const confirms = shell.querySelectorAll('app-date-confirm');
@@ -166,6 +167,24 @@ describe('App', () => {
       // whatever it declares.
       expect(shell.querySelector('header.appbar app-date-confirm')).toBeNull();
       expect(confirms[0].textContent).toContain('When did you do it?');
+    });
+
+    it('withdraws a standing confirm when the screen under it moves', async () => {
+      // The confirm is the shell's now, so it is no longer destroyed with the component that asked.
+      // Hardware back, ADR-0012's 07:30 push and any deep link can move the screen out from under
+      // it — and what that would otherwise leave is an `aria-modal` dialog over a screen that never
+      // asked, with a caller awaiting an answer that can no longer come.
+      const shell = await navigate('/');
+      const confirms = TestBed.inject(Confirms);
+      const answered = confirms.ask('Beddengoed wassen', '2026-08-16');
+      await TestBed.inject(ApplicationRef).whenStable();
+      expect(shell.querySelector('app-date-confirm')).toBeTruthy();
+
+      await TestBed.inject(Router).navigateByUrl('/templates');
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      await expect(answered).resolves.toBeNull();
+      expect(shell.querySelector('app-date-confirm')).toBeNull();
     });
 
     it('owns the only document-level Escape there is, and gives it to the topmost overlay', async () => {

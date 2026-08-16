@@ -19,22 +19,23 @@ import { DUE_PRESETS } from '../domain/patches';
   selector: 'app-create-toast',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="created" role="status">
+    <div class="created app-toast" role="status">
       <span class="what">Added “{{ name() }}” in {{ context() }}</span>
       @for (chip of chips; track chip.days) {
         <button
           type="button"
-          class="due"
+          class="due app-toast-action"
           [attr.data-days]="chip.days"
           (click)="due.emit(chip.days)"
         >
           {{ chip.label }}
         </button>
       }
-      <button type="button" class="details" (click)="details.emit()">Add details</button>
+      <button type="button" class="details app-toast-action" (click)="details.emit()">
+        Add details
+      </button>
     </div>
   `,
-  styleUrl: './create-toast.css',
 })
 export class CreateToast {
   /** What was captured, and where it landed — the two halves of the sentence. */

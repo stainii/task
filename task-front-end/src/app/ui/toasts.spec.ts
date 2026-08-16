@@ -33,7 +33,7 @@ describe('Toasts', () => {
   });
 
   it('holds one toast at a time, and the newer one takes the corner', () => {
-    toasts.show({ kind: 'undo', what: 'Completed — Beddengoed wassen', undo: noop });
+    toasts.show({ kind: 'undoable', what: 'Completed — Beddengoed wassen', undo: noop });
     toasts.show({
       kind: 'created',
       name: 'Bandenspanning',
@@ -46,7 +46,7 @@ describe('Toasts', () => {
   });
 
   it('takes the corner back when the horizon passes', () => {
-    toasts.show({ kind: 'undo', what: 'Completed — Beddengoed wassen', undo: noop });
+    toasts.show({ kind: 'undoable', what: 'Completed — Beddengoed wassen', undo: noop });
 
     vi.advanceTimersByTime(Toasts.HORIZON_MS - 1);
     expect(toasts.showing()).not.toBeNull();
@@ -60,23 +60,50 @@ describe('Toasts', () => {
     // clears the slot, cutting the newer offer short by however long the older one had already
     // stood. Undo is the only correction path a wrong `completedOn` has, so the horizon is not
     // decoration.
-    toasts.show({ kind: 'undo', what: 'Completed — Beddengoed wassen', undo: noop });
+    toasts.show({ kind: 'undoable', what: 'Completed — Beddengoed wassen', undo: noop });
     vi.advanceTimersByTime(Toasts.HORIZON_MS - 1_000);
 
-    toasts.show({ kind: 'undo', what: 'Completed — Bandenspanning', undo: noop });
+    toasts.show({ kind: 'undoable', what: 'Completed — Bandenspanning', undo: noop });
     vi.advanceTimersByTime(1_000);
 
-    expect(toasts.showing()?.kind).toBe('undo');
+    expect(toasts.showing()?.kind).toBe('undoable');
     expect(toasts.showing()).toMatchObject({ what: 'Completed — Bandenspanning' });
   });
 
-  it('empties on demand, and stays empty', () => {
-    toasts.show({ kind: 'undo', what: 'Completed — Beddengoed wassen', undo: noop });
+  it('is dismissed by the screen that raised it, and stays dismissed', () => {
+    const mine = { kind: 'undoable', what: 'Completed — Beddengoed wassen', undo: noop } as const;
+    toasts.show(mine);
 
-    toasts.clear();
+    toasts.dismiss(mine);
 
     expect(toasts.showing()).toBeNull();
     vi.advanceTimersByTime(Toasts.HORIZON_MS);
     expect(toasts.showing()).toBeNull();
+  });
+
+  it('refuses to let one screen take down another screen\u2019s offer', () => {
+    // The failure this is written against: the omnibox lives on the appbar and outlives every
+    // screen, so a screen tidying up on its way out cleared offers it had never raised. Capture from
+    // the omnibox, tap Templates, and the due chips went a beat after appearing.
+    const overviews = {
+      kind: 'undoable',
+      what: 'Completed — Beddengoed wassen',
+      undo: noop,
+    } as const;
+    toasts.show(overviews);
+
+    const omniboxs = {
+      kind: 'created',
+      name: 'Ramen lappen',
+      context: 'house',
+      due: noop,
+      details: noop,
+    } as const;
+    toasts.show(omniboxs);
+
+    // The overview is destroyed by the navigation and says its piece on the way out.
+    toasts.dismiss(overviews);
+
+    expect(toasts.showing()).toBe(omniboxs);
   });
 });

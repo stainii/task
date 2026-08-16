@@ -12,9 +12,11 @@ import { aTask } from '../domain/task.mother';
 import { TaskTemplate } from '../domain/template';
 import { aDefinition, aTemplate, minMax } from '../domain/template.mother';
 import { LocalStore } from '../store/local-store';
+import { flush } from '../testing';
 import { SyncService } from '../sync/sync';
 import { Omnibox } from './omnibox';
-import { Ask, Overlays } from './overlays';
+import { Ask, Confirms } from './confirms';
+import { Overlays } from './overlays';
 import { Toast, Toasts } from './toasts';
 
 /**
@@ -94,7 +96,7 @@ function texts(selector: string): string[] {
 
 /** The question standing in the shell's one confirm. */
 function asking(): Ask | null {
-  return TestBed.inject(Overlays).asking();
+  return TestBed.inject(Confirms).asking();
 }
 
 /** Answers it as a person would, and lets the omnibox act on it. */
@@ -104,10 +106,7 @@ async function answer(on: string | null): Promise<void> {
     throw new Error('Nothing is being confirmed.');
   }
   ask.answer(on);
-  // Answering *resumes* a suspended `await` in the omnibox rather than calling into it, and what
-  // resumes then records one or two patches before it reaches the toast. A macrotask drains that
-  // whole chain; `whenStable` alone does not see a bare promise as pending work.
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flush();
   await settle();
 }
 
@@ -532,7 +531,7 @@ describe('undoing a completion made by name', () => {
     await answer('2026-08-14');
 
     const offer = toast();
-    if (offer?.kind !== 'undo') {
+    if (offer?.kind !== 'undoable') {
       throw new Error('Nothing is offering to be undone.');
     }
     expect(offer.what).toContain('Beddengoed wassen');
@@ -664,7 +663,7 @@ describe('saying you did a chore that is showing nothing', () => {
     await answer('2026-08-14');
 
     const offer = toast();
-    if (offer?.kind !== 'undo') {
+    if (offer?.kind !== 'undoable') {
       throw new Error('Nothing is offering to be undone.');
     }
     offer.undo();

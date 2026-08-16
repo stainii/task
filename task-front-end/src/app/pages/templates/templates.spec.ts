@@ -12,6 +12,8 @@ import { aDefinition, aTemplate, minMax } from '../../domain/template.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TemplateService } from '../../sync/templates';
+import { flush } from '../../testing';
+import { Confirms } from '../../ui/confirms';
 import { Overlays } from '../../ui/overlays';
 import { Toasts } from '../../ui/toasts';
 import { Templates } from './templates';
@@ -66,7 +68,7 @@ async function render(templates: TaskTemplate[], tasks: Task[] = []): Promise<vo
  * does not see as pending work.
  */
 function asking() {
-  return TestBed.inject(Overlays).asking();
+  return TestBed.inject(Confirms).asking();
 }
 
 async function confirmOn(date: string | null): Promise<void> {
@@ -75,7 +77,7 @@ async function confirmOn(date: string | null): Promise<void> {
     throw new Error('The date confirm is not open.');
   }
   ask.answer(date);
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flush();
   await fixture.whenStable();
 }
 
@@ -305,12 +307,12 @@ describe('the ✓', () => {
     await confirmOn('2026-08-11');
 
     const offer = TestBed.inject(Toasts).showing();
-    if (offer?.kind !== 'undo') {
+    if (offer?.kind !== 'undoable') {
       throw new Error('Nothing is offering to be undone.');
     }
     expect(offer.what).toContain('Vuilbakken');
     offer.undo();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flush();
     await fixture.whenStable();
 
     const undo = recorded[recorded.length - 1];

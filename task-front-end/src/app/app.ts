@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  untracked,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
@@ -8,6 +15,7 @@ import { filter, map } from 'rxjs';
 import { BuildSkew } from './pwa/build-skew';
 import { PushService } from './sync/push';
 import { SyncService } from './sync/sync';
+import { Confirms } from './ui/confirms';
 import { CreateToast } from './ui/create-toast';
 import { DateConfirm } from './ui/date-confirm';
 import { Notices } from './ui/notices';
@@ -59,6 +67,7 @@ export class App {
   private readonly skew = inject(BuildSkew);
   private readonly push = inject(PushService);
   private readonly toasts = inject(Toasts);
+  private readonly confirms = inject(Confirms);
 
   /** Referenced from the host binding, so it is the template's to reach. */
   protected readonly overlays = inject(Overlays);
@@ -67,7 +76,7 @@ export class App {
   protected readonly notice = this.notices.message;
 
   /** The question standing in the confirm, or nothing. */
-  protected readonly asking = this.overlays.asking;
+  protected readonly asking = this.confirms.asking;
 
   /**
    * The corner's two views of its one slot, so the template branches on presence rather than on a
@@ -80,7 +89,7 @@ export class App {
 
   protected readonly undoable = computed(() => {
     const toast = this.toasts.showing();
-    return toast?.kind === 'undo' ? toast : null;
+    return toast?.kind === 'undoable' ? toast : null;
   });
 
   /**
@@ -124,6 +133,23 @@ export class App {
     // reaches the network before the store has rendered.
     void this.skew.check();
     void this.push.restore();
+
+    /*
+     * **A confirm belongs to the moment it was raised, not to the app.**
+     *
+     * Hardware back, ADR-0012's 07:30 push and any deep link can move the screen out from under an
+     * open confirm, and nothing else would notice: the shell paints it now, so it is no longer
+     * destroyed with the component that asked. What that leaves is an `aria-modal` dialog over a
+     * screen that never asked, and a caller awaiting an answer that can no longer be given.
+     *
+     * `untracked`, because reading the slot here would make this effect depend on the very signal
+     * `ask` sets — and a confirm that cancelled itself the instant it opened is a confirm that
+     * never opens.
+     */
+    effect(() => {
+      this.url();
+      untracked(() => this.confirms.cancel());
+    });
   }
 
   protected logIn(): void {

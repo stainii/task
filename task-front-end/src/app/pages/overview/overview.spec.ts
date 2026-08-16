@@ -10,6 +10,7 @@ import { Task, TaskPatch } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
+import { flush } from '../../testing';
 import { Toasts } from '../../ui/toasts';
 import { Overview } from './overview';
 
@@ -206,13 +207,13 @@ describe('acting on a task', () => {
     // paint a toast of its own, and the omnibox another, and completing here and then capturing
     // within eight seconds put both in the same place with the newer one underneath.
     const offer = TestBed.inject(Toasts).showing();
-    if (offer?.kind !== 'undo') {
+    if (offer?.kind !== 'undoable') {
       throw new Error('Nothing is offering to be undone.');
     }
     expect(offer.what).toContain('Completed');
 
     offer.undo();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flush();
     await fixture.whenStable();
 
     expect(recorded).toHaveLength(2);

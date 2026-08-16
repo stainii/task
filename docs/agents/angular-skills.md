@@ -12,14 +12,15 @@ schematic sweep would only churn formatting.**
 **Kept current with the code, on purpose.** A compliance snapshot that has quietly gone stale is
 this project's recurring shape — a gate that still reports success after it stopped describing
 anything — so a ticket that adds a component or an effect updates the counts below with it. Last
-moved by [#63](https://github.com/stainii/task/issues/63), which gave `/status` a real screen — a
-template file and a stylesheet where there had been an inline placeholder — and put ADR-0009's two
-banners in the shell.
+moved by [#67](https://github.com/stainii/task/issues/67), which built the overlay layer
+([ADR-0020](../adr/0020-one-overlay-layer-and-one-owner-of-escape.md)): one new component and four
+new effects, against one effect deleted.
 
 ## What was checked
 
-Angular 22, zoneless (no `zone.js` dependency at all), 12 components. (The count read **13** until
-#63 recounted it and found 12 — this note's own warning, arriving on schedule.)
+Angular 22, zoneless (no `zone.js` dependency at all), 13 components — 12 until #67 added
+`CreateToast`. (The count read **13** until #63 recounted it and found 12 — this note's own warning,
+arriving on schedule.)
 
 | Guidance                                      | State                                                                    |
 | --------------------------------------------- | ------------------------------------------------------------------------ |
@@ -27,11 +28,20 @@ Angular 22, zoneless (no `zone.js` dependency at all), 12 components. (The count
 | Native control flow                           | 70 uses of `@if`/`@for`/`@switch`, including `@else if` on `/status`'s two push failures; zero `*ngIf`/`*ngFor`/`ngClass`/`ngStyle` |
 | `input()` / `output()`                        | Used throughout; zero `@Input`/`@Output`/`EventEmitter`                  |
 | `inject()`                                    | All DI; no constructor-parameter injection                               |
-| `ChangeDetectionStrategy.OnPush`              | All 12 components                                                        |
+| `ChangeDetectionStrategy.OnPush`              | All 13 components                                                        |
 | Signals for state                             | `computed`/`signal` throughout, plus `linkedSignal`, `resource`, `untracked`, `PendingTasks` |
-| Effects for side effects only                 | Exactly 5, all genuinely imperative (navigation; four store re-reads)    |
+| Effects for side effects only                 | Exactly 8: navigation, four store re-reads, and #67's three registrations |
 | `provideHttpClient` + functional interceptors | `src/app/app.config.ts`                                                  |
-| Host bindings via `host` metadata             | e.g. the Escape binding on `TaskPage`                                    |
+| Host bindings via `host` metadata             | the app's one Escape binding, on `App`                                   |
+
+**The three new effects are registrations, and that is a claim worth stating rather than
+assuming.** `Omnibox`, `Templates` and `TaskPage` each run an `effect` whose whole body is
+*while this signal is true, tell `Overlays` I am open*, using the effect's `onCleanup` to say when
+it is not. That is not state propagation — nothing here writes a signal — but it is also not the
+navigation-shaped side effect the row above was written about, so it is named separately. The
+alternative was calling `open`/`close` by hand at every site that sets the signal, which is the
+remembering-to that ADR-0020 exists to remove. #67 also **deleted** one effect, `TaskPage`'s
+`document:` Escape being replaced by a constructor registration.
 
 The compliance is not accidental, and two places already argue the skill's own reasoning from first
 principles: `task-page.ts:109` explains why the dialog's load is a `resource` rather than an

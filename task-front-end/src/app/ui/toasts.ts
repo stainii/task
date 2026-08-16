@@ -17,7 +17,7 @@ export type Toast =
       readonly details: () => void;
     }
   /** Anything that removed a row from a screen that does not show closed tasks (ADR-0015). */
-  | { readonly kind: 'undo'; readonly what: string; readonly undo: () => void };
+  | { readonly kind: 'undoable'; readonly what: string; readonly undo: () => void };
 
 /**
  * The app's **one** bottom corner ([#67](https://github.com/stainii/task/issues/67)).
@@ -49,6 +49,20 @@ export class Toasts {
   readonly showing = this.slot.asReadonly();
 
   /**
+   * Empties the corner **only if it still holds the toast you are talking about**.
+   *
+   * The reason it takes one rather than clearing whatever is there: the omnibox lives on the appbar
+   * and outlives every screen, so a screen tidying up on its way out was clearing offers it had
+   * never raised. Capture from the omnibox, tap Templates, and the due chips vanished a beat after
+   * appearing — the corner is shared, so *clear the corner* is never something one caller may say.
+   */
+  dismiss(toast: Toast): void {
+    if (this.slot() === toast) {
+      this.clear();
+    }
+  }
+
+  /**
    * Takes the corner, evicting whatever was there.
    *
    * The eviction cancels the old toast's timer as well as clearing its content. Without that, the
@@ -58,11 +72,11 @@ export class Toasts {
   show(toast: Toast): void {
     this.clear();
     this.slot.set(toast);
-    this.timer = setTimeout(() => this.clear(), Toasts.HORIZON_MS);
+    this.timer = setTimeout(() => this.dismiss(toast), Toasts.HORIZON_MS);
   }
 
-  /** Empties the corner now: the offer was taken, or the screen that raised it is going. */
-  clear(): void {
+  /** Empties the corner whatever is in it. Eviction, and the horizon, and nothing else. */
+  private clear(): void {
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;

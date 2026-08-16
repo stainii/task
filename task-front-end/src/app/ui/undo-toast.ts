@@ -18,12 +18,11 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   selector: 'app-undo-toast',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="undoable" role="status">
+    <div class="undoable app-toast" role="status">
       <span class="what">{{ what() }}</span>
-      <button type="button" class="undo" (click)="undo.emit()">Undo</button>
+      <button type="button" class="undo app-toast-action" (click)="undo.emit()">Undo</button>
     </div>
   `,
-  styleUrl: './undo-toast.css',
 })
 export class UndoToast {
   // How long the offer stands is `Toasts.HORIZON_MS` since #67, and it is not here any more: this

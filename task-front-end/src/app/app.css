@@ -137,26 +137,12 @@ main {
   pointer-events: none;
 }
 
+/*
+ * What the corner holds is styled by `.app-toast` in `styles.css`, once for all three occupants —
+ * global rather than here because a shell rule cannot reach inside a component.
+ */
 .corner > * {
   pointer-events: auto;
-}
-
-/* A notice from a screen that has already gone. It says where it is by being in the corner. */
-.notice {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  font-size: 14px;
-  color: var(--app-ink);
-  background: var(--app-surface);
-  border: 1px solid var(--app-line);
-  border-radius: 10px;
-}
-
-.notice span {
-  flex: 1;
-  min-width: 0;
 }
 
 .notice button {

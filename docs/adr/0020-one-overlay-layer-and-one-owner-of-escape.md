@@ -12,7 +12,7 @@ Standards review of [#60](https://github.com/stainii/task/issues/60).
 - **Every overlay is a child of `app.html`.** The one bottom corner (`.corner`) and the one date
   confirm live there. A screen keeps the *verbs* — undo is still the overview's business — and gives
   up the *coordinate*.
-- **`styles.css` holds the whole depth of the app**, five tokens, read top to bottom. Every z-index
+- **`styles.css` holds the whole depth of the app**, six tokens, read top to bottom. Every z-index
   in `src/app` is one of them, with a single stated exception.
 - **One key, one owner.** `Overlays.open(dismiss)` says an overlay is up and hands back a closer;
   `App` binds the only `document:` key listener there is and gives the press to the topmost.

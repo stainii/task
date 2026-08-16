@@ -42,7 +42,7 @@
   /*
    * **The whole depth of the app, read top to bottom** (#67).
    *
-   * Every z-index in the app is one of these five, so what is over what is answered by reading this
+   * Every z-index in the app is one of these six, so what is over what is answered by reading this
    * block rather than by grepping for `z-index` and hoping the numbers were meant to be compared.
    * That is not hypothetical: the appbar's 5, the task dialog's 10/11, the notice's 20 and the
    * confirm's 20/21 were four independent scales that happened to share a namespace, and two of
@@ -85,6 +85,48 @@ body {
     'Segoe UI',
     Roboto,
     sans-serif;
+}
+
+/*
+ * **What stands in the shell's corner** (#67): a notice, an undo toast, a create toast.
+ *
+ * One definition for all three. They were three near-identical copies of this card in three files,
+ * and the last time the look was split half of it went missing for three tickets — #64 found the
+ * create toast rendering inline inside the appbar with `Add details` off the right of the screen.
+ *
+ * Global rather than in `app.css` beside `.corner`, and that is Angular's doing rather than a
+ * preference: style encapsulation lets a shell rule reach the component *tag* but nothing inside
+ * it, and two of the three occupants are components. Same reason `.app-glyph` below is global.
+ */
+.app-toast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+}
+
+/* The sentence takes the room; the verbs beside it take what they need. */
+.app-toast > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A verb offered beside one: *Undo*, *tomorrow*, *Add details*. */
+.app-toast-action {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-accent);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
 }
 
 /*
