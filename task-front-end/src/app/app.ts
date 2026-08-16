@@ -8,8 +8,13 @@ import { filter, map } from 'rxjs';
 import { BuildSkew } from './pwa/build-skew';
 import { PushService } from './sync/push';
 import { SyncService } from './sync/sync';
+import { CreateToast } from './ui/create-toast';
+import { DateConfirm } from './ui/date-confirm';
 import { Notices } from './ui/notices';
 import { Omnibox } from './ui/omnibox';
+import { Overlays } from './ui/overlays';
+import { Toasts } from './ui/toasts';
+import { UndoToast } from './ui/undo-toast';
 
 /** The two destinations (ADR-0014). Everything else is somewhere you are *sent*. */
 type Destination = 'tasks' | 'templates' | 'elsewhere';
@@ -19,13 +24,33 @@ type Destination = 'tasks' | 'templates' | 'elsewhere';
  *
  * The tabs are not `routerLinkActive`, because the Tasks destination is two routes — `/` and
  * ADR-0014's `/in/:value` — and entering a context must not look like leaving Tasks.
+ *
+ * **It is also the overlay layer** ([#67](https://github.com/stainii/task/issues/67)): the one
+ * bottom corner, the one confirm, and the one `document:keydown.escape` in the application. All
+ * three are here because here is the *root* stacking context — `.appbar` is `position: sticky`, so
+ * anything painted inside it is clamped beneath anything outside it, whatever z-index it declares.
  */
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, RouterLink, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip, Omnibox],
+  imports: [
+    RouterOutlet,
+    RouterLink,
+    MatMenu,
+    MatMenuItem,
+    MatMenuTrigger,
+    MatTooltip,
+    Omnibox,
+    CreateToast,
+    UndoToast,
+    DateConfirm,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.css',
+  // The **only** `document:` key binding in the app. Before #67 there were two — `TaskPage`'s and
+  // `DateConfirm`'s — and `TaskPage`'s navigates away, so one press could cancel a confirm and leave
+  // the dialog underneath it in the same breath.
+  host: { '(document:keydown.escape)': 'overlays.escape()' },
 })
 export class App {
   private readonly router = inject(Router);
@@ -33,9 +58,30 @@ export class App {
   private readonly notices = inject(Notices);
   private readonly skew = inject(BuildSkew);
   private readonly push = inject(PushService);
+  private readonly toasts = inject(Toasts);
+
+  /** Referenced from the host binding, so it is the template's to reach. */
+  protected readonly overlays = inject(Overlays);
 
   /** What a screen said on its way out. */
   protected readonly notice = this.notices.message;
+
+  /** The question standing in the confirm, or nothing. */
+  protected readonly asking = this.overlays.asking;
+
+  /**
+   * The corner's two views of its one slot, so the template branches on presence rather than on a
+   * kind — the shape `Omnibox` used while it still owned a toast of its own.
+   */
+  protected readonly created = computed(() => {
+    const toast = this.toasts.showing();
+    return toast?.kind === 'created' ? toast : null;
+  });
+
+  protected readonly undoable = computed(() => {
+    const toast = this.toasts.showing();
+    return toast?.kind === 'undo' ? toast : null;
+  });
 
   /**
    * Whether a sync is waiting on a human — ADR-0004's stall prompt.

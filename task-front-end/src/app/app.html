@@ -81,16 +81,62 @@
 </main>
 
 <!--
-  A notice from a screen that has already gone (`ui/notices.ts`): ADR-0018's closed-task redirect
-  unmounts the only component that knows why it happened, so the sentence has to outlive it. It
-  lives in the shell rather than on a screen for exactly that reason.
+  The overlay layer (#67). Everything painted *over* the page is painted here, in the root stacking
+  context, because `.appbar` is `position: sticky; z-index: 5` and therefore a stacking context of
+  its own: an overlay rendered inside it has its z-index clamped to 5 whatever it declares, and no
+  CSS fixes that — a `position: fixed` descendant still obeys its stacking context.
 
-  Not the overview's undo toast. That one carries a verb and a deadline; this one is a fact you have
-  already lived through, and an `Undo` beside it would offer to reverse something that cannot be.
+  The corner is **one** slot's worth of screen, laid out once. `app.css` used to claim *"only one is
+  ever up"* about it while three components each positioned themselves into it independently; what
+  makes that true now is that they share a stack rather than a coordinate.
 -->
-@if (notice(); as notice) {
-  <div class="notice" role="status">
-    <span>{{ notice }}</span>
-    <button type="button" (click)="dismissNotice()">Dismiss</button>
-  </div>
+<div class="corner">
+  <!--
+    A notice from a screen that has already gone (`ui/notices.ts`): ADR-0018's closed-task redirect
+    unmounts the only component that knows why it happened, so the sentence has to outlive it. It
+    lives in the shell rather than on a screen for exactly that reason.
+
+    Not a toast. Those carry a verb and a deadline; this one is a fact you have already lived
+    through, and an `Undo` beside it would offer to reverse something that cannot be.
+  -->
+  @if (notice(); as notice) {
+    <div class="notice" role="status">
+      <span>{{ notice }}</span>
+      <button type="button" (click)="dismissNotice()">Dismiss</button>
+    </div>
+  }
+
+  <!--
+    The one toast (`ui/toasts.ts`). The overview, the omnibox and the templates list all raise them
+    and none of them paints one: the verbs stay on the screen that knows what they mean, and the
+    corner stays the shell's.
+  -->
+  @if (created(); as capture) {
+    <app-create-toast
+      [name]="capture.name"
+      [context]="capture.context"
+      (due)="capture.due($event)"
+      (details)="capture.details()"
+    />
+  }
+
+  @if (undoable(); as completion) {
+    <app-undo-toast [what]="completion.what" (undo)="completion.undo()" />
+  }
+</div>
+
+<!--
+  The one confirm (ADR-0014). It exists once because the omnibox and the templates list differ only
+  in *how* the thing was chosen and converge here before anything is written — which until #67 was
+  one class rendered from two places, one of them inside the appbar, where its scrim could not cover
+  the notice above while `aria-modal="true"` promised a screen reader that nothing outside it was
+  reachable.
+-->
+@if (asking(); as ask) {
+  <app-date-confirm
+    [what]="ask.what"
+    [today]="ask.today"
+    (confirmed)="ask.answer($event)"
+    (cancelled)="ask.answer(null)"
+  />
 }

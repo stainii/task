@@ -14,6 +14,8 @@ import { aDefinition, aTemplate, minMax } from '../domain/template.mother';
 import { LocalStore } from '../store/local-store';
 import { SyncService } from '../sync/sync';
 import { Omnibox } from './omnibox';
+import { Ask, Overlays } from './overlays';
+import { Toast, Toasts } from './toasts';
 
 /**
  * The omnibox: capture by typing, one keystroke from wherever you are (ADR-0014).
@@ -23,6 +25,11 @@ import { Omnibox } from './omnibox';
  *
  * The store and sync are the two boundaries, stubbed exactly as `overview.spec.ts` and
  * `task-page.spec.ts` stub them. Everything between is real.
+ *
+ * **The confirm and the toast are read off the shell's overlay layer, not out of this component**
+ * (#67). The omnibox stopped painting either of them when it turned out that painting them from
+ * inside `.appbar` clamped them under every other overlay in the app; what it kept is the half that
+ * was ever its own — *ask before writing*, and *these are the verbs that offer stands with*.
  */
 
 const NOW_AT = new Date('2026-08-14T10:00:00Z');
@@ -83,6 +90,36 @@ async function settle(): Promise<void> {
 
 function texts(selector: string): string[] {
   return [...page.querySelectorAll(selector)].map((node) => node.textContent?.trim() ?? '');
+}
+
+/** The question standing in the shell's one confirm. */
+function asking(): Ask | null {
+  return TestBed.inject(Overlays).asking();
+}
+
+/** Answers it as a person would, and lets the omnibox act on it. */
+async function answer(on: string | null): Promise<void> {
+  const ask = asking();
+  if (ask === null) {
+    throw new Error('Nothing is being confirmed.');
+  }
+  ask.answer(on);
+  // Answering *resumes* a suspended `await` in the omnibox rather than calling into it, and what
+  // resumes then records one or two patches before it reaches the toast. A macrotask drains that
+  // whole chain; `whenStable` alone does not see a bare promise as pending work.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await settle();
+}
+
+/** What is standing in the shell's one corner. */
+function toast(): Toast | null {
+  return TestBed.inject(Toasts).showing();
+}
+
+/** Presses Escape the way the shell does: at the topmost overlay, wherever focus happens to be. */
+async function escape(): Promise<void> {
+  TestBed.inject(Overlays).escape();
+  await settle();
 }
 
 /** The task a capture created, folded from the patch that created it. */
@@ -220,26 +257,49 @@ describe('capture by typing', () => {
     await type('bedden');
     expect(page.querySelector('.panel')).toBeTruthy();
 
-    await press('Escape');
+    await escape();
 
     expect(box().value).toBe('');
     expect(page.querySelector('.panel')).toBeNull();
     expect(TestBed.inject(Router).url).toBe('/in/housagotchi');
   });
 
-  it('takes Escape from a chip too, not only from the caret', async () => {
-    // The chips and the suggestions are real, Tab-reachable buttons. Bound on the input alone, the
-    // ADR's promise held only while focus happened to be in the box.
+  it('answers Escape wherever focus is, not only from the caret', async () => {
+    // The chips and the suggestions are real, Tab-reachable buttons, and #60 scoped Escape to the
+    // component host so it caught them. #67 took the key off every component and gave it to the
+    // shell: the omnibox says *I am open* while the dropdown is up, and the topmost overlay is the
+    // one that answers — which is the same promise without a listener of its own.
     held = [aTask({ context: 'house' }), aTask({ context: 'social' })];
     await standingAt('/');
 
     await type('Ramen lappen');
-    const chip = page.querySelector<HTMLElement>('.chip');
-    chip?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await settle();
+    expect(page.querySelector('.panel')).toBeTruthy();
+
+    await escape();
 
     expect(box().value).toBe('');
     expect(page.querySelector('.panel')).toBeNull();
+  });
+
+  it('gives Escape to the confirm first, and only then to the box', async () => {
+    // The defect #67 names, from the other end: one press must dismiss **one** overlay. The confirm
+    // opened over the dropdown, so it goes first and what is typed survives it.
+    held = [aTask({ id: 'bed', name: 'Beddengoed wassen' })];
+    await standingAt('/');
+
+    await type('bedden');
+    await click('.suggestion');
+    expect(asking()).not.toBeNull();
+
+    await escape();
+
+    expect(asking()).toBeNull();
+    expect(box().value).toBe('bedden');
+    expect(recorded).toEqual([]);
+
+    await escape();
+
+    expect(box().value).toBe('');
   });
 });
 
@@ -278,7 +338,7 @@ describe('marking something done by name', () => {
     await type('bedden');
     await click('.suggestion');
 
-    expect(page.querySelector('app-date-confirm')).toBeTruthy();
+    expect(asking()?.what).toBe('Beddengoed wassen');
     expect(recorded).toEqual([]);
   });
 
@@ -288,11 +348,7 @@ describe('marking something done by name', () => {
 
     await type('bedden');
     await click('.suggestion');
-    const field = page.querySelector<HTMLInputElement>("app-date-confirm input[type='date']");
-    field!.value = '2026-08-11';
-    field!.dispatchEvent(new Event('input'));
-    await settle();
-    await click('app-date-confirm .confirm');
+    await answer('2026-08-11');
 
     expect(recorded.map((patch) => [patch.taskId, patch.changes])).toEqual([
       ['bed', { status: 'COMPLETED', completedOn: '2026-08-11' }],
@@ -305,10 +361,10 @@ describe('marking something done by name', () => {
 
     await type('bedden');
     await click('.suggestion');
-    await click('app-date-confirm .dismiss');
+    await answer(null);
 
     expect(recorded).toEqual([]);
-    expect(page.querySelector('app-date-confirm')).toBeNull();
+    expect(asking()).toBeNull();
   });
 
   it('empties the box once something has been marked done', async () => {
@@ -317,10 +373,10 @@ describe('marking something done by name', () => {
 
     await type('bedden');
     await click('.suggestion');
-    await click('app-date-confirm .confirm');
+    await answer('2026-08-14');
 
     expect(box().value).toBe('');
-    expect(page.querySelector('app-date-confirm')).toBeNull();
+    expect(asking()).toBeNull();
   });
 });
 
@@ -362,6 +418,11 @@ describe('the context chips', () => {
   });
 });
 
+/**
+ * The offer a capture leaves standing. **What it looks like is `create-toast.spec.ts`'s**; what it
+ * *does* is the omnibox's, and that is what these drive — the toast carries the verbs of the screen
+ * that raised it, and the shell paints them without knowing what they mean.
+ */
 describe('the create toast', () => {
   it('names what was added and where it landed', async () => {
     await standingAt('/in/housagotchi');
@@ -369,8 +430,11 @@ describe('the create toast', () => {
     await type('Ramen lappen');
     await press('Enter');
 
-    expect(page.querySelector('.created')?.textContent).toContain('Ramen lappen');
-    expect(page.querySelector('.created')?.textContent).toContain('housagotchi');
+    expect(toast()).toMatchObject({
+      kind: 'created',
+      name: 'Ramen lappen',
+      context: 'housagotchi',
+    });
   });
 
   it('gives the task a due date in one tap', async () => {
@@ -381,7 +445,12 @@ describe('the create toast', () => {
 
     await type('Ramen lappen');
     await press('Enter');
-    await click('.created .due[data-days="1"]');
+    const offer = toast();
+    if (offer?.kind !== 'created') {
+      throw new Error('No capture is being offered a due date.');
+    }
+    offer.due(1);
+    await settle();
 
     const created = captured();
     expect(recorded.map((patch) => patch.changes)).toEqual([
@@ -391,34 +460,34 @@ describe('the create toast', () => {
     expect(recorded[1].taskId).toBe(created.id);
   });
 
-  it('offers the three the ADR names, and Add details for everything else', async () => {
-    await standingAt('/');
-
-    await type('Ramen lappen');
-    await press('Enter');
-
-    expect(texts('.created .due')).toEqual(['due today', 'tomorrow', 'in 3 days']);
-    expect(page.querySelector('.created .details')).toBeTruthy();
-  });
-
   it('opens the task dialog on Add details, as an ordinary navigation', async () => {
     await standingAt('/');
 
     await type('Ramen lappen');
     await press('Enter');
-    await click('.created .details');
+    const offer = toast();
+    if (offer?.kind !== 'created') {
+      throw new Error('No capture is offering details.');
+    }
+    offer.details();
+    await settle();
 
     expect(TestBed.inject(Router).url).toBe(`/task/${captured().id}`);
   });
 
-  it('goes away once a due date has been chosen', async () => {
+  it('gives the corner back once a due date has been chosen', async () => {
     await standingAt('/');
 
     await type('Ramen lappen');
     await press('Enter');
-    await click('.created .due[data-days="0"]');
+    const offer = toast();
+    if (offer?.kind !== 'created') {
+      throw new Error('No capture is being offered a due date.');
+    }
+    offer.due(0);
+    await settle();
 
-    expect(page.querySelector('.created')).toBeNull();
+    expect(toast()).toBeNull();
   });
 });
 
@@ -460,11 +529,16 @@ describe('undoing a completion made by name', () => {
 
     await type('bedden');
     await click('.suggestion');
-    await click('app-date-confirm .confirm');
+    await answer('2026-08-14');
 
-    expect(page.querySelector('.undoable')?.textContent).toContain('Beddengoed wassen');
+    const offer = toast();
+    if (offer?.kind !== 'undo') {
+      throw new Error('Nothing is offering to be undone.');
+    }
+    expect(offer.what).toContain('Beddengoed wassen');
 
-    await click('.undoable .undo');
+    offer.undo();
+    await settle();
 
     expect(recorded).toHaveLength(2);
     expect(recorded[1].voids).toBe(recorded[0].id);
@@ -472,17 +546,18 @@ describe('undoing a completion made by name', () => {
   });
 
   it('shows one toast at a time, so a capture does not sit under a completion', async () => {
+    // The corner is one slot (#67), so this is now true by construction rather than by the omnibox
+    // remembering to clear its own — which is exactly what it could not do about the overview's.
     held = [aTask({ id: 'bed', name: 'Beddengoed wassen' })];
     await standingAt('/');
 
     await type('bedden');
     await click('.suggestion');
-    await click('app-date-confirm .confirm');
+    await answer('2026-08-14');
     await type('Ramen lappen');
     await press('Enter');
 
-    expect(page.querySelector('.undoable')).toBeNull();
-    expect(page.querySelector('.created')).toBeTruthy();
+    expect(toast()?.kind).toBe('created');
   });
 });
 
@@ -508,8 +583,9 @@ describe('the date the omnibox measures against', () => {
 
     await click('.suggestion');
 
-    const field = page.querySelector<HTMLInputElement>("app-date-confirm input[type='date']");
-    expect(field?.value).toBe('2026-08-15');
+    // The confirm seeds its field from whatever it is handed, so the date the omnibox hands over
+    // *is* the date that gets written.
+    expect(asking()?.today).toBe('2026-08-15');
   });
 });
 
@@ -567,12 +643,7 @@ describe('saying you did a chore that is showing nothing', () => {
 
     await type('vuilbak');
     await click('.suggestion');
-
-    const field = page.querySelector<HTMLInputElement>('app-date-confirm input[type=date]');
-    field!.value = '2026-08-11';
-    field!.dispatchEvent(new Event('input'));
-    await settle();
-    await click('app-date-confirm .confirm');
+    await answer('2026-08-11');
 
     expect(recorded).toHaveLength(2);
     const task = foldOf(recorded[0].taskId, recorded);
@@ -590,9 +661,14 @@ describe('saying you did a chore that is showing nothing', () => {
 
     await type('vuilbak');
     await click('.suggestion');
-    await click('app-date-confirm .confirm');
+    await answer('2026-08-14');
 
-    await click('.undoable .undo');
+    const offer = toast();
+    if (offer?.kind !== 'undo') {
+      throw new Error('Nothing is offering to be undone.');
+    }
+    offer.undo();
+    await settle();
 
     const undo = recorded[recorded.length - 1];
     expect(undo.voids).toBe(recorded[recorded.length - 2].id);

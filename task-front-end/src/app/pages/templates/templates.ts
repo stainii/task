@@ -20,9 +20,9 @@ import { templateRows, TemplateRow } from '../../domain/templates';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TemplateService } from '../../sync/templates';
-import { DateConfirm } from '../../ui/date-confirm';
 import { GlyphButton } from '../../ui/glyph-button';
-import { UndoToast } from '../../ui/undo-toast';
+import { Overlays } from '../../ui/overlays';
+import { Toasts } from '../../ui/toasts';
 import { dueLabel, lastDoneLabel } from '../../ui/wording';
 
 /** Which definition a ✓ is about, once one has been chosen. */
@@ -51,7 +51,7 @@ interface Chosen {
 @Component({
   selector: 'app-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, DateConfirm, GlyphButton, UndoToast],
+  imports: [RouterLink, GlyphButton],
   templateUrl: './templates.html',
   styleUrl: './templates.css',
 })
@@ -60,6 +60,8 @@ export class Templates {
   private readonly sync = inject(SyncService);
   private readonly templates = inject(TemplateService);
   private readonly now = inject(NOW);
+  private readonly overlays = inject(Overlays);
+  private readonly toasts = inject(Toasts);
 
   /**
    * Angular's own register of work in flight.
@@ -107,14 +109,6 @@ export class Templates {
    */
   protected readonly choosing = signal<TemplateRow | null>(null);
 
-  /** What the confirm is about. Nothing is written while this is set. */
-  protected readonly confirming = signal<Chosen | null>(null);
-
-  /** The completion still inside its undo window, or null. */
-  protected readonly undoable = signal<{ patch: TaskPatch; what: string } | null>(null);
-
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
-
   constructor() {
     effect(() => {
       this.sync.revision();
@@ -125,7 +119,16 @@ export class Templates {
     // stale is most visible, and the fetch leaves what is held alone if it fails.
     void this.templates.refresh();
 
-    inject(DestroyRef).onDestroy(() => this.clearToast());
+    // *Which one did you do?* is an `aria-modal` dialog, so Escape has to close it — and until #67
+    // nothing did, because the two components that owned the key both bound `document:` and neither
+    // was this. It says it is open instead, and the shell hands it the key while it is topmost.
+    effect((onCleanup) => {
+      if (this.choosing() !== null) {
+        onCleanup(this.overlays.open(() => this.choosing.set(null)));
+      }
+    });
+
+    inject(DestroyRef).onDestroy(() => this.toasts.clear());
   }
 
   /** What the template is asking for right now — only a row that has fired has one. */
@@ -146,19 +149,23 @@ export class Templates {
     // An open task *is* the choice: it names one definition already, so asking which would be asking
     // a question whose answer is on screen.
     if (row.openTask !== null) {
-      this.confirming.set({ row, definitionIndex: 0, what: row.openTask.name });
+      void this.confirm({ row, definitionIndex: 0, what: row.openTask.name });
       return;
     }
     if (row.template.taskDefinitions.length > 1) {
       this.choosing.set(row);
       return;
     }
-    this.confirming.set({ row, definitionIndex: 0, what: row.template.taskDefinitions[0].name });
+    void this.confirm({
+      row,
+      definitionIndex: 0,
+      what: row.template.taskDefinitions[0].name,
+    });
   }
 
   protected chose(row: TemplateRow, definitionIndex: number): void {
     this.choosing.set(null);
-    this.confirming.set({
+    void this.confirm({
       row,
       definitionIndex,
       what: row.template.taskDefinitions[definitionIndex].name,
@@ -167,50 +174,38 @@ export class Templates {
 
   protected cancelConfirm(): void {
     this.choosing.set(null);
-    this.confirming.set(null);
   }
 
   /**
-   * Writes ADR-0011's one button in whichever of its two shapes the data chose.
+   * Asks when, then writes ADR-0011's one button in whichever of its two shapes the data chose.
+   *
+   * The confirm is **the shell's one confirm** (#67), awaited rather than rendered here: ADR-0014
+   * affords two capture paths precisely because they converge before anything is written, and until
+   * this there were two instances of the one component that convergence was named after.
    *
    * Through `sync.recordAll`, which the omnibox's template rows use too: the two paths mint the same
    * patches and must record them the same way, and it is what names the patch undo takes back.
    */
-  protected async completed(on: IsoDate): Promise<void> {
-    const chosen = this.confirming();
-    if (chosen === null) {
+  private async confirm(chosen: Chosen): Promise<void> {
+    const on = await this.overlays.ask(chosen.what, this.today());
+    if (on === null) {
       return;
     }
-    this.confirming.set(null);
 
     const undoable = await this.sync.recordAll(
       didItPatches(chosen.row, chosen.definitionIndex, on, this.now()),
     );
 
-    this.offerUndo(undoable, chosen.what);
+    this.toasts.show({
+      kind: 'undo',
+      what: `Completed — ${chosen.what}`,
+      undo: () => void this.undo(undoable),
+    });
   }
 
-  protected async undo(): Promise<void> {
-    const toast = this.undoable();
-    if (toast === null) {
-      return;
-    }
-    this.clearToast();
-    await this.sync.record(undoPatch(toast.patch, this.now()));
-  }
-
-  private offerUndo(patch: TaskPatch, what: string): void {
-    this.clearToast();
-    this.undoable.set({ patch, what });
-    this.toastTimer = setTimeout(() => this.undoable.set(null), UndoToast.HORIZON_MS);
-  }
-
-  private clearToast(): void {
-    if (this.toastTimer !== null) {
-      clearTimeout(this.toastTimer);
-      this.toastTimer = null;
-    }
-    this.undoable.set(null);
+  private async undo(patch: TaskPatch): Promise<void> {
+    this.toasts.clear();
+    await this.sync.record(undoPatch(patch, this.now()));
   }
 
   private async reload(): Promise<void> {

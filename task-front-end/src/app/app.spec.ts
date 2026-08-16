@@ -16,6 +16,8 @@ import { BuildSkew } from './pwa/build-skew';
 import { LocalStore } from './store/local-store';
 import { SyncStatus } from './sync/sync-status';
 import { Notices } from './ui/notices';
+import { Overlays } from './ui/overlays';
+import { Toasts } from './ui/toasts';
 
 /**
  * The service-worker surfaces, which `provideServiceWorker` supplies in the real app and nothing
@@ -37,6 +39,11 @@ const SERVICE_WORKER_STUBS = [
  * The shell's two claims: every route in ADR-0014 resolves, and entering a context does not look
  * like leaving Tasks.
  */
+/** A verb nothing in these tests presses: they are about the slot, not about what the offer does. */
+function noop(): void {
+  // Deliberately empty.
+}
+
 describe('App', () => {
   beforeEach(() => {
     // The shell starts sync, and sync opens the store. A fresh factory per test, so nothing shares
@@ -111,6 +118,67 @@ describe('App', () => {
     await navigate('/nowhere');
 
     expect(TestBed.inject(Router).url).toBe('/');
+  });
+
+  /**
+   * The overlay layer (#67): everything painted *over* the page, painted by the shell.
+   *
+   * Before this the omnibox painted its own toasts and its own confirm from inside `.appbar`, which
+   * is `position: sticky; z-index: 5` and therefore a **stacking context**: every z-index those
+   * overlays declared was clamped to 5 against the root, so `DateConfirm`'s scrim could not cover
+   * the shell's notice while `aria-modal="true"` promised a screen reader that it did.
+   */
+  describe('the overlay layer', () => {
+    it('paints the one toast slot, whichever screen raised it', async () => {
+      const shell = await navigate('/');
+      TestBed.inject(Toasts).show({
+        kind: 'undo',
+        what: 'Completed — Beddengoed wassen',
+        undo: noop,
+      });
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      const toast = shell.querySelector('.corner app-undo-toast');
+      expect(toast?.textContent).toContain('Completed — Beddengoed wassen');
+    });
+
+    it('stands the notice and a toast in the corner side by side rather than on top of each other', async () => {
+      const shell = await navigate('/');
+      TestBed.inject(Notices).say('Beddengoed wassen is already completed.');
+      TestBed.inject(Toasts).show({ kind: 'undo', what: 'Completed — Iets', undo: noop });
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      // One corner, laid out once. `app.css` claimed *"only one is ever up"* and nothing enforced
+      // it; what enforces it now is that they share a stack rather than a coordinate.
+      const corner = shell.querySelector('.corner');
+      expect(corner?.querySelector('.notice')).toBeTruthy();
+      expect(corner?.querySelector('app-undo-toast')).toBeTruthy();
+    });
+
+    it('paints the one confirm, and paints it outside the appbar', async () => {
+      const shell = await navigate('/');
+      void TestBed.inject(Overlays).ask('Beddengoed wassen', '2026-08-16');
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      const confirms = shell.querySelectorAll('app-date-confirm');
+      expect(confirms.length).toBe(1);
+      // The defect in one assertion: inside `header.appbar` the scrim can never cover the notice,
+      // whatever it declares.
+      expect(shell.querySelector('header.appbar app-date-confirm')).toBeNull();
+      expect(confirms[0].textContent).toContain('When did you do it?');
+    });
+
+    it('owns the only document-level Escape there is, and gives it to the topmost overlay', async () => {
+      await navigate('/');
+      const overlays = TestBed.inject(Overlays);
+      const dismissed: string[] = [];
+      overlays.open(() => dismissed.push('underneath'));
+      overlays.open(() => dismissed.push('topmost'));
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+      expect(dismissed).toEqual(['topmost']);
+    });
   });
 
   /**

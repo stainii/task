@@ -52,16 +52,3 @@
     </section>
   }
 }
-
-<!--
-  Undo, as a toast (ADR-0015). ADR-0004 made undo a void patch and put `id` on the wire so it works
-  cold, but nothing said how you invoke it — and every verb on the panel makes a row leave a screen
-  that does not show closed tasks. Note the horizon: about eight seconds, and a wrong `completedOn`
-  outlives it.
--->
-@if (undoable(); as action) {
-  <div class="toast" role="status">
-    <span>{{ action.done }}</span>
-    <button type="button" (click)="undo()">Undo</button>
-  </div>
-}

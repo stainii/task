@@ -12,6 +12,8 @@ import { aDefinition, aTemplate, minMax } from '../../domain/template.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TemplateService } from '../../sync/templates';
+import { Overlays } from '../../ui/overlays';
+import { Toasts } from '../../ui/toasts';
 import { Templates } from './templates';
 
 const NOW_AT = new Date('2026-08-14T10:00:00Z');
@@ -57,15 +59,23 @@ async function render(templates: TaskTemplate[], tasks: Task[] = []): Promise<vo
   await fixture.whenStable();
 }
 
-async function confirmOn(date: string): Promise<void> {
-  const field = element().querySelector<HTMLInputElement>('app-date-confirm input[type=date]');
-  if (field === null) {
+/**
+ * The confirm is **the shell's** since #67, so this screen is asked whether it *asked* rather than
+ * whether it painted. Answering resumes a suspended `await` inside the component, and what resumes
+ * records patches before it reaches the toast — so a macrotask drains the chain that `whenStable`
+ * does not see as pending work.
+ */
+function asking() {
+  return TestBed.inject(Overlays).asking();
+}
+
+async function confirmOn(date: string | null): Promise<void> {
+  const ask = asking();
+  if (ask === null) {
     throw new Error('The date confirm is not open.');
   }
-  field.value = date;
-  field.dispatchEvent(new Event('input'));
-  await fixture.whenStable();
-  click('app-date-confirm .confirm');
+  ask.answer(date);
+  await new Promise((resolve) => setTimeout(resolve, 0));
   await fixture.whenStable();
 }
 
@@ -187,7 +197,7 @@ describe('the ✓', () => {
     click('li.template .did-it');
     await fixture.whenStable();
 
-    expect(element().querySelector('app-date-confirm')).not.toBeNull();
+    expect(asking()?.what).toBe('Vuilbakken');
     expect(recorded).toEqual([]);
   });
 
@@ -248,13 +258,38 @@ describe('the ✓', () => {
     await fixture.whenStable();
 
     expect(texts('.which .definition')).toEqual(['Beddengoed wassen', 'Bed stofzuigen']);
-    expect(element().querySelector('app-date-confirm')).toBeNull();
+    expect(asking()).toBeNull();
 
     element().querySelectorAll<HTMLButtonElement>('.which .definition')[1].click();
     await fixture.whenStable();
     await confirmOn('2026-08-11');
 
     expect(foldOf(recorded[0].taskId, recorded).name).toBe('Bed stofzuigen');
+  });
+
+  it('takes Escape as a way out of the chooser, which it declares itself modal to', async () => {
+    // `aria-modal="true"` with no way to close by keyboard is a guarantee living in code and broken
+    // by everything outside it. Before #67 neither of the app's two Escape owners was this screen,
+    // so the only way out was the mouse.
+    await render([
+      aTemplate({
+        name: 'Beddengoed',
+        taskDefinitions: [
+          aDefinition({ name: 'Beddengoed wassen' }),
+          aDefinition({ name: 'Bed stofzuigen' }),
+        ],
+      }),
+    ]);
+
+    click('li.template .did-it');
+    await fixture.whenStable();
+    expect(element().querySelector('.which')).not.toBeNull();
+
+    TestBed.inject(Overlays).escape();
+    await fixture.whenStable();
+
+    expect(element().querySelector('.which')).toBeNull();
+    expect(recorded).toEqual([]);
   });
 
   /**
@@ -269,7 +304,13 @@ describe('the ✓', () => {
     await fixture.whenStable();
     await confirmOn('2026-08-11');
 
-    click('app-undo-toast .undo');
+    const offer = TestBed.inject(Toasts).showing();
+    if (offer?.kind !== 'undo') {
+      throw new Error('Nothing is offering to be undone.');
+    }
+    expect(offer.what).toContain('Vuilbakken');
+    offer.undo();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await fixture.whenStable();
 
     const undo = recorded[recorded.length - 1];

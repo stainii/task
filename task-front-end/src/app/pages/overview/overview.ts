@@ -16,6 +16,7 @@ import { PanelAction, undoPatch } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
+import { Toasts } from '../../ui/toasts';
 import { TaskPanel } from './task-panel';
 
 /**
@@ -58,12 +59,10 @@ interface CollapsedBand {
   styleUrl: './overview.css',
 })
 export class Overview {
-  /** How long the undo toast stays. A wrong `completedOn` outlives it; that is the deal. */
-  private static readonly UNDO_MS = 8_000;
-
   private readonly store = inject(LocalStore);
   private readonly sync = inject(SyncService);
   private readonly now = inject(NOW);
+  private readonly toasts = inject(Toasts);
 
   /** Bound from the route parameter; absent at `/`, which is every context at once. */
   readonly value = input<string>();
@@ -80,11 +79,6 @@ export class Overview {
   private readonly asOf = signal(today(this.now()));
 
   private readonly opened = signal<ReadonlySet<string>>(new Set());
-
-  /** The last action, while its undo is still on offer. */
-  protected readonly undoable = signal<PanelAction | null>(null);
-
-  private undoTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly today = this.asOf.asReadonly();
 
@@ -165,7 +159,8 @@ export class Overview {
       document.addEventListener('visibilitychange', onVisible);
       inject(DestroyRef).onDestroy(() => {
         document.removeEventListener('visibilitychange', onVisible);
-        this.clearUndo();
+        // An offer whose verb belongs to a screen that has gone is not an offer.
+        this.toasts.clear();
       });
     }
   }
@@ -174,17 +169,26 @@ export class Overview {
     this.opened.update((opened) => new Set(opened).add(key));
   }
 
+  /**
+   * Complete, cancel and postpone all make a row leave a screen that does not show closed tasks, so
+   * ADR-0015 puts an undo behind each of them.
+   *
+   * **The offer stands in the shell's one corner** (#67). This screen keeps the verb — undoing is
+   * the overview's business, and it is the only place ADR-0004's void patch is reached in normal
+   * use — and gives up the coordinate, because it used to pin itself into a corner the omnibox and
+   * the templates list were pinning themselves into at the same time.
+   */
   protected async acted(action: PanelAction): Promise<void> {
     await this.record(action.patch);
-    this.offerUndo(action);
+    this.toasts.show({
+      kind: 'undo',
+      what: action.done,
+      undo: () => void this.undo(action),
+    });
   }
 
-  protected async undo(): Promise<void> {
-    const action = this.undoable();
-    if (action === null) {
-      return;
-    }
-    this.clearUndo();
+  private async undo(action: PanelAction): Promise<void> {
+    this.toasts.clear();
     await this.record(undoPatch(action.patch, this.now()));
   }
 
@@ -193,20 +197,6 @@ export class Overview {
     // is durably in the outbox, which is why the row may leave the screen straight afterwards.
     await this.sync.record(patch);
     await this.reload();
-  }
-
-  private offerUndo(action: PanelAction): void {
-    this.clearUndo();
-    this.undoable.set(action);
-    this.undoTimer = setTimeout(() => this.undoable.set(null), Overview.UNDO_MS);
-  }
-
-  private clearUndo(): void {
-    if (this.undoTimer !== null) {
-      clearTimeout(this.undoTimer);
-      this.undoTimer = null;
-    }
-    this.undoable.set(null);
   }
 
   /**

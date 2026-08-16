@@ -10,6 +10,7 @@ import { Task, TaskPatch } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
+import { Toasts } from '../../ui/toasts';
 import { Overview } from './overview';
 
 const TODAY = '2026-08-14';
@@ -201,9 +202,17 @@ describe('acting on a task', () => {
     element().querySelector<HTMLElement>('button[aria-label="Complete"]')?.click();
     await fixture.whenStable();
 
-    expect(element().querySelector('.toast')?.textContent).toContain('Completed');
+    // The offer stands in the shell's one corner (#67), not on this screen: the overview used to
+    // paint a toast of its own, and the omnibox another, and completing here and then capturing
+    // within eight seconds put both in the same place with the newer one underneath.
+    const offer = TestBed.inject(Toasts).showing();
+    if (offer?.kind !== 'undo') {
+      throw new Error('Nothing is offering to be undone.');
+    }
+    expect(offer.what).toContain('Completed');
 
-    element().querySelector<HTMLElement>('.toast button')?.click();
+    offer.undo();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await fixture.whenStable();
 
     expect(recorded).toHaveLength(2);

@@ -449,6 +449,24 @@ device that deliberately went quiet would turn itself back on at the next launch
 Resolved in [#34](https://github.com/stainii/task/issues/34),
 [ADR-0012](docs/adr/0012-one-push-at-0730-derived-not-stored.md).
 
+### Overlay layer
+
+**Everything painted over the page, painted by the shell.** Two places, both in `app.html`: the
+**corner** — one bottom slot holding either a notice or a toast, never two toasts — and the one date
+confirm. A screen that raises an overlay supplies the *verbs* and never the *coordinate*: undoing is
+still the overview's business, and where the offer stands is not.
+
+A **toast** is an offer with a deadline, about something that has already happened; it carries a verb
+and about eight seconds in which to press it. A **notice** is a fact you have already lived through,
+said by a screen that is about to stop existing. They stand one above the other in the corner rather
+than competing for it.
+
+Escape belongs to the layer too: an overlay says it is open, and the app's single
+`document:keydown.escape` gives the press to the topmost one.
+
+Resolved in [#67](https://github.com/stainii/task/issues/67),
+[ADR-0020](docs/adr/0020-one-overlay-layer-and-one-owner-of-escape.md).
+
 ## Terms deliberately left undefined
 
 ### Goal

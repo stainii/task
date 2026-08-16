@@ -8,7 +8,11 @@ import { DateConfirm } from './date-confirm';
  *
  * It is one component rather than one per capture path on purpose: the omnibox and #61's templates
  * list differ only in **how the thing was chosen**, and converge here before anything is written.
- * Two confirms would be two chances to write a different `completedOn` for the same gesture.
+ * Two confirms would be two chances to write a different `completedOn` for the same gesture — and
+ * since #67 there is one *instance* too, painted by the shell.
+ *
+ * **Escape is not here.** It is a cancellation, but the confirm no longer owns the key: it is the
+ * topmost overlay while it is up, and `overlays.spec.ts` is where that is asserted.
  */
 describe('DateConfirm', () => {
   let fixture: ComponentFixture<DateConfirm>;
@@ -81,16 +85,6 @@ describe('DateConfirm', () => {
     page.querySelector<HTMLElement>('.dismiss')?.click();
 
     expect(confirmed).toEqual([]);
-    expect(cancelled.length).toBe(1);
-  });
-
-  it('takes Escape as a cancellation, like every other dismissal in the app', async () => {
-    const page = await open('Beddengoed wassen');
-    const cancelled: unknown[] = [];
-    fixture.componentInstance.cancelled.subscribe(() => cancelled.push(true));
-
-    page.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-
     expect(cancelled.length).toBe(1);
   });
 });

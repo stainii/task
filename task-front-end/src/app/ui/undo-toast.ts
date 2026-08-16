@@ -26,15 +26,10 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
   styleUrl: './undo-toast.css',
 })
 export class UndoToast {
-  /**
-   * How long the offer stands.
-   *
-   * **Untested, and named as such** — nothing in the suite waits eight seconds, and #60 paid for it
-   * once already: a due chip that "did nothing" turned out to be a toast that had quietly expired
-   * between a screenshot and a click. It is one number here rather than one per surface precisely so
-   * that when it does prove wrong it is wrong in one place.
-   */
-  static readonly HORIZON_MS = 8_000;
+  // How long the offer stands is `Toasts.HORIZON_MS` since #67, and it is not here any more: this
+  // component neither places itself nor times itself, so a horizon on it was a number owned by
+  // something that could not act on it. Three screens reached through this class for it while
+  // running three timers of their own.
 
   /** What was completed, in words — a task's name, or the definition a template's ✓ minted. */
   readonly what = input.required<string>();

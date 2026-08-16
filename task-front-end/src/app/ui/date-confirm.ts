@@ -20,12 +20,16 @@ import { IsoDate } from '../domain/dates';
  *
  * A swipe on a row in front of you still completes silently. The line is *chosen by name asks,
  * acted on in place does not*.
+ *
+ * **It owns no keys and picks no place.** Both were given up in
+ * [#67](https://github.com/stainii/task/issues/67): the shell paints it, from `Overlays.ask`, so
+ * Escape reaches it by its being the topmost overlay rather than by a `document:` binding of its
+ * own — there were two of those, and `TaskPage`'s navigates away.
  */
 @Component({
   selector: 'app-date-confirm',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [A11yModule],
-  host: { '(document:keydown.escape)': 'cancelled.emit()' },
   template: `
     <button type="button" class="scrim" aria-label="Close" (click)="cancelled.emit()"></button>
 

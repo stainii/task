@@ -88,40 +88,11 @@
   color: var(--app-muted);
 }
 
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  max-width: min(520px, calc(100vw - 32px));
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--app-ink);
-  color: var(--app-bg);
-  font-size: 14px;
-  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
-}
-
-.toast span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.toast button {
-  flex: none;
-  border: 0;
-  background: none;
-  color: var(--app-accent);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
+/*
+ * **No toast here.** Undo is still the overview's verb (ADR-0015), but the corner it stood in is
+ * the shell's since #67: this screen, the omnibox and the templates list each pinned themselves
+ * into it, and two of them could be up at once.
+ */
 
 /* A heading the screen reader still needs, for a band whose visible control is the fold bar. */
 .visually-hidden {

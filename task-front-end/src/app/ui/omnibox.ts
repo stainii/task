@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
   effect,
   inject,
   signal,
@@ -15,7 +14,7 @@ import { NOW } from '../clock';
 import { CAP } from '../domain/bands';
 import { IsoDate, today } from '../domain/dates';
 import { capturePatch, contextsOf, lastUsedContext, matchingTasks } from '../domain/omnibox';
-import { completePatch, DUE_PRESETS, dueDatePatch, undoPatch } from '../domain/patches';
+import { completePatch, dueDatePatch, undoPatch } from '../domain/patches';
 import { Task, TaskPatch } from '../domain/task';
 import { TaskTemplate } from '../domain/template';
 import { didItPatches } from '../domain/template-completion';
@@ -23,33 +22,8 @@ import { templateOffers, TemplateOffer } from '../domain/templates';
 import { dueLabel, lastDoneLabel } from './wording';
 import { LocalStore } from '../store/local-store';
 import { SyncService } from '../sync/sync';
-import { DateConfirm } from './date-confirm';
-import { UndoToast } from './undo-toast';
-
-/**
- * The one toast slot, and the two things it can be about.
- *
- * One slot rather than two, because the two are mutually exclusive in practice and a capture
- * stacked under a completion would put two undo-shaped offers on screen with different deadlines.
- */
-export type Toast =
-  /** A capture, still offering to give it the due date it deliberately did not get. */
-  | {
-      readonly kind: 'created';
-      readonly taskId: string;
-      readonly name: string;
-      readonly context: string;
-    }
-  /**
-   * A completion made by name, still offering to take it back.
-   *
-   * ADR-0015 puts a toast behind **any action that removes a row**, and this removes one from a
-   * screen that does not show closed tasks. It is also the *only* correction path ADR-0011's
-   * amendment and ADR-0018 left for `completedOn`: undo and recomplete inside the toast, or a wrong
-   * date is permanent — the task is closed, this list is open-only, and the overview will never
-   * show it again.
-   */
-  | { readonly kind: 'completed'; readonly patch: TaskPatch; readonly name: string };
+import { Overlays } from './overlays';
+import { Toasts } from './toasts';
 
 /**
  * One row of the dropdown: something you can mark done, and which state it is in.
@@ -96,12 +70,6 @@ export type Suggestion =
 @Component({
   selector: 'app-omnibox',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DateConfirm, UndoToast],
-  // Scoped to this component rather than `document:`, so it catches Escape from a chip or a
-  // suggestion button — both are real, Tab-reachable buttons — without adding a third unconditional
-  // document-level owner of the key beside `TaskPage` and `DateConfirm`. Bound on the input alone,
-  // ADR-0014's *Escape returns you where you were* held only while the caret was in the box.
-  host: { '(keydown.escape)': 'dismiss()' },
   templateUrl: './omnibox.html',
   styleUrl: './omnibox.css',
 })
@@ -116,17 +84,12 @@ export class Omnibox {
    */
   private static readonly FALLBACK_CONTEXT = 'general';
 
-  /**
-   * How long the create toast stays — **the undo toast's own horizon**, imported rather than
-   * repeated, for the same reason `bands.CAP` is: a second literal is a second thing to keep in
-   * step, and these two toasts share a slot.
-   */
-  private static readonly TOAST_MS = UndoToast.HORIZON_MS;
-
   private readonly router = inject(Router);
   private readonly store = inject(LocalStore);
   private readonly sync = inject(SyncService);
   private readonly now = inject(NOW);
+  private readonly overlays = inject(Overlays);
+  private readonly toasts = inject(Toasts);
 
   protected readonly query = signal('');
 
@@ -148,25 +111,6 @@ export class Omnibox {
    * waited on a response would be the one part of the capture path that did not.
    */
   private readonly heldTemplates = signal<readonly TaskTemplate[]>([]);
-
-  /** The row whose confirm is open, or null. Nothing is written while this is set. */
-  protected readonly confirming = signal<Suggestion | null>(null);
-
-  /** What the toast is about, or null while there is nothing to say. */
-  private readonly toast = signal<Toast | null>(null);
-
-  /** The two views of that one slot, so the template branches on presence rather than on a kind. */
-  protected readonly created = computed(() => {
-    const toast = this.toast();
-    return toast?.kind === 'created' ? toast : null;
-  });
-
-  protected readonly undoable = computed(() => {
-    const toast = this.toast();
-    return toast?.kind === 'completed' ? toast : null;
-  });
-
-  private toastTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly url = toSignal(
     this.router.events.pipe(
@@ -230,55 +174,34 @@ export class Omnibox {
     [...new Set([...contextsOf(this.held()), this.context()])].sort((a, b) => a.localeCompare(b)),
   );
 
-  /**
-   * The toast's due-date chips, worded as ADR-0018 words them: `due today · tomorrow · in 3 days`.
-   *
-   * The first carries the word that makes the row a sentence; the rest inherit it. Lower-cased
-   * against the presets rather than written out again — the labels are the same vocabulary the
-   * dialog and the panel use, and a second copy is a second thing to keep in step.
-   */
-  protected readonly dueChips = computed(() =>
-    DUE_PRESETS.map((preset) => ({
-      days: preset.days,
-      label: preset.days === 0 ? 'due today' : preset.label.toLowerCase(),
-    })),
-  );
-
   constructor() {
     effect(() => {
       this.sync.revision();
       void this.reload();
     });
 
-    inject(DestroyRef).onDestroy(() => this.clearToast());
+    // **The dropdown says it is open, and the shell owns the key** (#67). #60 bound Escape on this
+    // component's host rather than on `document:` so it would catch a chip or a suggestion without
+    // adding a third unconditional owner of the key; this keeps that promise and drops the listener
+    // with it — one press dismisses the topmost overlay, which is this only while nothing is over
+    // it. The cleanup is what stands the box down again, so nothing has to remember to.
+    effect((onCleanup) => {
+      if (this.creatable()) {
+        onCleanup(this.overlays.open(() => this.dismiss()));
+      }
+    });
   }
 
   /** One tap on the toast, giving the capture the due date it deliberately did not get. */
-  protected async due(days: number): Promise<void> {
-    const created = this.created();
-    if (created === null) {
-      return;
-    }
-    this.clearToast();
-    await this.sync.record(dueDatePatch(created.taskId, days, this.now()));
+  private async due(taskId: string, days: number): Promise<void> {
+    this.toasts.clear();
+    await this.sync.record(dueDatePatch(taskId, days, this.now()));
   }
 
   /** *Add details*: an ordinary navigation to the task's own dialog (ADR-0018). */
-  protected details(): void {
-    const created = this.created();
-    if (created === null) {
-      return;
-    }
-    this.clearToast();
-    void this.router.navigate(['/task', created.taskId]);
-  }
-
-  private clearToast(): void {
-    if (this.toastTimer !== null) {
-      clearTimeout(this.toastTimer);
-      this.toastTimer = null;
-    }
-    this.toast.set(null);
+  private details(taskId: string): void {
+    this.toasts.clear();
+    void this.router.navigate(['/task', taskId]);
   }
 
   /**
@@ -359,17 +282,12 @@ export class Omnibox {
   }
 
   /**
-   * Picking a row asks **when** rather than completing on the spot.
+   * Picking a row asks **when** rather than completing on the spot, and then writes ADR-0011's one
+   * button in whichever of its two shapes the row is.
    *
    * *Chosen by name asks; acted on in place does not* (ADR-0014). Typing a name is recording
-   * something that already happened, so this writes nothing until the confirm is answered.
-   */
-  protected choose(suggestion: Suggestion): void {
-    this.confirming.set(suggestion);
-  }
-
-  /**
-   * Writes ADR-0011's one button in whichever of its two shapes the row is.
+   * something that already happened, so nothing is written until the confirm is answered — and the
+   * confirm is the shell's one confirm, awaited rather than rendered here (#67).
    *
    * A task row completes that task; a template row mints one created and completed in the same
    * breath. **The two are indistinguishable from here on** — one confirm collected the date, one
@@ -377,12 +295,11 @@ export class Omnibox {
    * before anything is written. `recordAll` is the third thing they share, and it is what names the
    * patch undo takes back.
    */
-  protected async completed(on: IsoDate): Promise<void> {
-    const suggestion = this.confirming();
-    if (suggestion === null) {
+  protected async choose(suggestion: Suggestion): Promise<void> {
+    const on = await this.overlays.ask(suggestion.name, this.today());
+    if (on === null) {
       return;
     }
-    this.confirming.set(null);
     this.query.set('');
 
     const undoable = await this.sync.recordAll(
@@ -391,21 +308,17 @@ export class Omnibox {
         : didItPatches(suggestion.offer.row, suggestion.offer.definitionIndex, on, this.now()),
     );
 
-    this.offerToast({ kind: 'completed', patch: undoable, name: suggestion.name });
+    this.toasts.show({
+      kind: 'undo',
+      what: `Completed — ${suggestion.name}`,
+      undo: () => void this.undo(undoable),
+    });
   }
 
   /** Takes the completion back, as ADR-0004's void patch. The fold recomputes; nothing is edited. */
-  protected async undo(): Promise<void> {
-    const toast = this.undoable();
-    if (toast === null) {
-      return;
-    }
-    this.clearToast();
-    await this.sync.record(undoPatch(toast.patch, this.now()));
-  }
-
-  protected cancelConfirm(): void {
-    this.confirming.set(null);
+  private async undo(patch: TaskPatch): Promise<void> {
+    this.toasts.clear();
+    await this.sync.record(undoPatch(patch, this.now()));
   }
 
   /**
@@ -428,17 +341,17 @@ export class Omnibox {
     await this.sync.record(patch);
     await this.store.setLastContext(context);
     this.remembered.set(context);
-    this.offerToast({ kind: 'created', taskId: patch.taskId, name, context });
-  }
-
-  private offerToast(toast: Toast): void {
-    this.clearToast();
-    this.toast.set(toast);
-    this.toastTimer = setTimeout(() => this.toast.set(null), Omnibox.TOAST_MS);
+    this.toasts.show({
+      kind: 'created',
+      name,
+      context,
+      due: (days) => void this.due(patch.taskId, days),
+      details: () => this.details(patch.taskId),
+    });
   }
 
   /** Escape puts the box down. It never navigates, because typing never navigated. */
-  protected dismiss(): void {
+  private dismiss(): void {
     this.query.set('');
   }
 

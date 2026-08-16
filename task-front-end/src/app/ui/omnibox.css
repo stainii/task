@@ -1,6 +1,5 @@
 /*
- * The appbar omnibox (ADR-0014): one input, the chips and the dropdown under it, and the toast that
- * follows a capture.
+ * The appbar omnibox (ADR-0014): one input, and the chips and the dropdown under it.
  *
  * The host is positioned so the dropdown hangs from the box rather than from the page — the omnibox
  * is a control on the appbar, and a panel that opened somewhere else would read as a screen.
@@ -27,13 +26,19 @@
  * One panel holding the chips and the dropdown, positioned once. Two absolutely-positioned boxes
  * would need the first one's height as a constant in the second one's `top`, which is a number that
  * is wrong the moment the chips wrap to a second line.
+ *
+ * **The one thing that stays inside the appbar's stacking context, on purpose** (#67). Everything
+ * else the omnibox used to paint moved to the shell; this hangs off the input and would have to be
+ * re-anchored to a moving target to leave. So its z-index is deliberately *local* — it orders this
+ * panel against the appbar's own contents and against nothing else, which is what it was already
+ * doing when it read 12 and looked like it meant something in `styles.css`'s scale.
  */
 .panel {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  z-index: 12;
+  z-index: 1;
   background: var(--app-surface);
   border: 1px solid var(--app-line);
   border-radius: 10px;
@@ -103,60 +108,9 @@
 }
 
 /*
- * The create toast. Bottom of the screen like the overview's undo toast, because it is the same
- * kind of thing — an offer with a deadline, about something that has already happened.
- *
- * The block below was **missing**, and had been since #61 lifted the undo toast into
- * `undo-toast.css`: the two shared one rule set, and only `.undoable`'s half moved. What was left
- * was `.created, .created .what { flex: 1 }` — a selector list that reads like a positioned toast
- * and is not one. So the toast rendered inline **inside the appbar**, unpainted, with `Add details`
- * pushed off the right of the screen wherever the text was a little wider. The `@media` block
- * underneath is the tell: `inset` on an element with no `position` does nothing at all.
- *
- * Found by #64's end-to-end suite, on CI, where the fonts are wider than a Mac's — the click on
- * `Add details` retried for eight seconds against an element outside the viewport and then lost it
- * to the toast's own deadline. No unit test can see this: it is geometry.
- *
- * `position: fixed` on this element rather than on the host, for `undo-toast.css`'s stated reason —
- * pinning a component tag makes placement depend on whichever ancestor established a containing
- * block. `z-index` matches `.undoable`'s: the two share one slot and are mutually exclusive.
+ * **No toast, and no confirm.** Both moved to the shell's overlay layer in #67: painted from here
+ * they lived inside `.appbar`'s stacking context, so the create toast could be covered by the
+ * overview's own toast in the corner they share, and the confirm's scrim could not cover the
+ * shell's notice while `aria-modal="true"` said it did. What is left in this file is the appbar
+ * control — the input, the chips and the dropdown.
  */
-.created {
-  position: fixed;
-  z-index: 13;
-  inset: auto 12px 12px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
-  color: var(--app-ink);
-  background: var(--app-surface);
-  border: 1px solid var(--app-line);
-  border-radius: 10px;
-}
-
-.created .what {
-  flex: 1;
-  min-width: 0;
-}
-
-.created button {
-  padding: 4px 10px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--app-accent);
-  background: var(--app-chip);
-  border: 1px solid transparent;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-@media (min-width: 780px) {
-  .created {
-    inset: auto auto 16px 50%;
-    transform: translateX(-50%);
-    width: min(620px, calc(100% - 48px));
-  }
-}

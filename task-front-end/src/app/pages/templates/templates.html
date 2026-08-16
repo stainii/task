@@ -75,21 +75,3 @@
     <button type="button" class="dismiss" (click)="cancelConfirm()">Cancel</button>
   </div>
 }
-
-<!--
-  The same confirm the omnibox opens, deliberately: ADR-0014 affords two capture paths *because*
-  they converge before anything is written, so two confirms would be two chances to write a
-  different `completedOn` for one gesture.
--->
-@if (confirming(); as chosen) {
-  <app-date-confirm
-    [what]="chosen.what"
-    [today]="today()"
-    (confirmed)="completed($event)"
-    (cancelled)="cancelConfirm()"
-  />
-}
-
-@if (undoable(); as completion) {
-  <app-undo-toast [what]="'Completed — ' + completion.what" (undo)="undo()" />
-}

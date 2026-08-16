@@ -38,6 +38,32 @@
 
   /* the 10px left edge on every task panel (FE-005) */
   --app-stripe-width: 10px;
+
+  /*
+   * **The whole depth of the app, read top to bottom** (#67).
+   *
+   * Every z-index in the app is one of these five, so what is over what is answered by reading this
+   * block rather than by grepping for `z-index` and hoping the numbers were meant to be compared.
+   * That is not hypothetical: the appbar's 5, the task dialog's 10/11, the notice's 20 and the
+   * confirm's 20/21 were four independent scales that happened to share a namespace, and two of
+   * them tied.
+   *
+   * They only mean anything in the **root** stacking context, which is why every overlay is painted
+   * by the shell (`app.html`) and not by the screen that raised it. `.appbar` is `position: sticky`
+   * and therefore a stacking context of its own: anything inside it is clamped to the appbar's
+   * place in this list, whatever it declares. The one thing that deliberately stays inside is the
+   * omnibox's dropdown, which hangs off the input and belongs to the appbar's surface — it uses a
+   * local z-index and does not appear here.
+   */
+  --app-z-appbar: 5;
+  /* a screen's own dialog and the scrim it dims that screen with: the task dialog (ADR-0018) */
+  --app-z-page-scrim: 10;
+  --app-z-page-dialog: 11;
+  /* the one bottom corner: a notice, or a toast */
+  --app-z-corner: 20;
+  /* the app's modal, over everything above — including the notice, which is the point */
+  --app-z-scrim: 30;
+  --app-z-modal: 31;
 }
 
 * {

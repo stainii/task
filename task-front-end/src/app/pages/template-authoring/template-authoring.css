@@ -272,7 +272,7 @@ textarea {
 
 .run-form {
   position: fixed;
-  z-index: 13;
+  z-index: var(--app-z-page-dialog);
   inset: auto 12px 12px;
   padding: 12px;
   background: var(--app-surface);

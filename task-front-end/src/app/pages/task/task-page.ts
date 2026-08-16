@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   input,
@@ -27,6 +28,7 @@ import {
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { Notices } from '../../ui/notices';
+import { Overlays } from '../../ui/overlays';
 import { dateLabel, dueLabel, importanceLabel } from '../../ui/wording';
 
 /** What one read of the store yields: the task, and the contexts already in use. */
@@ -72,7 +74,6 @@ interface AskFromConflict {
   imports: [CdkTrapFocus, RouterLink],
   templateUrl: './task-page.html',
   styleUrl: './task-page.css',
-  host: { '(document:keydown.escape)': 'dismiss()' },
 })
 export class TaskPage {
   private readonly store = inject(LocalStore);
@@ -80,6 +81,7 @@ export class TaskPage {
   private readonly router = inject(Router);
   private readonly notices = inject(Notices);
   private readonly now = inject(NOW);
+  private readonly overlays = inject(Overlays);
 
   readonly id = input.required<string>();
 
@@ -174,6 +176,32 @@ export class TaskPage {
   });
 
   constructor() {
+    /*
+     * **This dialog is an overlay, and says so** (#67).
+     *
+     * It used to bind `(document:keydown.escape)` itself, and so did `DateConfirm` — two
+     * unconditional owners of one key, one of which *navigates away*. With a confirm open over this
+     * screen, one press cancelled the confirm and left the dialog in the same breath; it was
+     * unreachable only because the scrim below happens to cover the appbar the confirm was painted
+     * in, which is an accident of z-index rather than a rule.
+     *
+     * Registered for the life of the component rather than while `task()` is non-null: a dialog
+     * whose task has gone is already navigating away, and Escape asking it to do that again is
+     * harmless where a gap in which nothing owns the key is not.
+     */
+    inject(DestroyRef).onDestroy(this.overlays.open(() => this.dismiss()));
+
+    /*
+     * **And the discard confirm is an overlay over *this* one.** It is the case the stack exists
+     * for: while it is up, Escape must answer it — *keep editing* — and must not also fire the
+     * dismissal underneath, which is the very navigation the confirm was raised to ask about.
+     */
+    effect((onCleanup) => {
+      if (this.confirming()) {
+        onCleanup(this.overlays.open(() => this.keepEditing()));
+      }
+    });
+
     // Navigation *is* an imperative side effect, which is the one thing an effect is for. It writes
     // no signal of this component's own; the one signal it does touch is `Notices`, whose whole
     // purpose is to outlive the component being navigated away from.

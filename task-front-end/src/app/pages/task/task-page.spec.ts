@@ -11,6 +11,7 @@ import { aTask } from '../../domain/task.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { Notices } from '../../ui/notices';
+import { Overlays } from '../../ui/overlays';
 
 const NOW_AT = new Date('2026-08-14T10:00:00Z');
 
@@ -366,6 +367,46 @@ describe('leaving without saving', () => {
     expect(router().url).toBe('/');
     expect(recorded).toEqual([]);
     expect(TestBed.inject(Notices).message()).toBe('Discarded 1 unsaved change(s)');
+  });
+
+  /**
+   * **The two Escape claims #67 settled.**
+   *
+   * This dialog and `DateConfirm` each bound `(document:keydown.escape)` unconditionally, and this
+   * one *navigates away* — so with a confirm open over the screen, one press cancelled the confirm
+   * and left the dialog underneath it too. Both now say they are open and the shell hands the key
+   * to whichever is on top.
+   */
+  describe('Escape', () => {
+    it('dismisses the dialog, exactly as the scrim does', async () => {
+      await open(aTask({ id: 'a' }));
+
+      TestBed.inject(Overlays).escape();
+      await settle();
+
+      expect(router().url).toBe('/');
+    });
+
+    it('answers the discard confirm without also taking the exit it is asking about', async () => {
+      // The defect, in the shape it would really have arrived in: two owners, one press, and the
+      // confirm's *keep editing* immediately undone by the dismissal underneath it.
+      const page = await open(aTask({ id: 'a', name: 'Was ophangen' }));
+
+      type(field(page, 'name'), 'Was ophangen en opvouwen');
+      await settle();
+      scrim(page).click();
+      await paint();
+      expect(page.querySelector('.confirm')).not.toBeNull();
+
+      TestBed.inject(Overlays).escape();
+      await paint();
+
+      expect(page.querySelector('.confirm')).toBeNull();
+      expect(router().url).toBe('/task/a');
+      expect(recorded).toEqual([]);
+      // And the typing survived, which is the whole point of having asked.
+      expect(field<HTMLInputElement>(page, 'name').value).toBe('Was ophangen en opvouwen');
+    });
   });
 
   it('goes straight out on an accidental dismissal when nothing was typed', async () => {

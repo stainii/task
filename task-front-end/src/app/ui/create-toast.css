@@ -1,0 +1,37 @@
+/*
+ * The create toast. Same shape as the undo toast, because it is the same kind of thing — an offer
+ * with a deadline, about something that has already happened.
+ *
+ * **It carries no position.** The shell's `.corner` places it (#67), which is what the block that
+ * used to live in `omnibox.css` was doing by hand — badly, twice: it went missing entirely when #61
+ * split `undo-toast.css` out, and when it came back it was still painting inside `.appbar`'s
+ * stacking context, where the overview's own toast could sit on top of it.
+ */
+.created {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+}
+
+.created .what {
+  flex: 1;
+  min-width: 0;
+}
+
+.created button {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--app-accent);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
