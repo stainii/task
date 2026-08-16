@@ -341,3 +341,46 @@ scoped to started work, the future band's bar was the last surface that could ha
 the same rule. `Onderhoud ketels` is now visible as late only by opening the fold and reading its
 row — which is `62 days overdue` in full, so the fact is never lost, only never volunteered. This
 is the accepted cost of *the app stops asking*, and it is deliberate; see the amendment above.
+
+### The queued indicator speaks while draining, not only while offline
+
+Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
+2026-08-16.
+
+*Queued work is visible* specified **that** the appbar shows offline-and-`n`-waiting and never what
+it looks like. It is **words, and it speaks in both directions**:
+
+| state | appbar |
+| --- | --- |
+| online, nothing queued | *nothing at all* |
+| online, `n` queued | `Syncing 12…` |
+| offline, nothing queued | `Offline` — quiet styling, no pill |
+| offline, `n` queued | `Offline · 40 waiting` |
+
+**Words rather than a glyph or a dot**, on three grounds, two of which came from drawing it
+(`task-front-end/prototypes/PROTOTYPE-queued-indicator.html`):
+
+- **A dot disqualifies itself.** At three queued and at forty it is the same pixels — which is
+  *forty offline changes looking exactly like zero*, the measured portal failure
+  [FE-027](../portal-inventory.md) exists to fix, reproduced inside the affordance built to fix it.
+- **A glyph with a count badge borrows an alarm vocabulary.** Rendered, it is indistinguishable from
+  an unread-notification badge — a thing demanding action — while this affordance exists precisely
+  *because nothing is wrong and there is nothing to act on*, which is the reason it is on the appbar
+  and not in a band. It would also spend a glyph on a **state**, where
+  [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md) spends them on verbs.
+- **A count is a fact**, and ADR-0019 gives facts words.
+
+**The draining message is the author's ruling, against the recommendation.** `Syncing 12…` was
+offered as the variant to *leave out*: the queue drains in seconds on a good connection, so it
+mostly flickers, and it puts appearing-and-disappearing motion on the appbar during completely
+healthy use — which sits awkwardly with this ADR's own word for the affordance, **quiet**. The
+author took it anyway, and the case for it is that *did that save?* is asked in exactly the moment
+it answers. **Accepted cost: the appbar is no longer motionless in normal use.** If dogfooding
+([#39](https://github.com/stainii/task/issues/39)) finds the flicker irritating, dropping the online
+half is a one-line change — the words-based design makes that reversible in a way a glyph would not
+have been.
+
+**This adds client state that does not exist yet.** `SyncStatus` holds `online`, `reachable`,
+`lastSyncedAt`, `storeUnavailable` and `revision`; `Outbox` holds `failures`. **Nothing counts
+pending patches** — that count is new in #58, and like everything else on this screen it reads
+state the client already holds, so it needs no endpoint.

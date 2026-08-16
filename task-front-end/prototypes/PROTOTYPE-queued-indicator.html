@@ -1,0 +1,229 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #58, FE-027.
+  "One quiet appbar affordance shows offline-and-n-waiting as a single state." (ADR-0015)
+  What does it look like, and does it say the number?
+
+  FE-027 exists because of one measured failure: in portal, forty offline changes looked
+  exactly like zero. Any variant that does not distinguish those two reproduces the defect
+  it was raised to fix. Variant 1 is included precisely so that can be seen rather than
+  asserted.
+
+  ANSWERED — 2026-08-16. Variant 4: WORDS, and it speaks in both directions.
+      online + nothing queued   -> nothing at all
+      online + n queued         -> "Syncing 12…"
+      offline + nothing queued  -> "Offline", quiet styling
+      offline + n queued        -> "Offline · 40 waiting"
+  The draining half is the author's ruling AGAINST the recommendation — it was offered as
+  the variant to leave out, because the queue drains in seconds and the message mostly
+  flickers. Accepted cost: the appbar is no longer motionless in normal use. Recorded in
+  ADR-0015, *The queued indicator speaks while draining, not only while offline*.
+
+  Variants:
+    1  dot          — a coloured dot when offline. No number. The quietest thing possible.
+    2  glyph+count  — a cloud-off glyph carrying a count badge.
+    3  words        — a small pill: "Offline · 40 waiting".
+    4  words+drain  — as 3, and it also speaks while ONLINE and draining: "Syncing 12…".
+
+  The rig walks the states, and they are not symmetrical:
+    * offline / 0     — nothing is queued. Is the affordance still there?
+    * offline / 3     — the ordinary case.
+    * offline / 40    — the case FE-027 was raised about.
+    * online  / 12    — draining. Nothing is wrong; is that worth a pixel?
+    * online  / 0     — the overwhelmingly common state. Must cost nothing.
+
+  Unlike the rejected-changes band, NOTHING HERE IS WRONG and there is nothing to act on
+  (ADR-0015). That is the whole reason it is an appbar affordance and not a band, and it
+  is the constraint every variant is being judged against: loud enough to answer "did that
+  save?", quiet enough that it never reads as a problem.
+
+  Light theme only.
+  DELETE ME once #58 is built and this is captured on its throwaway branch.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — the queued/offline indicator</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --queued: #8a6d1f; --queued-bg: #fdf6e3; --queued-line: #ecdcae;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 40px;
+  }
+
+  /* ---- the real appbar, as built in #54/#67 ---- */
+  header.appbar {
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    padding: 10px 20px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 5;
+  }
+  .omnibox {
+    flex: 1; max-width: 620px; border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 14px; font-size: 14px; color: var(--muted); background: #fbfbfd;
+  }
+  .more {
+    margin-left: auto; border: none; background: transparent; font-size: 19px;
+    cursor: pointer; color: var(--muted); padding: 2px 8px; line-height: 1;
+  }
+
+  /* ---- the thing under test ---- */
+  .ind { display: inline-flex; align-items: center; gap: 6px; }
+  .ind.dot i {
+    width: 9px; height: 9px; border-radius: 50%; background: var(--queued);
+    display: block;
+  }
+  .ind.glyph { color: var(--queued); position: relative; }
+  .ind.glyph svg { width: 21px; height: 21px; display: block; }
+  .ind.glyph .badge {
+    position: absolute; top: -5px; right: -9px; background: var(--queued); color: #fff;
+    border-radius: 999px; font-size: 10px; line-height: 1; padding: 2px 5px; font-weight: 700;
+  }
+  .ind.words {
+    background: var(--queued-bg); border: 1px solid var(--queued-line); color: var(--queued);
+    border-radius: 999px; padding: 4px 11px; font-size: 12.5px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .ind.words.calm {
+    background: transparent; border-color: transparent; color: var(--muted); font-weight: 400;
+  }
+
+  /* prototype scaffolding — deliberately ugly, not part of the design */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--line);
+    padding: 8px 20px; font-size: 12px; color: var(--muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted);
+  }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+  .note {
+    background: #fffbe6; border: 1px solid #f0e2a8; border-radius: 8px;
+    padding: 10px 13px; font-size: 13px; margin: 0 0 18px; color: #6b5b12;
+  }
+  .note b { color: #4a3f08; }
+  .nothing { color: var(--muted); font-style: italic; font-size: 12px; }
+
+  nav.tabs { display: flex; gap: 18px; padding: 0 20px; border-bottom: 1px solid var(--line);
+    background: var(--surface); font-size: 14px; }
+  nav.tabs a { padding: 9px 2px; text-decoration: none; color: var(--muted);
+    border-bottom: 2px solid transparent; }
+  nav.tabs a.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+
+  h2.band { font-size: 13px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .row { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; display: flex; align-items: center; gap: 10px; }
+  .row .bucket { width: 4px; align-self: stretch; border-radius: 2px; }
+  .row .n { flex: 1; font-size: 14px; }
+  .row .when { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div id="rig">
+  <span class="grp"><b>variant:</b>
+    <button data-v="1">1 disqualified — dot</button>
+    <button data-v="2">2 declined — glyph + count</button>
+    <button data-v="3">3 declined — words only</button>
+    <button data-v="4">4 DECIDED — words + draining</button>
+  </span>
+  <span class="grp"><b>state:</b>
+    <button data-s="off0">offline · 0</button>
+    <button data-s="off3">offline · 3</button>
+    <button data-s="off40">offline · 40</button>
+    <button data-s="on12">online · 12 draining</button>
+    <button data-s="on0">online · 0</button>
+  </span>
+</div>
+
+<header class="appbar">
+  <div class="omnibox">What needs doing?</div>
+  <span id="slot"></span>
+  <button class="more" aria-label="More">⋯</button>
+</header>
+
+<nav class="tabs">
+  <a class="active">Tasks</a>
+  <a>Templates</a>
+</nav>
+
+<main>
+  <p class="note" id="note"></p>
+  <h2 class="band">Due today</h2>
+  <div class="grid">
+    <div class="row"><span class="bucket" style="background:var(--fit-in)"></span><span class="n">Vacuum the living room</span><span class="when">today</span></div>
+    <div class="row"><span class="bucket" style="background:var(--focus)"></span><span class="n">Book dentist appointment</span><span class="when">today</span></div>
+    <div class="row"><span class="bucket" style="background:var(--long-game)"></span><span class="n">Renew bike insurance</span><span class="when">in 9 days</span></div>
+  </div>
+</main>
+
+<script>
+const STATES = {
+  off0:  { online: false, n: 0 },
+  off3:  { online: false, n: 3 },
+  off40: { online: false, n: 40 },
+  on12:  { online: true,  n: 12 },
+  on0:   { online: true,  n: 0 }
+};
+
+const CLOUD_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+  stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.7-9"/><path d="M3 3l18 18"/></svg>`;
+
+let variant = 4, state = "off40";   // the decided variant
+
+const NOTES = {
+  1: "<b>1 — Dot.</b> The quietest thing that can exist. Walk <b>offline · 3</b> to <b>offline · 40</b>: the dot is identical. That is <em>forty offline changes looking exactly like zero</em>, which is the measured failure FE-027 was raised to fix — reproduced, in the affordance built to fix it.",
+  2: "<b>2 — Glyph + count.</b> The number is there, so the failure above cannot happen, and it costs almost no width. But ADR-0019 spends glyphs on <em>verbs</em>, and this is a <em>state</em> — a cloud with a line through it has to be learnt, and a superscript badge is the visual language of unread notifications, which is a thing demanding action. Nothing here demands action.",
+  3: "<b>3 — Words.</b> <em>Offline · 40 waiting</em> — a fact, in words, which is ADR-0019's own rule for anything a glyph would have to explain. Check it at <b>offline · 0</b>: it says <em>Offline</em> and nothing more, because there is nothing waiting. Cost: the widest option, on the bar the omnibox is also competing for.",
+  4: "<b>4 — Words, and it speaks while draining.</b> As 3, plus <em>Syncing 12…</em> when online with a queue. Answers <em>did that save?</em> in the one moment you are actually asking it. Cost: it appears and disappears during normal healthy use, which is motion on an appbar for a state where nothing is wrong — and ADR-0015's word for this affordance is <em>quiet</em>."
+};
+
+function indicator() {
+  const { online, n } = STATES[state];
+
+  if (online && n === 0) return `<span class="nothing">(nothing — the common state costs no pixels)</span>`;
+  if (variant !== 4 && online) return `<span class="nothing">(nothing — variants 1–3 are silent while online)</span>`;
+
+  if (variant === 1) {
+    return `<span class="ind dot" title="${online ? "Syncing" : "Offline"}"><i></i></span>`;
+  }
+  if (variant === 2) {
+    return `<span class="ind glyph" title="${online ? "Syncing" : "Offline"}${n ? ` — ${n} waiting` : ""}">
+      ${CLOUD_OFF}${n ? `<span class="badge">${n}</span>` : ``}</span>`;
+  }
+  if (variant === 3) {
+    return `<span class="ind words${n ? "" : " calm"}">${n ? `Offline · ${n} waiting` : `Offline`}</span>`;
+  }
+  // 4
+  if (online) return `<span class="ind words calm">Syncing ${n}…</span>`;
+  return `<span class="ind words${n ? "" : " calm"}">${n ? `Offline · ${n} waiting` : `Offline`}</span>`;
+}
+
+function paint() {
+  document.getElementById("slot").innerHTML = indicator();
+  document.getElementById("note").innerHTML = NOTES[variant];
+  document.querySelectorAll("#rig button[data-v]").forEach((b) => b.classList.toggle("on", +b.dataset.v === variant));
+  document.querySelectorAll("#rig button[data-s]").forEach((b) => b.classList.toggle("on", b.dataset.s === state));
+}
+
+document.querySelectorAll("#rig button[data-v]").forEach((b) => b.addEventListener("click", () => { variant = +b.dataset.v; paint(); }));
+document.querySelectorAll("#rig button[data-s]").forEach((b) => b.addEventListener("click", () => { state = b.dataset.s; paint(); }));
+
+paint();
+</script>
+</body>
+</html>
