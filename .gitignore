@@ -8,6 +8,12 @@ task-back-end/http-requests/http-client.env.json
 *.env
 !*.example.env
 
+# Installed agent skills (Angular's own, pinned in skills-lock.json). They are
+# vendored third-party content, reinstallable from the lock file, so they stay
+# out of the repo.
+.agents/skills/
+.claude/skills/
+
 # OS
 .DS_Store
 Thumbs.db
