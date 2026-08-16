@@ -9,11 +9,16 @@
   it was raised to fix. Variant 1 is included precisely so that can be seen rather than
   asserted.
 
-  ANSWERED — 2026-08-16. Variant 4: WORDS, and it speaks in both directions.
+  ANSWERED — 2026-08-16. Variant 5: the offline STATE is a glyph, everything else words.
       online + nothing queued   -> nothing at all
-      online + n queued         -> "Syncing 12…"
-      offline + nothing queued  -> "Offline", quiet styling
-      offline + n queued        -> "Offline · 40 waiting"
+      online + n queued         -> "Syncing 12…"          (words)
+      offline + nothing queued  -> [cloud-off] alone      (quiet styling)
+      offline + n queued        -> [cloud-off] "40 waiting"
+  Variant 4 (words everywhere) was chosen first and then refined to this. Variant 6 — the
+  same glyph treatment applied to BOTH states — was drawn and rejected on a prominence
+  inversion: the words go identical ("n waiting") and a 16px icon becomes the only thing
+  separating "nothing is going out" from "it is going out right now", which is the part
+  that actually varies.
   The draining half is the author's ruling AGAINST the recommendation — it was offered as
   the variant to leave out, because the queue drains in seconds and the message mostly
   flickers. Accepted cost: the appbar is no longer motionless in normal use. Recorded in
@@ -90,6 +95,16 @@
     border-radius: 999px; padding: 4px 11px; font-size: 12.5px; font-weight: 600;
     white-space: nowrap;
   }
+  .ind.mixed {
+    background: var(--queued-bg); border: 1px solid var(--queued-line); color: var(--queued);
+    border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 12.5px; font-weight: 600;
+    white-space: nowrap; gap: 5px;
+  }
+  .ind.mixed svg { width: 16px; height: 16px; display: block; }
+  .ind.mixed.calm {
+    background: transparent; border-color: transparent; color: var(--muted); font-weight: 400;
+  }
+
   .ind.words.calm {
     background: transparent; border-color: transparent; color: var(--muted); font-weight: 400;
   }
@@ -139,7 +154,9 @@
     <button data-v="1">1 disqualified — dot</button>
     <button data-v="2">2 declined — glyph + count</button>
     <button data-v="3">3 declined — words only</button>
-    <button data-v="4">4 DECIDED — words + draining</button>
+    <button data-v="4">4 superseded — words everywhere</button>
+    <button data-v="5">5 DECIDED — glyph offline</button>
+    <button data-v="6">6 declined — glyph both</button>
   </span>
   <span class="grp"><b>state:</b>
     <button data-s="off0">offline · 0</button>
@@ -180,23 +197,28 @@ const STATES = {
   on0:   { online: true,  n: 0 }
 };
 
+const SYNCING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+  stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`;
+
 const CLOUD_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
   stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.7-9"/><path d="M3 3l18 18"/></svg>`;
 
-let variant = 4, state = "off40";   // the decided variant
+let variant = 5, state = "off40";   // the decided variant
 
 const NOTES = {
   1: "<b>1 — Dot.</b> The quietest thing that can exist. Walk <b>offline · 3</b> to <b>offline · 40</b>: the dot is identical. That is <em>forty offline changes looking exactly like zero</em>, which is the measured failure FE-027 was raised to fix — reproduced, in the affordance built to fix it.",
   2: "<b>2 — Glyph + count.</b> The number is there, so the failure above cannot happen, and it costs almost no width. But ADR-0019 spends glyphs on <em>verbs</em>, and this is a <em>state</em> — a cloud with a line through it has to be learnt, and a superscript badge is the visual language of unread notifications, which is a thing demanding action. Nothing here demands action.",
   3: "<b>3 — Words.</b> <em>Offline · 40 waiting</em> — a fact, in words, which is ADR-0019's own rule for anything a glyph would have to explain. Check it at <b>offline · 0</b>: it says <em>Offline</em> and nothing more, because there is nothing waiting. Cost: the widest option, on the bar the omnibox is also competing for.",
-  4: "<b>4 — Words, and it speaks while draining.</b> As 3, plus <em>Syncing 12…</em> when online with a queue. Answers <em>did that save?</em> in the one moment you are actually asking it. Cost: it appears and disappears during normal healthy use, which is motion on an appbar for a state where nothing is wrong — and ADR-0015's word for this affordance is <em>quiet</em>."
+  5: "<b>5 — Glyph for offline, words for the rest.</b> <em>[cloud-off] 40 waiting</em>. The state becomes a glyph, the count stays a fact in words — so it never borrows the notification-badge language that sank variant 2. Narrower than 4. But look at <b>online · 12 draining</b>: that state has no glyph here, so the indicator is a picture in one state and a sentence in the other, and the two never appear together to explain each other.",
+  6: "<b>6 — Glyph in both states.</b> Symmetry restored: <em>[cloud-off] 40 waiting</em> and <em>[↻] 12 waiting</em>. Now check <b>offline · 0</b> against <b>online · 12</b> — two glyphs the app has never used before, differing by a detail, both meaning a connection state. ADR-0019's vocabulary is four glyphs for four <em>verbs</em>; this makes it six, and the two new ones are states.",
+  4: "<b>4 — Superseded (words everywhere).</b> Chosen first, then refined into 5 by drawing the offline state as a glyph.</b>  As 3, plus <em>Syncing 12…</em> when online with a queue. Answers <em>did that save?</em> in the one moment you are actually asking it. Cost: it appears and disappears during normal healthy use, which is motion on an appbar for a state where nothing is wrong — and ADR-0015's word for this affordance is <em>quiet</em>."
 };
 
 function indicator() {
   const { online, n } = STATES[state];
 
   if (online && n === 0) return `<span class="nothing">(nothing — the common state costs no pixels)</span>`;
-  if (variant !== 4 && online) return `<span class="nothing">(nothing — variants 1–3 are silent while online)</span>`;
+  if (variant <= 3 && online) return `<span class="nothing">(nothing — variants 1–3 are silent while online)</span>`;
 
   if (variant === 1) {
     return `<span class="ind dot" title="${online ? "Syncing" : "Offline"}"><i></i></span>`;
@@ -208,9 +230,26 @@ function indicator() {
   if (variant === 3) {
     return `<span class="ind words${n ? "" : " calm"}">${n ? `Offline · ${n} waiting` : `Offline`}</span>`;
   }
-  // 4
-  if (online) return `<span class="ind words calm">Syncing ${n}…</span>`;
-  return `<span class="ind words${n ? "" : " calm"}">${n ? `Offline · ${n} waiting` : `Offline`}</span>`;
+  if (variant === 4) {
+    if (online) return `<span class="ind words calm">Syncing ${n}…</span>`;
+    return `<span class="ind words${n ? "" : " calm"}">${n ? `Offline · ${n} waiting` : `Offline`}</span>`;
+  }
+
+  // 5 and 6 replace the WORD "offline" with a glyph and keep the count as words. They differ
+  // only in whether the online-draining state gets a glyph too, which is the question 5 exposes.
+  const label = n ? `<span class="cnt">${n} waiting</span>` : ``;
+  if (variant === 5) {
+    if (online) return `<span class="ind words calm">Syncing ${n}…</span>`;
+    return `<span class="ind mixed${n ? "" : " calm"}" title="Offline" aria-label="Offline">
+      ${CLOUD_OFF}${label}</span>`;
+  }
+  // 6
+  if (online) {
+    return `<span class="ind mixed calm" title="Syncing" aria-label="Syncing">
+      ${SYNCING}<span class="cnt">${n} waiting</span></span>`;
+  }
+  return `<span class="ind mixed${n ? "" : " calm"}" title="Offline" aria-label="Offline">
+    ${CLOUD_OFF}${label}</span>`;
 }
 
 function paint() {

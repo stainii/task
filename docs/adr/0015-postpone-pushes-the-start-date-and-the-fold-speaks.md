@@ -348,27 +348,47 @@ Amended by [The overview, part 2: context cards, the folds and the indicators](h
 2026-08-16.
 
 *Queued work is visible* specified **that** the appbar shows offline-and-`n`-waiting and never what
-it looks like. It is **words, and it speaks in both directions**:
+it looks like. It **speaks in both directions**, and *offline* is the one thing in it drawn rather
+than said:
 
 | state | appbar |
 | --- | --- |
 | online, nothing queued | *nothing at all* |
 | online, `n` queued | `Syncing 12…` |
-| offline, nothing queued | `Offline` — quiet styling, no pill |
-| offline, `n` queued | `Offline · 40 waiting` |
+| offline, nothing queued | 🚫☁ alone — quiet styling, no pill |
+| offline, `n` queued | 🚫☁ `40 waiting` |
 
-**Words rather than a glyph or a dot**, on three grounds, two of which came from drawing it
+**The count is always a word, and that is the load-bearing half.** Two forms were rejected for
+taking it away or dressing it up, both drawn rather than argued
 (`task-front-end/prototypes/PROTOTYPE-queued-indicator.html`):
 
 - **A dot disqualifies itself.** At three queued and at forty it is the same pixels — which is
   *forty offline changes looking exactly like zero*, the measured portal failure
   [FE-027](../portal-inventory.md) exists to fix, reproduced inside the affordance built to fix it.
-- **A glyph with a count badge borrows an alarm vocabulary.** Rendered, it is indistinguishable from
-  an unread-notification badge — a thing demanding action — while this affordance exists precisely
-  *because nothing is wrong and there is nothing to act on*, which is the reason it is on the appbar
-  and not in a band. It would also spend a glyph on a **state**, where
-  [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md) spends them on verbs.
-- **A count is a fact**, and ADR-0019 gives facts words.
+- **A glyph with a count *badge* borrows an alarm vocabulary.** Rendered, it is indistinguishable
+  from an unread-notification badge — a thing demanding action — while this affordance exists
+  precisely *because nothing is wrong and there is nothing to act on*, which is the reason it is on
+  the appbar and not in a band. Putting the same number **beside** the glyph as a word costs that
+  nothing: `40 waiting` cannot be misread as a notification count.
+
+**One glyph, for one state, and it is an exception to
+[ADR-0019](0019-verbs-are-glyphs-facts-are-words.md) rather than an application of it.** That ADR
+spends glyphs on **verbs**; *offline* is a state. It earns the exception on being the most
+conventional icon in the whole vocabulary — it is not a glyph that has to be *explained*, which is
+ADR-0019's actual test — and it carries `Offline` as its accessible name and tooltip like every
+other glyph in the app. **The vocabulary goes from four to five.** ADR-0019's tripwire is roughly a
+dozen, so this does not approach it, but it is now a mixed vocabulary and the next state proposing
+a glyph should be made to argue the same case rather than cite this one.
+
+**Applying the glyph to *both* states was drawn and rejected, and the reason is a prominence
+inversion.** With `[cloud-off] 40 waiting` and `[syncing] 12 waiting` side by side, the **words are
+identical** and the only thing distinguishing *nothing is going out* from *it is going out right
+now* is a 16px icon. The count is the part that does not change between those states; the state is
+what does. So the symmetric version puts the varying fact in the quietest channel and the constant
+one in the loudest. `Syncing` stays a word.
+
+**The asymmetry is deliberate and costs nothing to read**, because the two states are mutually
+exclusive: no one ever sees the picture and the sentence together and has to reconcile them.
 
 **The draining message is the author's ruling, against the recommendation.** `Syncing 12…` was
 offered as the variant to *leave out*: the queue drains in seconds on a good connection, so it
