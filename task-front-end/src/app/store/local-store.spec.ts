@@ -173,6 +173,38 @@ describe('the local store', () => {
       expect(await store.pruneClosedTasks(new Date('2027-01-01T00:00:00Z'))).toBe(0);
       expect(await store.pending()).toEqual([COMPLETED]);
     });
+
+    it('never discards a task the rejected-changes band is still speaking for', async () => {
+      // The band's hardest case is a rejected **completion**, whose task is closed and therefore on
+      // the prune's list — and the row's name and act both come out of that history. Pruning it
+      // would take the notice down by deleting the only thing that can say what was lost
+      // ([#58](https://github.com/stainii/task/issues/58)). The outbox no longer holds the patch,
+      // by construction: it was dropped, which is what put it on this list.
+      await store.receivePatches([CREATED, RENAMED, COMPLETED]);
+      await store.recordFailure({
+        patchId: COMPLETED.id,
+        taskId: TASK,
+        status: 400,
+        at: '2026-03-03T09:00:00Z',
+      });
+
+      expect(await store.pruneClosedTasks(new Date('2027-01-01T00:00:00Z'))).toBe(0);
+      expect(await store.task(TASK)).not.toBeNull();
+    });
+
+    it('discards it once the notice has been dealt with', async () => {
+      await store.receivePatches([CREATED, RENAMED, COMPLETED]);
+      await store.recordFailure({
+        patchId: COMPLETED.id,
+        taskId: TASK,
+        status: 400,
+        at: '2026-03-03T09:00:00Z',
+      });
+
+      await store.forgetFailure(COMPLETED.id);
+
+      expect(await store.pruneClosedTasks(new Date('2027-01-01T00:00:00Z'))).toBe(1);
+    });
   });
 
   describe('the last context captured into', () => {

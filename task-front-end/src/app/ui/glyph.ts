@@ -28,7 +28,7 @@ export const VERBS = {
     name: 'Cancel',
     paths: ['M6 6 18 18M18 6 6 18'],
   },
-} as const satisfies Record<string, Verb>;
+} as const satisfies Record<string, Drawing>;
 
 /**
  * The one **state** in the vocabulary, and an exception to ADR-0019 rather than an application of it
@@ -48,12 +48,18 @@ export const STATES = {
     name: 'Offline',
     paths: ['M17.5 19H9a7 7 0 0 1 6.7-9', 'M3 3l18 18'],
   },
-} as const satisfies Record<string, Verb>;
+} as const satisfies Record<string, Drawing>;
 
 /** The whole drawn vocabulary: four verbs and one state. ADR-0019's tripwire is roughly a dozen. */
 export const GLYPHS = { ...VERBS, ...STATES };
 
-interface Verb {
+/**
+ * One drawing in the vocabulary: a name, and the strokes that make it.
+ *
+ * Named for what it is rather than for what it mostly holds — four of the five entries are verbs and
+ * one is a state, and a type called `Verb` would have made the exception unsayable in its own file.
+ */
+interface Drawing {
   readonly name: string;
   readonly paths: readonly string[];
   readonly circles?: readonly { readonly cx: number; readonly cy: number; readonly r: number }[];
@@ -93,5 +99,5 @@ export class Glyph {
    */
   readonly name = input.required<GlyphName>();
 
-  protected readonly drawing = computed<Verb>(() => GLYPHS[this.name()]);
+  protected readonly drawing = computed<Drawing>(() => GLYPHS[this.name()]);
 }

@@ -119,9 +119,8 @@ export class Outbox {
    */
   async sendAgain(patchId: string): Promise<void> {
     await this.store.sendAgain(patchId);
-    await this.store.forgetFailure(patchId);
-    this.failures.set(await this.store.failures());
-    this.queued.set(await this.store.pendingCount());
+    await this.forget(patchId);
+    await this.refreshQueued();
   }
 
   /**

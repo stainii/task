@@ -20,9 +20,7 @@
             removed: postpone is deliberately unmitigated.
           -->
           @if (card.badge; as badge) {
-            <span class="badge" [class]="'badge-' + badge.kind">{{
-              this.badge(badge.kind, badge.count)
-            }}</span>
+            <span class="badge" [class]="'badge-' + badge.kind">{{ this.badge(badge) }}</span>
           }
           <!-- A true total, sleeping work included: a count that is not a total is not a count. -->
           <span class="count">{{ card.count }}</span>
@@ -42,7 +40,7 @@
 
         <span class="next">
           @if (card.next; as next) {
-            {{ this.next(next.name, next.dueDate) }}
+            {{ this.next(next) }}
           } @else {
             nothing pending
           }

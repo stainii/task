@@ -245,6 +245,28 @@ to this one, and it is superseded.
 *Decided by recommendation while building #58; the prototype had it the other way and was not driven
 on it.*
 
+### A sleeping task is named on the card, and nothing more
+
+Amended by the same ticket.
+
+[ADR-0015](0015-postpone-pushes-the-start-date-and-the-fold-speaks.md) states the cost of removing
+the honesty valve precisely: `Onderhoud ketels`, 62 days overdue and asleep, *"is still inside the
+card's count and can still be the name on the what comes next line, **but nothing says it is
+late**"*. Built literally, the line composes `next: ${name} · ${dueLabel(...)}` — and `dueLabel`
+answers `62 days overdue`. **The card would have been the one surface on the overview breaking the
+rule the whole reversal turns on**, one line under a badge scoped to avoid exactly that.
+
+**So the time half is dropped for a sleeping task.** `next: Onderhoud ketels`, with no date. It is
+the same rule as the badge's and the future band's, applied to the half of the line that speaks
+about urgency rather than to the whole line: a task that has not started is not taken into
+consideration by anything that speaks about urgency.
+
+The half that survives is the half ADR-0015 explicitly protects — the card still names it, so the
+task is not hidden. And the alternative reading, dropping sleepers from the line altogether, was
+rejected as the stronger contradiction: that ADR says in as many words that the line *can* name one.
+
+*Decided by recommendation while building #58; found by review against ADR-0015's own sentence.*
+
 ### What a folded band says when nothing in it has a due date
 
 Amended by the same ticket.

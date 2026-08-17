@@ -376,13 +376,22 @@ export class LocalStore {
    * **A task with a patch still in the outbox is never pruned**, however old. Its history is the
    * body of the request that has not been sent yet, so discarding it would delete an edit the user
    * made and the server has never seen — the one thing eviction actually costs.
+   *
+   * **Nor is a task the rejected-changes band is still speaking for**
+   * ([#58](https://github.com/stainii/task/issues/58)). That band's hardest case is a refused
+   * *completion*, whose task is closed and therefore already on this list, and the row's name and
+   * act are both read out of the history: pruning it would take the notice down by deleting the only
+   * thing that can say what was lost. The outbox test above does not cover it — a dropped patch left
+   * the outbox, which is precisely what put it on the failures list.
    */
   async pruneClosedTasks(now: Date): Promise<number> {
     const db = await this.database();
-    const tx = db.transaction(['tasks', 'patches', 'outbox'], 'readwrite');
+    const tx = db.transaction(['tasks', 'patches', 'outbox', 'failures'], 'readwrite');
     const rows = await request<StoredTask[]>(tx.objectStore('tasks').getAll());
     const queued = await request<OutboxEntry[]>(tx.objectStore('outbox').getAll());
     const unsent = new Set(queued.map((entry) => entry.patchId));
+    const refused = await request<SyncFailure[]>(tx.objectStore('failures').getAll());
+    const spokenFor = new Set(refused.map((failure) => failure.taskId));
 
     const horizon = now.getTime() - LocalStore.CLOSED_TASK_HORIZON_MS;
     let pruned = 0;
@@ -390,7 +399,7 @@ export class LocalStore {
       if (row.closedAt === null || Date.parse(row.closedAt) > horizon) {
         continue;
       }
-      if (row.task.history.some((patch) => unsent.has(patch.id))) {
+      if (row.task.history.some((patch) => unsent.has(patch.id)) || spokenFor.has(row.id)) {
         continue;
       }
       await request(tx.objectStore('tasks').delete(row.id));

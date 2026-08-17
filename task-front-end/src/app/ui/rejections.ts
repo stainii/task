@@ -64,65 +64,53 @@ export function rejectedChanges(
       return [];
     }
 
-    const created = task.history[0]?.id === patch.id;
     return [
       {
         patchId: patch.id,
         taskId: task.id,
         name: task.name,
-        act: actOf(patch, created),
         when: whenOf(patch, now),
-        why: whyOf(patch, created),
+        ...saidOf(patch, task.history[0]?.id === patch.id),
       },
     ];
   });
 }
 
 /**
- * What the patch did, said the way you would say it out loud.
+ * **What the patch did and why its going missing matters — decided once, together.**
  *
- * Read off the changes rather than stored, for the reason every folded field is: the patch is the
- * fact, and a second copy of *what this patch meant* is a second thing that can be wrong. The order
- * matters — a void patch carries no changes at all, and a creation is a name and a context, which is
- * indistinguishable from an edit by its changes alone.
+ * One cascade rather than two, because the two halves branch on exactly the same cases: a fourth act
+ * added to one and forgotten in the other is a row naming a completion and explaining an edit, and
+ * nothing about that fails a build.
+ *
+ * The act is read off the changes rather than stored, for the reason every folded field is: the
+ * patch is the fact, and a second copy of *what this patch meant* is a second thing that can be
+ * wrong. **The order of the cases is load-bearing** — a void patch carries no changes at all, and a
+ * creation is a name and a context, which is indistinguishable from an edit by its changes alone.
  */
-function actOf(patch: TaskPatch, created: boolean): string {
+function saidOf(patch: TaskPatch, created: boolean): { act: string; why: string } {
+  const gone = (verb: string) => `You ${verb} it on this device, so it has already left your list.`;
+
   if (patch.voids !== null) {
-    return 'undone';
+    return { act: 'undone', why: STILL_HERE };
   }
   if (created) {
-    return 'created';
+    return { act: 'created', why: 'It is on this device only — the server never took it.' };
   }
   if (patch.changes['status'] === 'COMPLETED') {
-    return 'marked complete';
+    return { act: 'marked complete', why: gone('completed') };
   }
   if (patch.changes['status'] === 'CANCELLED') {
-    return 'cancelled';
+    return { act: 'cancelled', why: gone('cancelled') };
   }
   if (Object.keys(patch.changes).length === 1 && 'startDate' in patch.changes) {
-    return 'postponed';
+    return { act: 'postponed', why: STILL_HERE };
   }
-  return 'edited';
+  return { act: 'edited', why: STILL_HERE };
 }
 
-/**
- * Why this one going missing is worth a band above the day's work.
- *
- * Three sentences for three shapes, and only the first two are about something you can no longer
- * see: a closed task has left the overview, and a task the server never took exists on one device.
- */
-function whyOf(patch: TaskPatch, created: boolean): string {
-  if (created) {
-    return 'It is on this device only — the server never took it.';
-  }
-  if (patch.changes['status'] === 'COMPLETED') {
-    return 'You completed it on this device, so it has already left your list.';
-  }
-  if (patch.changes['status'] === 'CANCELLED') {
-    return 'You cancelled it on this device, so it has already left your list.';
-  }
-  return 'The change is on this device only — the server still has the old value.';
-}
+/** For everything that did **not** take the task off the screen: the row is still there, unchanged. */
+const STILL_HERE = 'The change is on this device only — the server still has the old value.';
 
 const WEEKDAYS = [
   'Sunday',

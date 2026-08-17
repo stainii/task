@@ -166,6 +166,15 @@ export class Overview {
    */
   protected readonly all = this.held.asReadonly();
 
+  /**
+   * What the bands are **actually showing**, for the cards' *what comes next* line.
+   *
+   * Computed here rather than inside a card, because only this screen knows which cap is in force:
+   * five is global at `/` and per-context once you have entered one, so a card working it out for
+   * itself would skip a task as already-on-screen that the global cap had folded away.
+   */
+  protected readonly onScreen = computed(() => new Set(this.visible().map((task) => task.id)));
+
   /** `house — 2 open`, and how to leave. Absent at `/`, where there is no scope to say. */
   protected readonly scope = computed(() => {
     const context = this.value();

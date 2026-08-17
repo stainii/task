@@ -21,17 +21,18 @@ component and four new effects, against one effect deleted.
 
 ## What was checked
 
-Angular 22, zoneless (no `zone.js` dependency at all), 13 components — 12 until #67 added
-`CreateToast`. (The count read **13** until #63 recounted it and found 12 — this note's own warning,
-arriving on schedule.)
+Angular 22, zoneless (no `zone.js` dependency at all), **16 components** — 13 until
+[#58](https://github.com/stainii/task/issues/58) added `ContextCards`, `RejectedChanges` and
+`QueuedIndicator`, and 12 until #67 added `CreateToast`. (The count read **13** until #63 recounted
+it and found 12 — this note's own warning, arriving on schedule, and #58 is the third time.)
 
 | Guidance                                      | State                                                                    |
 | --------------------------------------------- | ------------------------------------------------------------------------ |
 | Standalone components                         | Zero `NgModule`; zero vestigial `standalone: true`                       |
-| Native control flow                           | 70 uses of `@if`/`@for`/`@switch`, including `@else if` on `/status`'s two push failures; zero `*ngIf`/`*ngFor`/`ngClass`/`ngStyle` |
+| Native control flow                           | 80 uses of `@if`/`@for`/`@switch`, including `@else if` on `/status`'s two push failures; zero `*ngIf`/`*ngFor`/`ngClass`/`ngStyle` |
 | `input()` / `output()`                        | Used throughout; zero `@Input`/`@Output`/`EventEmitter`                  |
 | `inject()`                                    | All DI; no constructor-parameter injection                               |
-| `ChangeDetectionStrategy.OnPush`              | All 13 components                                                        |
+| `ChangeDetectionStrategy.OnPush`              | All 16 components                                                        |
 | Signals for state                             | `computed`/`signal` throughout, plus `linkedSignal`, `resource`, `untracked`, `PendingTasks` |
 | Effects for side effects only                 | Exactly 10: navigation, four store re-reads, #67's three registrations, template authoring's load, and #69's radio |
 | `provideHttpClient` + functional interceptors | `src/app/app.config.ts`                                                  |

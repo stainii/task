@@ -11,10 +11,15 @@ const TODAY = '2026-08-14';
 
 let fixture: ComponentFixture<ContextCards>;
 
-async function render(tasks: Task[], entered?: string): Promise<void> {
+/**
+ * What the bands are showing is the screen's answer, passed in — so a test that is about the *what
+ * comes next* line says which ids are on screen, and every other test says none are.
+ */
+async function render(tasks: Task[], entered?: string, onScreen: string[] = []): Promise<void> {
   fixture = TestBed.createComponent(ContextCards);
   fixture.componentRef.setInput('tasks', tasks);
   fixture.componentRef.setInput('today', TODAY);
+  fixture.componentRef.setInput('onScreen', new Set(onScreen));
   if (entered !== undefined) {
     fixture.componentRef.setInput('entered', entered);
   }
@@ -79,21 +84,52 @@ describe('the context cards', () => {
   });
 
   it('names what comes next after the visible work', async () => {
-    await render([
-      ...Array.from({ length: 5 }, (_, index) =>
-        aTask({ context: 'house', name: `shown ${index}`, dueDate: addDays(TODAY, index) }),
-      ),
-      aTask({ context: 'house', name: 'Renew bike insurance', dueDate: addDays(TODAY, 9) }),
-    ]);
+    const onScreen = Array.from({ length: 5 }, (_, index) =>
+      aTask({ context: 'house', id: `shown-${index}`, dueDate: addDays(TODAY, index) }),
+    );
+    await render(
+      [
+        ...onScreen,
+        aTask({ context: 'house', name: 'Renew bike insurance', dueDate: addDays(TODAY, 9) }),
+      ],
+      undefined,
+      onScreen.map((task) => task.id),
+    );
 
     expect(text('.next')).toEqual(['next: Renew bike insurance · in 9 days']);
+  });
+
+  it('names a sleeping task without saying it is late', async () => {
+    // ADR-0015 is explicit that `Onderhoud ketels`, 62 days overdue and asleep, *can still be the
+    // name on this line* and that **nothing says it is late**. `next: … · 62 days overdue` would
+    // make this the one surface on the overview breaking the rule the badge reversal turns on.
+    await render(
+      [
+        aTask({
+          context: 'house',
+          id: 'on-screen',
+          name: 'Ramen lappen',
+          dueDate: addDays(TODAY, 1),
+        }),
+        aTask({
+          context: 'house',
+          name: 'Onderhoud ketels',
+          dueDate: addDays(TODAY, -62),
+          startDate: addDays(TODAY, 5),
+        }),
+      ],
+      undefined,
+      ['on-screen'],
+    );
+
+    expect(text('.next')).toEqual(['next: Onderhoud ketels']);
   });
 
   it('says so plainly when the context is all on screen already', async () => {
     // Cards deliberately do not list their next few tasks — an earlier draft did and duplicated
     // almost the whole visible band. Showing what comes *after* it makes them additive, and this is
     // that line with nothing left to name.
-    await render([aTask({ context: 'house', dueDate: TODAY })]);
+    await render([aTask({ context: 'house', id: 'only', dueDate: TODAY })], undefined, ['only']);
 
     expect(text('.next')).toEqual(['nothing pending']);
   });

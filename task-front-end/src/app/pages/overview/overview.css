@@ -76,7 +76,13 @@
   border-color: var(--app-muted);
 }
 
-/* The two facts the fold bar carries, between the title and the count. */
+/*
+ * The two facts the fold bar carries, after the title and its count.
+ *
+ * One sentence, laid out as one: `Also… (9) · nothing urgent · soonest in 5 days`. The count used to
+ * be pushed to the far edge by `margin-left: auto`, which put a hand's width between a number and
+ * the word it counts.
+ */
 .summary {
   font-size: 13px;
 }
@@ -86,7 +92,6 @@
 }
 
 .count {
-  margin-left: auto;
   color: var(--app-ink);
   font-weight: 600;
   font-variant-numeric: tabular-nums;

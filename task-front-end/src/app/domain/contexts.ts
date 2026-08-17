@@ -1,6 +1,6 @@
-import { visibleWork } from './bands';
 import { bucketOf, ImportanceBucket } from './buckets';
 import { daysUntil, dueIn, IsoDate } from './dates';
+import { contextsOf } from './omnibox';
 import { Task } from './task';
 
 /**
@@ -57,26 +57,41 @@ export interface ContextCard {
  * The cost is recorded rather than mitigated: a sufficiently postponed task raises no badge anywhere.
  * Seven compensating candidates were put up and all seven declined — see that ADR before proposing
  * an eighth.
+ *
+ * @param tasks everything this device holds — **not** the entered scope, or the row collapses to the
+ *   one card you are already standing in
+ * @param onScreen the ids the bands are **actually showing**, which is the caller's to know rather
+ *   than this function's to guess: the cap of five is global at `/` and per-context once you are
+ *   inside one, so a card computing its own visible set would skip a task as *already on screen*
+ *   that is not on screen at all
  */
-export function contextCards(tasks: readonly Task[], today: IsoDate): ContextCard[] {
+export function contextCards(
+  tasks: readonly Task[],
+  today: IsoDate,
+  onScreen: ReadonlySet<string>,
+): ContextCard[] {
+  // Open work only, and that is the one place this differs from the omnibox's chips: a chip for a
+  // context you have just cleared is still somewhere to capture *into*, where a card for it would
+  // be a row describing nothing.
   const open = tasks.filter((task) => task.status === 'OPEN');
-  const contexts = [...new Set(open.map((task) => task.context))].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  return contexts.map((value) => card(value, open, today));
+  return contextsOf(open).map((value) => card(value, open, today, onScreen));
 }
 
-function card(value: string, open: readonly Task[], today: IsoDate): ContextCard {
+function card(
+  value: string,
+  open: readonly Task[],
+  today: IsoDate,
+  onScreen: ReadonlySet<string>,
+): ContextCard {
   const mine = open.filter((task) => task.context === value);
   const soonest = [...mine].sort(bySoonest);
-  const shown = new Set(visibleWork(mine, today).visible.map((task) => task.id));
 
   return {
     value,
     count: mine.length,
     badge: badgeOf(mine, today),
     segments: soonest.slice(0, SEGMENTS).map((task) => bucketOf(task, today)),
-    next: soonest.find((task) => !shown.has(task.id)) ?? null,
+    next: soonest.find((task) => !onScreen.has(task.id)) ?? null,
   };
 }
 
@@ -108,5 +123,8 @@ function badgeOf(mine: readonly Task[], today: IsoDate): ContextBadge | null {
  * about (`dates.ts`).
  */
 function bySoonest(a: Task, b: Task): number {
-  return (a.dueDate ?? '9999-12-31').localeCompare(b.dueDate ?? '9999-12-31');
+  return (a.dueDate ?? NEVER).localeCompare(b.dueDate ?? NEVER);
 }
+
+/** Where an undated task sorts: after every date there is. Never compared to, only sorted with. */
+const NEVER = '9999-12-31';

@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-import { contextCards } from '../../domain/contexts';
-import { IsoDate } from '../../domain/dates';
+import { ContextBadge, contextCards } from '../../domain/contexts';
+import { daysUntil, IsoDate } from '../../domain/dates';
 import { Task } from '../../domain/task';
 import { dueLabel } from '../../ui/wording';
 
@@ -37,7 +37,17 @@ export class ContextCards {
   /** The context you are standing in, or nothing at `/`. */
   readonly entered = input<string>();
 
-  protected readonly cards = computed(() => contextCards(this.tasks(), this.today()));
+  /**
+   * The ids the bands below are showing, so *what comes next* means what it says.
+   *
+   * Passed in rather than recomputed here: the cap of five is global at `/` and per-context once you
+   * have entered one, and only the screen knows which it is applying.
+   */
+  readonly onScreen = input.required<ReadonlySet<string>>();
+
+  protected readonly cards = computed(() =>
+    contextCards(this.tasks(), this.today(), this.onScreen()),
+  );
 
   /**
    * *what comes next **after** the visible work* — the first thing a card can tell you that the
@@ -45,13 +55,25 @@ export class ContextCards {
    *
    * Cards deliberately do not list their next few tasks: an earlier draft did, and it duplicated
    * almost the entire visible band inside the first fold.
+   *
+   * **A sleeping task is named and nothing more.** ADR-0015 is explicit that `Onderhoud ketels`, 62
+   * days overdue and asleep, *can still be the name on this line* and that **nothing says it is
+   * late** — so `next: Onderhoud ketels · 62 days overdue` would be the one surface breaking the
+   * rule the whole reversal turns on. It is the same rule as the badge's, applied to the half of
+   * the line that speaks about time rather than to the whole line: a task that has not started is
+   * not taken into consideration by anything that speaks about urgency.
+   *
+   * *Decided by recommendation while building #58; recorded as an amendment to ADR-0006.*
    */
-  protected next(name: string, dueDate: IsoDate | null): string {
-    return `next: ${name} · ${dueLabel(dueDate, this.today())}`;
+  protected next(task: Task): string {
+    if (daysUntil(this.today(), task.startDate) > 0) {
+      return `next: ${task.name}`;
+    }
+    return `next: ${task.name} · ${dueLabel(task.dueDate, this.today())}`;
   }
 
   /** `2 overdue`, `1 today` — a fact in words (ADR-0019), with the colour only backing it up. */
-  protected badge(kind: 'overdue' | 'today', count: number): string {
-    return `${count} ${kind}`;
+  protected badge(badge: ContextBadge): string {
+    return `${badge.count} ${badge.kind}`;
   }
 }
