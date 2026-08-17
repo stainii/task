@@ -52,10 +52,16 @@ export class AuthService {
    * of them is bounded by `keycloak-js` — the silent `check-sso` iframe resolves on a `postMessage`
    * and on nothing else, and a token refresh is a `fetch`, which has no timeout of its own either.
    *
-   * Ten seconds is the library's own `messageReceiveTimeout`: the number it already uses for *how
-   * long a hidden iframe is given to post back*, which is precisely the longer of the two waits.
-   * Borrowed rather than picked, and generous — both are same-origin round trips to the auth server,
-   * so a device that is going to answer at all answers in well under a second.
+   * Ten seconds is the library's own `messageReceiveTimeout` — **borrowed by analogy, not because it
+   * applies here.** It bounds `keycloak-js`'s *other* hidden iframe, the third-party-cookie probe,
+   * and that is the point: the library has already decided how long one of its iframes may be given
+   * to post back, and the silent `check-sso` iframe is the same shape and the same round trip. Taking
+   * its answer beats minting a number, and it is generous — both waits are same-origin, so a device
+   * that is going to answer at all answers in well under a second.
+   *
+   * The two iframes' fates are worth reading together, because they are this ticket in miniature: the
+   * probe's 504 rejects at ten seconds and the client recovers on its next attempt; the silent
+   * check's identical 504 used to be awaited for ever.
    */
   static readonly ANSWER_TIMEOUT_MS = 10_000;
 
@@ -182,9 +188,13 @@ export class AuthService {
  * The same promise, with a deadline — rejecting rather than resolving, so a caller's existing
  * failure path is the timeout's path too.
  *
- * The abandoned promise is left to its own devices deliberately. There is nothing to cancel: it is
- * a `keycloak-js` internal waiting on a `postMessage`, and if it does eventually answer it answers
- * onto an instance nobody holds any more. What must not happen is the *caller* still holding it.
+ * The abandoned promise is left to its own devices because there is no way to reclaim it: what it
+ * holds is a hidden iframe and a `window` `message` listener, both private to `keycloak-js`, and if
+ * it does eventually answer it answers onto an instance nobody holds any more. So a device stuck in
+ * this state leaks **one iframe and one listener per attempt** — stated rather than waved away. It is
+ * bounded by the pump's own backoff, which caps at a minute, and it is the cheaper of the two
+ * failures by a wide margin: the alternative is the caller still holding the promise, which is the
+ * client not syncing again at all.
  */
 function bounded<T>(work: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {

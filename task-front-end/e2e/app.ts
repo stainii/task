@@ -82,8 +82,11 @@ export async function openWitness(browser: Browser): Promise<Page> {
  * the client had a wait with no ceiling *at all* — `AuthService`'s Keycloak initialisation, awaited
  * by both loops and by nothing else, hung when the radio went out mid-boot — so no budget could have
  * been large enough and no budget was too small. It is bounded at the seam now
- * (`AuthService.ANSWER_TIMEOUT_MS`), and the bound is paid once, ten seconds after boot, while this
- * test is still offline and waiting on nothing.
+ * (`AuthService.ANSWER_TIMEOUT_MS`), and **in this scenario** it is paid once and off the clock: the
+ * boot attempt is the only one that can hang, it expires ten seconds later while the test is still
+ * offline and waiting on nothing, and the ask after the radio returns starts a fresh initialisation
+ * against a server it can reach. The bound is per ask in general — nothing here should be read as a
+ * promise that a client pays it only once.
  */
 export const SYNCED = { timeout: 90_000 };
 
@@ -151,6 +154,11 @@ export function notSyncing(page: Page): Locator {
  *
  * `.indicator` is present while there is a queue and while the radio is off, and absent only when the
  * device is online with nothing waiting, which is exactly the state this waits for.
+ *
+ * It reuses {@link SYNCED} rather than deriving a second number, and deliberately: this wait is
+ * `SYNCED`'s own derivation **minus** the stream hop, so that budget is an upper bound on it by
+ * construction. A tighter constant would be arithmetic nobody needs, and a *second* number to keep
+ * true as the backoff changes is exactly the maintenance the one derived number exists to avoid.
  */
 export async function drained(page: Page): Promise<void> {
   await expect(page.locator('.indicator')).toBeHidden(SYNCED);

@@ -188,8 +188,12 @@ Three rules the suite is written to, each of which cost a debugging session:
 - **Prove the fault you claim to have injected.** `setOffline(true)` does not close an *established*
   connection, so the stream test refuses its reconnect instead — the first version cut nothing and
   passed anyway.
-- **Wait for a state, never for a duration.** `navigator.onLine`, the not-syncing banner and
-  `/ngsw/state` are the three the suite waits on, and each is the app's or the browser's own answer.
+- **Wait for a state, never for a duration.** `navigator.onLine`, the not-syncing banner,
+  `/ngsw/state` and the appbar's queued indicator are the four the suite waits on, and each is the
+  app's or the browser's own answer. The fourth is
+  [#71](https://github.com/stainii/task/issues/71)'s: *this device has nothing left to send* is the
+  only state that separates a client which stopped from a server which never heard, and without it
+  two tickets running read the same red line and blamed the wrong half.
 
 **What it deliberately does not cover, and cannot.** #64: the nginx limits ADR-0007 names —
 `proxy_read_timeout` under the stream's lifetime, and `proxy_buffering` on — "must not be faked".
