@@ -114,6 +114,33 @@ class DueTemplateCheckerIntegrationTest extends AbstractIntegrationTestCases {
         });
     }
 
+    /// **The D1 canary, at the seam where D1 was silent** (`HEALTH-01`). `Trigger`'s own boundary
+    /// tests pin the arithmetic over 1/30/31/45/90/365/720 days, but D1 was never an arithmetic bug
+    /// anyone saw: `Period.between(...).getDays()` read a 45-day gap as 14, the predicate said *not
+    /// yet* forever, and the only symptom was a task that never appeared. So the canary #47 named —
+    /// *a template with `min > 30` fires* — is asserted here as a task on the far side of the
+    /// scheduler, not as a date returned by a predicate.
+    ///
+    /// Only the two dates are asserted: [#aMinMaxTemplateFiresAtMinAndIsDueAtMax] owns the shape of
+    /// a fired task, and what is in question here is solely *whether the day arrives*.
+    @Test
+    void aMinMaxTemplateWithAnIntervalPastAMonthStillFires() {
+        clock.moveTo(MARCH);
+        var template = save(minMaxTemplate(45, 7));
+
+        clock.moveTo(MARCH.plusDays(44));
+        dueTemplateChecker.check();
+        assertThat(tasksOf(template)).isEmpty();
+
+        clock.moveTo(MARCH.plusDays(45));
+        dueTemplateChecker.check();
+
+        assertThat(tasksOf(template)).singleElement().satisfies(task -> {
+            assertThat(firingDateOf(task)).isEqualTo(MARCH.plusDays(45));
+            assertThat(task.dueDate()).isEqualTo(MARCH.plusDays(52));
+        });
+    }
+
     /// **A fortnight of downtime costs one task**, dated the day it became due rather than the day
     /// the app came back — so it arrives already overdue, and honestly so.
     @Test

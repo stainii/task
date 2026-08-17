@@ -1,14 +1,14 @@
 # Coverage gate: the traceability table
 
-**Date**: 2026-08-10
-**Ticket**: [#16](https://github.com/stainii/task/issues/16) — the paper half. The shipped half runs before [#17](https://github.com/stainii/task/issues/17).
+**Date**: 2026-08-10, with the shipped half added 2026-08-17
+**Ticket**: [#16](https://github.com/stainii/task/issues/16) — the paper half. The shipped half is [#66](https://github.com/stainii/task/issues/66), and it has now run.
 **Inputs**: [`docs/portal-inventory.md`](portal-inventory.md) (#3), the four triage tickets ([#12](https://github.com/stainii/task/issues/12), [#13](https://github.com/stainii/task/issues/13), [#14](https://github.com/stainii/task/issues/14), [#15](https://github.com/stainii/task/issues/15)), the backlog [#44](https://github.com/stainii/task/issues/44)–[#65](https://github.com/stainii/task/issues/65) (#11), and [`docs/repo-health.md`](repo-health.md) (#18).
 
 > This table is the artefact that lets the old portal be switched off knowing what was signed up to lose. It is not a summary — it is the check, written down.
 
 ## What this gate is, and is not
 
-Three of #16's four checks run here, **before** the backlog is built, because that is when a gap is cheap to close. #11 found REC-012 exactly this way. The fourth — **shipped coverage**, every survivor closed and working — cannot run until #44–#65 are done, and is [#66](https://github.com/stainii/task/issues/66).
+Three of #16's four checks run here, **before** the backlog is built, because that is when a gap is cheap to close. #11 found REC-012 exactly this way. The fourth — **shipped coverage**, every survivor closed and working — could not run until #44–#65 were done. It is [#66](https://github.com/stainii/task/issues/66), it ran on 2026-08-17, and it is [Check 5](#check-5-shipped-coverage) below.
 
 ## Results
 
@@ -18,7 +18,7 @@ Three of #16's four checks run here, **before** the backlog is built, because th
 | **2. Build coverage** — every survivor reaches the backlog, and no backlog issue is invented | **PASS**. 77 of 82 survivors are cited by an issue in #44–#65; 5 are discharged through existing tickets. All 22 backlog issues cite at least one row. |
 | **3. Substance coverage** — the verdict is still *true* | **PASS with one correction**: REC-002. Six rows carry stale wording; one had a stale verdict. |
 | **4. Health-check coverage** — every defect in `docs/repo-health.md` has a disposition | **PASS**, 8 / 8. Two are decisions not to fix. |
-| **5. Shipped coverage** | **NOT RUN** — [#66](https://github.com/stainii/task/issues/66). |
+| **5. Shipped coverage** — every survivor closed *and working* | **PASS with one gap closed**, 2026-08-17 ([#66](https://github.com/stainii/task/issues/66)). See [Check 5](#check-5-shipped-coverage) below. |
 
 ### The tally has moved twice
 
@@ -75,6 +75,91 @@ Two drops are worth re-reading before cutover because they are the ones that los
 **D1 is the one that matters most before #17**: it fails silently — the task simply never appears. It is covered twice (#47 deletes the class, #49 replaces the predicate) and #47's *done when* names the canary: a template with `min > 30` days fires.
 
 The `HEALTH-nn` ids lived only in issue prose until now; `docs/repo-health.md` has been annotated with them so the two documents can be read against each other.
+
+## Check 5: shipped coverage
+
+Run 2026-08-17 for [#66](https://github.com/stainii/task/issues/66) — the last gate before [#17](https://github.com/stainii/task/issues/17). Where check 3 asked *is the verdict still true*, this one asks *did the thing actually get built, and does it run*.
+
+### 1. Every pre-cutover survivor is closed
+
+**PASS.** The ticket asks for the list of rows whose issue is still open. **It is empty**, and here is the whole of what that rests on.
+
+All 22 backlog issues, [#44](https://github.com/stainii/task/issues/44)–[#65](https://github.com/stainii/task/issues/65), are closed, and so are the four review-finding tickets the builds themselves raised: [#67](https://github.com/stainii/task/issues/67) (overlays, which produced ADR-0020), [#68](https://github.com/stainii/task/issues/68), [#69](https://github.com/stainii/task/issues/69) and [#70](https://github.com/stainii/task/issues/70). No `Carried by` cell in the table below points at an open issue.
+
+Every open child of the map is one that is *meant* to outlive this check, and none of them carries a survivor row that cutover needs:
+
+| Still open | Why it does not block |
+|---|---|
+| [#39](https://github.com/stainii/task/issues/39) | Dogfooding — needs a fresh dump from the box, which is powered down until 2026-08-24 |
+| [#29](https://github.com/stainii/task/issues/29) | The operating manual; carries RES-006, which is documentation, and is blocked on #24 and #26 |
+| [#24](https://github.com/stainii/task/issues/24) | `wayfinder:deferred`; carries RES-001, the Dockerfiles, which cutover needs but which #17 itself performs |
+| [#17](https://github.com/stainii/task/issues/17) | The cutover — the thing this gate exists to clear |
+
+Reproduce with `gh issue list --repo stainii/task --state open`.
+
+### 2. It runs
+
+Measured on the author's machine, not inferred from the last green build:
+
+| Suite | Result |
+|---|---|
+| `task-back-end` — `./mvnw verify` | **431 tests green**, 0 skipped, modulith verifies |
+| …of which `PortalArchiveImportIntegrationTest` | **15 green against the real frozen archive** — normally skipped, see below |
+| `task-front-end` — `npm test` | **662 tests green**, 50 files |
+| `task-front-end` — `npm run e2e` | **5 green**, including the whole offline contract (cold start from IndexedDB, outbox order, stream resume, the auth stall) |
+
+**The importer's arithmetic was run, not assumed.** `PortalArchiveImportIntegrationTest` skips itself unless the frozen corpus is restored, because [#31](https://github.com/stainii/task/issues/31) keeps this repo public and the data is the secret — so its 15 assertions are the one part of the suite CI can never prove. They carry DB-001…004 and CON-002, which are the rows cutover is riskiest on. They were restored (`portal-pg`, `portal-mongo`) and run for this gate: **all 15 pass**, so ADR-0005's counts still reconcile against the real archive. Anyone re-running this gate must do the same; a green `verify` alone does **not** cover the importer.
+
+### 3. The health defects, in the shipped code
+
+**PASS.** Each fix was read in the shipped source, not taken from the closing issue — in `task-back-end/src/main` except where the row says otherwise:
+
+| Id | Verified as shipped |
+|---|---|
+| HEALTH-01 | `Period.getDays()` has **no call site anywhere in `src/`** — it survives only in four prose comments that explain why it is gone — and `task-back-end/pom.xml` passes `-Xep:JavaPeriodGetDays:ERROR`, so the shape is a **compile error**. See the finding below |
+| HEALTH-02 | `Task.undoPatch()` and the recursion are gone; the sorted fold (`Task.foldOf`) replaces them |
+| HEALTH-03 | `TaskPatchController` has a `@GetMapping`, so patch ids no longer arrive only over SSE |
+| HEALTH-04 | `RecurringTaskTemplateController` is gone; one `TaskTemplateController` remains |
+| HEALTH-05 | `TaskApiExceptionHandler` exists and is covered by `TaskPatchControllerTest` |
+| HEALTH-07 | `ModuleDocumentation.sortGeneratedLists` plus five tests over it — **in `src/test`, not `src/main`**, correctly: the sort is applied to the `Documenter` output as the diagram is regenerated, which only ever happens from a test |
+| HEALTH-06, HEALTH-08 | Decisions not to fix, unchanged — `Execution` is deleted, the old front-end is deleted |
+
+### The finding: D1's canary was one seam short
+
+**`HEALTH-01` is the defect this gate cares most about, and its canary was in the wrong place.**
+
+[#47](https://github.com/stainii/task/issues/47)'s *done when* named the canary as **a template with `min > 30` days fires**. What landed was a boundary test on `Trigger.MinMax` over 1/30/31/45/90/365/720 days — real coverage of the arithmetic. But D1 was never an arithmetic bug anyone saw. It was a task that **never appeared**, and at the seam where that silence happens — `DueTemplateCheckerIntegrationTest`, the scheduler writing a task through the module boundary — every positive firing case was **7 days or under**. The longest interval asserted end to end was a fortnight of downtime on a 7-day template.
+
+So the canary was added at that seam, and shown to earn its place: with D1's day-component comparison reintroduced in `Trigger.MinMax`, `aTemplateWithAnIntervalPastAMonthStillFires` fails with *expected 1 but was 0* — the exact production symptom — **and the other twelve tests in the class stay green**. That is the gap, stated as a measurement rather than a worry.
+
+Two things worth keeping from it:
+
+- **The error-prone promotion is load-bearing.** Reintroducing D1 *literally* would not compile: `task-back-end/pom.xml` raises `JavaPeriodGetDays` from its default warning to an ERROR (the rationale is in `docs/quality-bar.md` §D1), so the shape cannot come back by hand. The canary had to emulate the effect — a day-of-month subtraction, which reads Mar 1 → Apr 15 as 14 days exactly as `Period.getDays()` did — in order to go red at all. The promotion is the primary defence; the test covers the case where the same wrongness arrives in a shape error-prone does not know.
+- **A named *done when* is not evidence it was met.** #47's canary was cited by #16 as covering HEALTH-01, and was cited in good faith — the issue closed with the boundary tests genuinely written. Checking where a test sits, not just that it exists, is what check 5 is for.
+
+### 4. Substance, re-checked the cheap way
+
+**PASS, nothing new.** Per #16's finding that staleness is caused by an ADR deleting a concept and is therefore predictable, the check was *list what the ADRs deleted since #16, then grep*.
+
+Since #16 ran (2026-08-10), one ADR was added — **ADR-0020**, one overlay layer and one owner of Escape — and three were amended: **ADR-0004** (two amendments the local store found), **ADR-0005** (six statements the real archive corrected in #52) and **ADR-0013** (`Manual` carries the anchor label). **None of them deletes a named concept.** ADR-0020 consolidates toasts and z-index into the shell, the ADR-0004 and ADR-0005 changes are additions and corrections to counts, and ADR-0013's is an addition.
+
+The seven deletions remain the whole list, and #47 has now carried out the four that were still pending in code. So the grep is a re-check of the same seven rather than a hunt for new ones, and it was run:
+
+| Deleted name | `portal-inventory.md` | `coverage-gate.md` | Verdict |
+|---|---|---|---|
+| `Execution` | 53 | 18 | Every hit is either the *portal* row describing what existed (correct — the ledger records portal, not `task`) or a `Substance` cell already saying it is deleted |
+| `activeTask` | 4 | 5 | Same; REC-010's cell names the replacement predicate |
+| `DeviationBase` | 3 | 4 | TODO-021, already overturned to `drop` by #16 |
+| `variableNames` | 0 | 3 | TODO-019, already marked *partly overturned* by #16 |
+| `flowId` | 18 | 3 | TODO-001/006/011/015 — all `PARTIAL` with the drop stated |
+| `expectedDurationInHours` | 6 | 3 | TODO-001/004/020 and FE-004, all stating the drop |
+| `Source` | 23 | 6 | Mostly the unrelated English word; the `dtos/Source` hits are TODO-017 and REC-005/014, all carrying the correction |
+
+Reproduce with `grep -oi <name> docs/portal-inventory.md docs/coverage-gate.md`. **No hit was found that asserts a deleted concept still exists.** Every verdict in the table below stands as written after #16's corrections; the build overturned none of them.
+
+### 5. The drop list, re-read
+
+Re-read once, with cutover imminent, as the ticket requires. The 60 drops stand. The two that lose a *capability* rather than an implementation are unchanged and still deliberate: **SOC-005** (photos — social loses them permanently) and **FE-017/FE-020** (the creature and Sporty Spice). After [#17](https://github.com/stainii/task/issues/17) these are gone for good.
 
 ## The five survivors discharged outside the backlog
 
