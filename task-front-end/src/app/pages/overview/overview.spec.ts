@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOW } from '../../clock';
 import { addDays } from '../../domain/dates';
 import { foldOf } from '../../domain/fold';
+import { SyncFailure } from '../../domain/sync';
 import { Task, TaskPatch } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
 import { LocalStore } from '../../store/local-store';
@@ -26,6 +27,10 @@ const NOW_AT = new Date('2026-08-14T10:00:00Z');
 let held: Task[] = [];
 let recorded: TaskPatch[] = [];
 const revision = signal(0);
+/** What the outbox dropped — the band's input, and empty in every test that is not about it. */
+const failures = signal<readonly SyncFailure[]>([]);
+let sentAgain: string[] = [];
+let forgotten: string[] = [];
 
 let fixture: ComponentFixture<Overview>;
 
@@ -60,6 +65,9 @@ beforeEach(() => {
   held = [];
   recorded = [];
   revision.set(0);
+  failures.set([]);
+  sentAgain = [];
+  forgotten = [];
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
@@ -69,6 +77,15 @@ beforeEach(() => {
         provide: SyncService,
         useValue: {
           revision,
+          failures,
+          sendAgain: (patchId: string) => {
+            sentAgain.push(patchId);
+            return Promise.resolve();
+          },
+          forget: (patchId: string) => {
+            forgotten.push(patchId);
+            return Promise.resolve();
+          },
           // Stands in for the network, not for the fold: the patch goes into its task's history and
           // the row is recomputed by the **real** `foldOf`. Faking the closure instead would make
           // "the row leaves the screen" an assertion about this stub.
@@ -164,6 +181,71 @@ describe('the bands', () => {
   });
 });
 
+describe('what a folded band says is behind its door', () => {
+  it('answers the two questions that would make you open `Also…`', async () => {
+    // Of four variants the author drove, words beat stripes: a distribution nobody can act on is
+    // not worth a colour, and it would clash with the six-segment bar on the cards one band above.
+    await render(
+      Array.from({ length: 8 }, (_, index) =>
+        aTask({
+          name: `soon ${index}`,
+          dueDate: addDays(TODAY, index + 5),
+          importance: 'NOT_SO_IMPORTANT',
+        }),
+      ),
+    );
+
+    expect(band('Also…').querySelector('.foldbar')?.textContent).toContain(
+      'nothing urgent · soonest in 10 days',
+    );
+  });
+
+  it('leaves `Starting in the future…` at a bare count', async () => {
+    // Nothing that has not started is taken into consideration by anything speaking about urgency
+    // (ADR-0015), and that band holds nothing else — so it has nothing to say. A `soonest` term
+    // over it would render `soonest 62 days overdue` for a sleeping overdue task: true, unreadable,
+    // and no answer at all to *should I open this*.
+    await render([
+      aTask({ dueDate: TODAY }),
+      aTask({
+        name: 'Onderhoud ketels',
+        dueDate: addDays(TODAY, -62),
+        startDate: addDays(TODAY, 5),
+        importance: 'VERY_IMPORTANT',
+      }),
+    ]);
+
+    const bar = band('Starting in the future…').querySelector('.foldbar')?.textContent ?? '';
+    expect(bar).toContain('Starting in the future…');
+    expect(bar).toContain('1');
+    expect(bar).not.toContain('soonest');
+    expect(bar).not.toContain('urgent');
+  });
+});
+
+describe('the context cards', () => {
+  it('stands above the bands, over every context this device holds', async () => {
+    await render([
+      aTask({ name: 'house one', context: 'house', dueDate: TODAY }),
+      aTask({ name: 'health one', context: 'health', dueDate: TODAY }),
+    ]);
+
+    expect(texts('app-context-cards .context')).toEqual(['health', 'house']);
+  });
+
+  it('keeps every card while you are inside one, so the row is how you switch', async () => {
+    await render(
+      [
+        aTask({ name: 'house one', context: 'house', dueDate: TODAY }),
+        aTask({ name: 'health one', context: 'health', dueDate: TODAY }),
+      ],
+      'house',
+    );
+
+    expect(texts('app-context-cards .context')).toEqual(['health', 'house']);
+  });
+});
+
 describe('entering a context', () => {
   it('scopes every band to it', async () => {
     await render(
@@ -175,6 +257,28 @@ describe('entering a context', () => {
     );
 
     expect(texts('.name')).toEqual(['house one']);
+  });
+
+  it('says where you are, and how to leave', async () => {
+    await render(
+      [
+        aTask({ context: 'house', dueDate: TODAY }),
+        aTask({ context: 'house', startDate: addDays(TODAY, 10) }),
+        aTask({ context: 'health', dueDate: TODAY }),
+      ],
+      'house',
+    );
+
+    // Two, not one: the same total the card carries, said in the same word. A number that changed
+    // meaning one line apart would be the card's own count contradicted on the screen it opened.
+    expect(element().querySelector('.scope')?.textContent).toContain('house — 2 open');
+    expect(element().querySelector('.scope a')?.getAttribute('href')).toBe('/');
+  });
+
+  it('says nothing about scope at `/`, where there is none', async () => {
+    await render([aTask({ dueDate: TODAY })]);
+
+    expect(element().querySelector('.scope')).toBeNull();
   });
 });
 
@@ -230,5 +334,82 @@ describe('acting on a task', () => {
     await fixture.whenStable();
 
     expect(texts('.name')).toEqual(['arrived from the stream']);
+  });
+});
+
+/**
+ * The rejected-changes band (ADR-0014). What only this screen can say is *where* it is — above the
+ * work, because a rejection is something you believe you did that did not happen — and that its two
+ * verbs reach sync. What a row *says* is `ui/rejections.spec.ts`.
+ */
+describe('the changes the server refused', () => {
+  const REFUSED = {
+    patchId: 'p1',
+    taskId: 'a',
+    status: 400,
+    at: '2026-08-12T18:00:04+02:00',
+  };
+
+  async function withRejection(): Promise<void> {
+    failures.set([REFUSED]);
+    const completion: TaskPatch = {
+      id: 'p1',
+      taskId: 'a',
+      dateTime: '2026-08-12T18:00:00+02:00',
+      sequence: null,
+      voids: null,
+      changes: { status: 'COMPLETED', completedOn: '2026-08-12' },
+    };
+    const created: TaskPatch = { ...completion, id: 'p0', changes: { name: 'Call the dentist' } };
+    await render([
+      aTask({
+        id: 'a',
+        name: 'Call the dentist',
+        status: 'COMPLETED',
+        history: [created, completion],
+      }),
+      aTask({ name: 'Vacuum the living room', dueDate: TODAY }),
+    ]);
+  }
+
+  it('stands above the day’s work, which is the whole placement argument', async () => {
+    await withRejection();
+
+    const bands = [...element().querySelectorAll('section.band')];
+    expect(bands[0].classList.contains('rejected')).toBe(true);
+    expect(bands[0].querySelector('.act')?.textContent).toContain('Call the dentist');
+  });
+
+  it('speaks for a task that is no longer on the overview at all', async () => {
+    // The common case, and the reason the band exists: the completion succeeded locally, the fold
+    // closed the task, and this screen does not show closed tasks.
+    await withRejection();
+
+    expect(texts('.name')).toEqual(['Vacuum the living room']);
+    expect(element().querySelector('.act')?.textContent).toContain('marked complete');
+  });
+
+  it('sends it again on `Fix and retry`', async () => {
+    await withRejection();
+
+    element().querySelector<HTMLElement>('.retry')?.click();
+    await flush();
+
+    expect(sentAgain).toEqual(['p1']);
+  });
+
+  it('forgets it on `Discard`', async () => {
+    await withRejection();
+
+    element().querySelector<HTMLElement>('.discard')?.click();
+    await flush();
+
+    expect(forgotten).toEqual(['p1']);
+  });
+
+  it('leaves no trace when nothing was refused', async () => {
+    await render([aTask({ dueDate: TODAY })]);
+
+    expect(element().querySelector('section.band.rejected')).toBeNull();
   });
 });

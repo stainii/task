@@ -160,6 +160,9 @@ beforeEach(() => {
         provide: SyncService,
         useValue: {
           revision,
+          // The omnibox lives on the appbar, so the shell renders the overview beneath it and the
+          // stub has to answer what that screen's rejected-changes band reads.
+          failures: signal([]),
           // The real one records in order and answers with the patch undo names; the stub delegates
           // to this file's own `record` so the fold below still does the work.
           recordAll: async (patches: TaskPatch[]) => {

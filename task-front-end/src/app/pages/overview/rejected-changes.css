@@ -1,0 +1,77 @@
+:host {
+  display: block;
+}
+
+.band {
+  margin-bottom: 22px;
+}
+
+/*
+ * The same heading shape as the bands below it, so this reads as *the first band* rather than as a
+ * different kind of furniture — it is above the work because it outranks the work, not because it
+ * is a dialog.
+ */
+.band-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--app-rejected);
+}
+
+.why-title {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.change {
+  padding: 11px 14px;
+  border: 1px solid var(--app-rejected-line);
+  border-radius: 10px;
+  background: var(--app-rejected-bg);
+}
+
+.change + .change {
+  margin-top: 8px;
+}
+
+.act {
+  margin: 0;
+  font-weight: 600;
+}
+
+.why {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.verbs {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.verbs button {
+  padding: 5px 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: var(--app-surface);
+  color: var(--app-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* The one to reach for. `Discard` stays the quiet neighbour: it throws away work you believe you did. */
+.verbs .retry {
+  border-color: var(--app-accent);
+  color: var(--app-accent);
+  font-weight: 600;
+}

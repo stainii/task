@@ -309,3 +309,29 @@ that still have a row. The band alone covers every case. #58's body is corrected
 ADR-0015's start-date banding and its markup needs rebuilding, but the finding it carries is
 untouched by that: a rejected completion has no row because the task is **closed**, and ADR-0015
 gave sleeping tasks a home while correctly giving closed ones none.
+
+### What the two verbs on a rejected row actually do
+
+Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
+2026-08-16.
+
+*A rejected-change row names the act and the reason* settled the words and left the mechanics open.
+Building them found that the obvious reading of *Fix and retry* — open the task, correct it, save —
+**cannot work for the case the band exists for**: the commonest rejection is a completion, whose task
+is closed, and [ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md) redirects
+`/task/:id` away from a closed task. The one verb the band can offer every row is therefore:
+
+- **Fix and retry** puts the patch **back in the outbox, at the back of the queue**, and takes the
+  notice down. At the back because the queue drains strictly in order and everything made since is
+  newer intent — re-inserting at its old position would replay a stale value over the edits that
+  followed it.
+- **Discard** forgets the notice. The patch stays in the task's history either way: the failed-to-sync
+  list is about what the user can see, not about unremembering what happened.
+
+**The notice comes down because it was acted on, not because the send succeeded.** If the server
+refuses the patch a second time it returns through the ordinary drop path, which is the only shape in
+which this cannot quietly lose the fact. *Fix* is then what you did elsewhere — in the dialog, on the
+server, in the next deploy — and this is the button that tries again.
+
+*Decided by recommendation while building #58; no prototype drove the verbs' mechanics, only their
+words.*

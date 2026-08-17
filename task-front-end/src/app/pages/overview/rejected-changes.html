@@ -1,0 +1,37 @@
+@if (changes().length > 0) {
+  <section class="band rejected">
+    <h2 class="band-title">
+      Not saved
+      <span class="why-title"
+        >— {{ changes().length }} {{ changes().length === 1 ? 'change' : 'changes' }} the server
+        refused</span
+      >
+    </h2>
+
+    @for (change of changes(); track change.patchId) {
+      <div class="change">
+        <p class="act">{{ change.name }} — {{ change.act }}</p>
+        <!--
+          When you did it, then why this one going missing matters. **No status code**: it is
+          constant, so it would be a fixed phrase in the position the eye reaches first, on a band
+          whose whole job is to say what went wrong *this time*.
+        -->
+        <p class="why">{{ change.when }}. {{ change.why }}</p>
+        <!--
+          Words, not glyphs — ADR-0019 applied rather than excepted. Drawing the glyph variant found
+          the collision the rule predicts: a bin for *discard this change* one band above the glyph
+          for *cancel this task*. `Discard` also throws away something you believe you did, which is
+          the maximum consequence in the app behind the minimum affordance.
+        -->
+        <div class="verbs">
+          <button type="button" class="retry" (click)="retry.emit(change.patchId)">
+            Fix and retry
+          </button>
+          <button type="button" class="discard" (click)="discard.emit(change.patchId)">
+            Discard
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+}

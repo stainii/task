@@ -225,3 +225,36 @@ days".
 
 **Band membership trumps the score.** The always-visible guarantee is unchanged; the points order
 what sits inside it.
+
+### The scope line says the same total the card does
+
+Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
+2026-08-16.
+
+*Contexts are cards above one global list* specifies a `house — 7 open` line on the entered context
+and never says which 7. Building it made the question sharp, because
+[ADR-0015](0015-postpone-pushes-the-start-date-and-the-fold-speaks.md)'s reversal had just split the
+card into a badge that counts **started** work and a count that is a **true total**.
+
+**It is the total**, matching the card exactly. The card and this line sit one click apart and use
+the same word; two numbers that disagree there would each be true under a rule the screen never
+states, which is the failure mode the badge reversal was itself about. `PROTOTYPE-context-card-sleeping.html`
+counts the awake ones here — that line was scaffolding around the question under test, not an answer
+to this one, and it is superseded.
+
+*Decided by recommendation while building #58; the prototype had it the other way and was not driven
+on it.*
+
+### What a folded band says when nothing in it has a due date
+
+Amended by the same ticket.
+
+[ADR-0015](0015-postpone-pushes-the-start-date-and-the-fold-speaks.md)'s fold-bar sentence has two
+halves — *is anything urgent in there*, and *when does the next one arrive*. The second half has no
+answer for a band holding only undated work, which `Also…` can easily be: an omnibox capture has no
+due date by construction.
+
+**The clause is dropped, not filled in.** `Also… (3) · nothing urgent` is half a sentence and says
+only what is true; `soonest never` and `soonest no due date` are both answers to a question that was
+not asked. This is the same rule as ADR-0015's count-only future band — say nothing where there is
+nothing to say — reached one band along.

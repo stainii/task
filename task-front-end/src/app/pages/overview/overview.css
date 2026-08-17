@@ -76,6 +76,15 @@
   border-color: var(--app-muted);
 }
 
+/* The two facts the fold bar carries, between the title and the count. */
+.summary {
+  font-size: 13px;
+}
+
+.summary::before {
+  content: '· ';
+}
+
 .count {
   margin-left: auto;
   color: var(--app-ink);
@@ -86,6 +95,25 @@
 .nothing {
   margin: 0;
   color: var(--app-muted);
+}
+
+/* Where you are standing, and the way out. */
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  font-size: 14px;
+}
+
+.scope a {
+  padding: 3px 11px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  font-size: 12px;
+  text-decoration: none;
 }
 
 /*

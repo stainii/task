@@ -1,8 +1,30 @@
 <!--
-  One ranked list under band headings. Contexts become cards above this in #58; the bands below
-  know nothing about which axis the row above them groups by, which is what keeps a second axis
-  (a goal) a change to the cards rather than a rewrite.
+  The context cards (ADR-0006 §82), over **everything** this device holds rather than the entered
+  scope: the row is how you move between contexts, so scoping it would leave you standing in a room
+  with one door. The bands below know nothing about which axis the row groups by, which is what keeps
+  a second axis (a goal) a change to the cards rather than a rewrite.
 -->
+<app-context-cards [tasks]="all()" [today]="today()" [entered]="value()" />
+
+<!--
+  The changes the server refused (ADR-0014), **above the day's work** — a rejection is not
+  diagnostics, it is something you believe you did that did not happen, and it outranks today's work.
+  Outside the empty-state branch below, because a device with nothing to do can still be holding a
+  change that went missing.
+-->
+<app-rejected-changes [changes]="rejected()" (retry)="retry($event)" (discard)="discard($event)" />
+
+<!--
+  Where you are standing, and the way out (ADR-0006). The count is the **true total** of open work in
+  the context — the same number, in the same word, that the card above it carries.
+-->
+@if (scope(); as scope) {
+  <p class="scope">
+    <strong>{{ scope.context }}</strong> — {{ scope.open }} open
+    <a routerLink="/">← everything</a>
+  </p>
+}
+
 <!--
   FE-006's own words, kept verbatim. *Nothing else* is the accurate half: the message appears when
   the day's work and the sleeping work are both empty, which is portal's exact condition
@@ -41,11 +63,19 @@
           Folded means *not rendered*. Portal drew six greyed-out rows behind a `disabled` class, so
           the commonest act after clearing the top five was a click that revealed what was already
           on screen — and without a real fold the cap would be decorative, since work still on
-          screen has not been limited. #58 adds the words that say what is behind the door.
+          screen has not been limited.
         -->
         <h2 class="band-title visually-hidden">{{ fold.title }}</h2>
         <button type="button" class="foldbar" (click)="unfold(fold.key)">
           <span>{{ fold.title }}</span>
+          <!--
+            What is behind the door, in words — for `Also…` only. Words beat stripes on four driven
+            variants: a distribution nobody can act on is not worth a colour, and it would collide
+            with the six-segment bar on the cards one band above.
+          -->
+          @if (fold.summary; as summary) {
+            <span class="summary">{{ summary }}</span>
+          }
           <span class="count">{{ fold.tasks.length }}</span>
         </button>
       }

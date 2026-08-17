@@ -9,6 +9,8 @@ import {
   signal,
 } from '@angular/core';
 
+import { RouterLink } from '@angular/router';
+
 import { NOW } from '../../clock';
 import { visibleWork } from '../../domain/bands';
 import { today } from '../../domain/dates';
@@ -16,7 +18,11 @@ import { PanelAction, undoPatch } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
+import { rejectedChanges } from '../../ui/rejections';
 import { Toast, Toasts } from '../../ui/toasts';
+import { foldSummary } from '../../ui/wording';
+import { ContextCards } from './context-cards';
+import { RejectedChanges } from './rejected-changes';
 import { TaskPanel } from './task-panel';
 
 /**
@@ -34,6 +40,12 @@ interface CollapsedBand {
   readonly title: string;
   readonly tasks: readonly Task[];
   readonly open: boolean;
+  /**
+   * What is behind the door, in words — or `null` where the band has nothing to say.
+   *
+   * Only `Also…` ever has any. See {@link Overview.folds}.
+   */
+  readonly summary: string | null;
 }
 
 /**
@@ -54,7 +66,7 @@ interface CollapsedBand {
 @Component({
   selector: 'app-overview',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TaskPanel],
+  imports: [ContextCards, RejectedChanges, RouterLink, TaskPanel],
   templateUrl: './overview.html',
   styleUrl: './overview.css',
 })
@@ -124,16 +136,58 @@ export class Overview {
   protected readonly folds = computed<readonly CollapsedBand[]>(() => {
     const opened = this.opened();
     const bands: readonly CollapsedBand[] = [
-      { key: 'also', title: 'Also…', tasks: this.work().also, open: opened.has('also') },
+      {
+        key: 'also',
+        title: 'Also…',
+        tasks: this.work().also,
+        open: opened.has('also'),
+        summary: foldSummary(this.work().also, this.asOf()),
+      },
       {
         key: 'future',
         title: 'Starting in the future…',
         tasks: this.work().notStarted,
         open: opened.has('future'),
+        // **Count-only, and that is one rule rather than a second decision** (ADR-0015): a task that
+        // has not started is not taken into consideration by anything that speaks about urgency, and
+        // this band holds nothing else. Words returned here would read `soonest 62 days overdue` for
+        // a sleeping overdue task — true, unreadable, and no answer at all to *should I open this*.
+        summary: null,
       },
     ];
     return bands.filter((band) => band.tasks.length > 0);
   });
+
+  /**
+   * The card row's input: **everything this device holds**, not the entered scope.
+   *
+   * Scoping it would collapse the row to the single card you are standing in, and the row is how you
+   * move between contexts.
+   */
+  protected readonly all = this.held.asReadonly();
+
+  /** `house — 2 open`, and how to leave. Absent at `/`, where there is no scope to say. */
+  protected readonly scope = computed(() => {
+    const context = this.value();
+    if (context === undefined) {
+      return null;
+    }
+    // The **same total** the card carries, in the same word. Scoping this one to started work would
+    // put the card's `4` and this line's `3` one click apart, each true under a rule the screen
+    // never states.
+    return { context, open: this.scoped().filter((task) => task.status === 'OPEN').length };
+  });
+
+  /**
+   * The changes the server refused, as rows (ADR-0014).
+   *
+   * **Not scoped to the entered context**, and deliberately: a rejection is something you believe you
+   * did that did not happen, and the commonest one belongs to a task that has already left the
+   * screen — so there is no context left to filter it by that a person would recognise.
+   */
+  protected readonly rejected = computed(() =>
+    rejectedChanges(this.sync.failures(), this.held(), this.now()),
+  );
 
   protected readonly empty = computed(
     () => this.visible().length === 0 && this.folds().length === 0,
@@ -165,6 +219,22 @@ export class Overview {
 
   protected unfold(key: CollapsedBand['key']): void {
     this.opened.update((opened) => new Set(opened).add(key));
+  }
+
+  /**
+   * *Fix and retry*: the patch goes back in the queue and the notice comes down.
+   *
+   * The notice goes because it has been **acted on**, not because the send has succeeded — if the
+   * server refuses it again it returns by the ordinary drop path, which is the only shape in which
+   * this cannot quietly lose the fact.
+   */
+  protected async retry(patchId: string): Promise<void> {
+    await this.sync.sendAgain(patchId);
+  }
+
+  /** *Discard*: forget the notice. The patch stays in the task's history; only the notice goes. */
+  protected async discard(patchId: string): Promise<void> {
+    await this.sync.forget(patchId);
   }
 
   /**

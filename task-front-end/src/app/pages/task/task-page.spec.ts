@@ -108,6 +108,9 @@ beforeEach(() => {
         provide: SyncService,
         useValue: {
           revision: signal(0),
+          // The dialog is a route *over* the overview (ADR-0018), so the shell renders both and the
+          // stub has to answer what the band below it reads.
+          failures: signal([]),
           record: vi.fn((patch: TaskPatch) => {
             recorded.push(patch);
             return Promise.resolve(null);

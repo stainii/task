@@ -1,5 +1,6 @@
+import { bucketOf } from '../domain/buckets';
 import { daysUntil, dueIn, IsoDate, today } from '../domain/dates';
-import { Importance } from '../domain/task';
+import { Importance, Task } from '../domain/task';
 
 /**
  * How a date is said on screen.
@@ -49,6 +50,46 @@ export function dueTone(dueDate: IsoDate | null, today: IsoDate): 'overdue' | 't
 
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+/**
+ * **What is behind a folded band's door**, in words (ADR-0015).
+ *
+ * Four variants were built and driven — count only, count + colour stripes, count + words, and both
+ * — and words won. Stripes describe a *distribution* nobody can act on ("two of the nine are
+ * orange") and would additionally collide with the six-segment bar on the context cards one band
+ * above, so the same visual language would mean two different things a band apart. What the words
+ * answer are the only two questions that would make you open it: **is anything urgent in there**,
+ * and **when does the next one arrive**.
+ *
+ * Urgent means the `focus` bucket — important *and* near — rather than merely overdue: `long-game`
+ * is important and far off, which is exactly the thing not to open a band for.
+ *
+ * **This is for `Also…` alone.** `Starting in the future…` is count-only, because a task that has
+ * not started is not taken into consideration by anything that speaks about urgency and that band
+ * holds nothing else; asking this function for words about it would produce `soonest 62 days
+ * overdue`, which is true, unreadable, and no answer at all to *should I open this*. The caller
+ * makes that choice — see `Overview`.
+ */
+export function foldSummary(tasks: readonly Task[], today: IsoDate): string | null {
+  if (tasks.length === 0) {
+    return null;
+  }
+
+  const urgent = tasks.filter((task) => bucketOf(task, today) === 'focus').length;
+  // Not {@link plural}: that pluralises a *noun* by adding an `s`, and a verb agrees the other way
+  // round — `1 needs attention`, `2 need attention`.
+  const head =
+    urgent === 0 ? 'nothing urgent' : `${urgent} ${urgent === 1 ? 'needs' : 'need'} attention`;
+
+  // Undated work never *arrives*, so a band holding nothing else has no second half to say. Half a
+  // sentence beats inventing a date, which is this file's rule about not deleting words read the
+  // other way round: say what is true and stop.
+  const soonest = tasks
+    .map((task) => task.dueDate)
+    .filter((dueDate) => dueDate !== null)
+    .sort((a, b) => a.localeCompare(b))[0];
+  return soonest === undefined ? head : `${head} · soonest ${dueLabel(soonest, today)}`;
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

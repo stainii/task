@@ -1,0 +1,53 @@
+<!--
+  Nothing at all on a device holding no open work: a row of zero cards is a heading over an absence,
+  and the bands below already say `Relax! Nothing else to do.`
+-->
+@if (cards().length > 0) {
+  <nav class="cards" aria-label="Contexts">
+    @for (card of cards(); track card.value) {
+      <a
+        class="card"
+        [class.entered]="card.value === entered()"
+        [routerLink]="['/in', card.value]"
+        [attr.aria-current]="card.value === entered() ? 'true' : null"
+      >
+        <span class="head">
+          <span class="context">{{ card.value }}</span>
+          <!--
+            **Started tasks only** (ADR-0015). A card claiming `1 overdue` over a context you can
+            click into and find nothing overdue in does not survive being checked, and pressure you
+            learn to distrust has stopped being pressure. Nothing replaces the honesty valve this
+            removed: postpone is deliberately unmitigated.
+          -->
+          @if (card.badge; as badge) {
+            <span class="badge" [class]="'badge-' + badge.kind">{{
+              this.badge(badge.kind, badge.count)
+            }}</span>
+          }
+          <!-- A true total, sleeping work included: a count that is not a total is not a count. -->
+          <span class="count">{{ card.count }}</span>
+        </span>
+
+        <!--
+          Six segments of importance bucket, soonest first, drawing **everything** — the bar is not
+          scoped the way the badge is, because it describes the context rather than claiming
+          anything about urgency. A fifth colour for sleeping tasks was drawn and rejected: it
+          destroys the bar, since a purple segment cannot say `focus` from `back-burner`.
+        -->
+        <span class="bar" aria-hidden="true">
+          @for (segment of card.segments; track $index) {
+            <i [class]="'bucket-' + segment"></i>
+          }
+        </span>
+
+        <span class="next">
+          @if (card.next; as next) {
+            {{ this.next(next.name, next.dueDate) }}
+          } @else {
+            nothing pending
+          }
+        </span>
+      </a>
+    }
+  </nav>
+}

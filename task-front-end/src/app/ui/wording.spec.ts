@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { builtLabel, dateLabel, lastDoneLabel, syncedLabel } from './wording';
+import { addDays } from '../domain/dates';
+import { Importance } from '../domain/task';
+import { aTask } from '../domain/task.mother';
+import { builtLabel, dateLabel, foldSummary, lastDoneLabel, syncedLabel } from './wording';
 
 /**
  * Facts are words (ADR-0019). This is the calendar date said out loud, which the dialog needs
@@ -101,5 +104,51 @@ describe('the facts on the status screen', () => {
   it('says a build date it does not know rather than inventing one', () => {
     // Offline the server's date has never been fetched, and in development the bundle carries none.
     expect(builtLabel(null, NOW_AT)).toBe('unknown');
+  });
+});
+
+/**
+ * The words a folded band carries (ADR-0015, *The collapsed band says what is behind the door*).
+ *
+ * Of four variants the author drove, words beat stripes: a distribution nobody can act on is not
+ * worth a colour, and it would collide with the six-segment bar one band above. What survives are
+ * the only two questions that would make you open the band — is anything urgent in there, and when
+ * does the next one arrive.
+ */
+describe('foldSummary', () => {
+  const dated = (name: string, days: number, importance: Importance = 'NOT_SO_IMPORTANT') =>
+    aTask({ name, dueDate: addDays(TODAY, days), importance });
+
+  it('says nothing is urgent, and when the soonest arrives', () => {
+    expect(foldSummary([dated('a', 5), dated('b', 12)], TODAY)).toBe(
+      'nothing urgent · soonest in 5 days',
+    );
+  });
+
+  it('counts what needs attention, which is the focus bucket', () => {
+    // `focus` is important *and* near (`buckets.ts`). Two of these three are, and the third is
+    // important but far off — `long-game`, which is precisely not a thing to open a band for.
+    expect(
+      foldSummary(
+        [dated('a', 2, 'VERY_IMPORTANT'), dated('b', 3, 'IMPORTANT'), dated('c', 40, 'IMPORTANT')],
+        TODAY,
+      ),
+    ).toBe('2 need attention · soonest in 2 days');
+  });
+
+  it('says it in the singular for one', () => {
+    expect(foldSummary([dated('a', 1, 'VERY_IMPORTANT')], TODAY)).toBe(
+      '1 needs attention · soonest tomorrow',
+    );
+  });
+
+  it('drops the arrival clause when nothing in there has a due date', () => {
+    // Half a sentence rather than an invented date. *Soonest* is an answer to *when does the next
+    // one arrive*, and undated work never arrives.
+    expect(foldSummary([aTask({ name: 'someday' })], TODAY)).toBe('nothing urgent');
+  });
+
+  it('has nothing to say about an empty band', () => {
+    expect(foldSummary([], TODAY)).toBeNull();
   });
 });
