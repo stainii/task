@@ -85,8 +85,10 @@ deliberately worthless dev values in a public repo — see
 [`compose/keycloak/README.md`](../task-back-end/compose/keycloak/README.md), which is also the file
 to read before touching the realm fixture.
 
-Every `/api` request requires the realm role **`task-user`**. A user who exists, authenticates and
-still gets `403` on everything is almost always missing that role.
+Every `/api` request requires the realm role **`task-user`** — except `/api/config`, which is
+unauthenticated because the browser needs it *before* it can log in. `/actuator/health` is the other
+`permitAll`, for compose's healthcheck. A user who exists, authenticates and still gets `403` on
+everything is almost always missing the role.
 
 ---
 
@@ -128,7 +130,11 @@ diff. Do not hand-maintain a picture of this — read `docs/modules/components.p
 **The two mechanisms worth understanding before changing anything:**
 
 - **Offline sync** ([ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md)) —
-  `POST /api/task-patches` is the *only* write verb. Ids are minted client-side. The client's clock
+  `POST /api/task-patches` is the only way a client writes **a task** — there is no task `PUT` and no
+  task `DELETE`. Templates and push subscriptions are ordinary REST and deliberately outside this
+  contract: patching works for a task because a task is inert, whereas a template is a rule that keeps
+  running in your absence, so its writes need the server and the authoring screen says so rather than
+  queueing (`sync/template-api.ts`). Ids are minted client-side. The client's clock
   orders patches; the server's `sequence` drives resync; an outbox holds what has not landed yet.
   Nearly every subtle bug on this project has been in here.
 - **Templates firing** ([ADR-0001](adr/0001-one-task-aggregate-with-triggered-templates.md),
@@ -144,12 +150,21 @@ this code uses in a specific sense — is in [`CONTEXT.md`](../CONTEXT.md).
 ## When the common things break
 
 **First, look at the app itself.** [ADR-0009](adr/0009-the-app-is-its-own-monitor.md) decided there is
-no monitoring stack at all: the app reports on itself on the `/status` screen, with two facts (**last
-synced** and **the back-end's build date**) and two banners that need no threshold. If something is
-wrong, that screen usually already says so.
+no monitoring stack at all: the app reports on itself on the `/status` screen, and two banners that
+need no threshold announce the conditions worth acting on. If something is wrong, that screen usually
+already says so.
 
-**Logs**: `task-back-end/logs/task-back-end.log`, rolled daily and kept 30 days, on a volume that
-survives container recreation.
+The screen states three lines — **Last synced**, **App built**, **Server built**. ADR-0009's two
+*facts* are the first and the last; the middle one is the front-end's own build date, and it earns its
+place by making the persistent-mismatch banner legible rather than mysterious. Only the server can
+state what the server is running, which is why the third line is fetched rather than compiled in.
+
+**Logs**: `task-back-end/logs/task-back-end.log`, rolled daily and kept 30 days.
+
+> **Hole — owned by [#24](https://github.com/stainii/task/issues/24).** ADR-0009 requires those logs
+> to sit on a volume that outlives container recreation, "or a nightly deploy erases the week".
+> Nothing in this repo provides that volume: `compose.yaml` has no back-end service, and the deploy
+> unit is #24's unbuilt work. Locally the path above is simply a directory.
 
 | Symptom | Most likely cause | What to do |
 |---|---|---|

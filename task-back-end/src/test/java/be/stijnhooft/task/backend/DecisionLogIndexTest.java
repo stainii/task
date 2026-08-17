@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,6 +25,7 @@ class DecisionLogIndexTest {
 
     private static final Path ADR_FOLDER = Path.of("..", "docs", "adr");
     private static final Path INDEX = ADR_FOLDER.resolve("README.md");
+    private static final Pattern LINK_TO_AN_ADR = Pattern.compile("\\]\\((\\d{4}-[^)#]+\\.md)\\)");
 
     @Test
     void everyDecisionIsListedInTheIndex() throws IOException {
@@ -69,7 +71,7 @@ class DecisionLogIndexTest {
 
     /** Every ADR file name the index links to. */
     private static List<String> linkedFiles() throws IOException {
-        return java.util.regex.Pattern.compile("\\]\\((\\d{4}-[^)#]+\\.md)\\)")
+        return LINK_TO_AN_ADR
                 .matcher(readIndex())
                 .results()
                 .map(match -> match.group(1))

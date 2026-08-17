@@ -424,6 +424,9 @@ Stating these so they are not quietly reintroduced.
 - [ ] `npm run lint`, `npm run format:check` and `npm test` pass.
 - [ ] No new suppression without a one-line reason saying what resolves it.
 - [ ] `CONTEXT.md` updated if the ticket settled a domain term.
-- [ ] `docs/adr/` updated if it settled or amended a decision.
+- [ ] `docs/adr/` updated if it settled or amended a decision — and listed in
+      [`docs/adr/README.md`](adr/README.md), which `DecisionLogIndexTest` enforces.
+- [ ] [`docs/operating-manual.md`](operating-manual.md) updated if it changed how the app is run,
+      deployed, restored or debugged. Same commit, not later (#29).
 
 End-to-end tests are not required locally; CI gates them.
