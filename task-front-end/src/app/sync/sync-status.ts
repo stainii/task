@@ -16,6 +16,30 @@ import { LocalStore } from '../store/local-store';
  * for three days* cries wolf on a holiday and stays silent through a week of bad signal, so
  * `online && !reachable` — network fine, server will not answer — is the condition, and it needs no
  * number.
+ *
+ * ## The store takes it before the signal says it
+ *
+ * The one ordering rule in this class, stated here so no writer has to reconstruct it
+ * ([#70](https://github.com/stainii/task/issues/70)). It binds **every signal that mirrors a
+ * durable value** — today that is `lastSyncedAt` alone — and it has two halves:
+ *
+ * - the store is awaited **first**, and the signal is set only once it took the value. Setting the
+ *   signal first makes a rejected write indistinguishable from a successful one, and nothing later
+ *   takes the claim back;
+ * - a store failure is **reported through {@link storeFailed}, never rethrown**, wherever the
+ *   caller cannot act on it. Every writer here is reached from a fire-and-forget loop
+ *   (`Outbox#drainOnce`, `PatchStream#receive`, `TemplateService#refresh`), so a rejection escaping
+ *   this class is an unhandled one and no other effect at all.
+ *
+ * {@link restore} is the stated exception to the second half, and only the second: it is awaited by
+ * `SyncService#start`, which has to *not start the loops* on a dead store, so throwing is how the
+ * one caller that can act on it finds out. Its first half still binds — the signal is only ever set
+ * from what the store answered.
+ *
+ * `reachable` and `online` are deliberately **not** covered: they mirror nothing durable. The
+ * server answering is something the caller just observed, and it stays true whether or not the
+ * browser then took a note of it — blaming the network for a dead database is the wrong banner, and
+ * the one that never clears.
  */
 @Injectable({ providedIn: 'root' })
 export class SyncStatus {
@@ -84,12 +108,24 @@ export class SyncStatus {
     this.lastSyncedAt.set(await this.store.lastSyncedAt());
   }
 
-  /** The server answered. */
+  /**
+   * The server answered.
+   *
+   * Follows the class's ordering rule: `reachable` is set at once because it mirrors nothing
+   * durable, and `lastSyncedAt` waits for the store — ADR-0009 makes *when a sync last actually
+   * worked* its first fact, and `/status` renders it, so the state in which the answer matters most
+   * is exactly the one an optimistic signal would invent.
+   */
   async succeeded(): Promise<void> {
     this.reachable.set(true);
     const at = this.now().toISOString();
+    try {
+      await this.store.setLastSyncedAt(at);
+    } catch (error) {
+      this.storeFailed(error);
+      return;
+    }
     this.lastSyncedAt.set(at);
-    await this.store.setLastSyncedAt(at);
   }
 
   /** The server did not answer, or answered `5xx`. */

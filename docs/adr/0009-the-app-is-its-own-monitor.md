@@ -282,3 +282,36 @@ Two consequences of the shape, both stated rather than discovered later:
 
 The check runs at app open and nowhere else, which for a daily driver is the under-a-day latency
 this ADR already accepted for a total outage.
+
+### The first fact obeys the durable-ack rule too
+
+Enacted by [#70](https://github.com/stainii/task/issues/70), 2026-08-17.
+
+This ADR made *when a sync last actually worked* its first fact and had `/status` render it, and it
+amended ADR-0004 so that **a local write is acknowledged only once it is durably in the outbox**. It
+did not notice that the fact reporting on that rule was breaking it: `SyncStatus#succeeded` set the
+in-memory `lastSyncedAt` *before* awaiting `LocalStore#setLastSyncedAt`, so a quota refusal, an
+evicted database or a private window produced a signal claiming a sync at an instant nothing on the
+device could vouch for — and nothing ever took the claim back. The state in which the answer matters
+most is the state in which it was invented. Same shape as `echo "Backup completed"`, a fourth time,
+in the code written to catch it.
+
+Worse, the rejection escaped. Every caller of `succeeded()` is fire-and-forget — `Outbox#drainOnce`,
+`PatchStream#receive`, `TemplateService#refresh` — so a store failure on this path was an unhandled
+rejection and no other effect, and `storeUnavailable` was never raised by it. Exactly the silence
+[#69](https://github.com/stainii/task/issues/69) closed one layer along.
+
+The rule is now stated once, on `SyncStatus` itself, rather than reconstructed per call site: **the
+store takes it before the signal says it.** It binds every signal that mirrors a durable value, and
+a store failure is reported through `storeFailed` rather than rethrown wherever the caller cannot
+act on it.
+
+Two boundaries the rule deliberately does not cross, because getting them wrong raises the banner
+that never clears:
+
+- **`reachable` and `online` are not covered.** They mirror nothing durable. The server answering is
+  something the caller just observed and stays true whether or not the browser then took a note of
+  it, so blaming the network for a dead database would be the wrong fault, reported forever.
+- **`restore()` still throws.** It is awaited by `SyncService#start`, which must *not start the
+  loops* on a dead store — so there, throwing is how the one caller that can act on it finds out.
+  Only the reporting half of the rule has an exception; the ordering half binds everywhere.
