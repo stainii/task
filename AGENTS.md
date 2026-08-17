@@ -6,6 +6,15 @@ A monorepo holding three projects:
 - `task-front-end/` — Angular
 - `task-workspace/` — the IntelliJ project config; this is the directory to open in the IDE
 
+## Running, debugging, restoring
+
+How to get from a clean clone to a running app, the architecture in one page, what to do when the
+usual things break, and where the decisions live: **`docs/operating-manual.md`**. It is the entry
+point — start there rather than reconstructing any of it.
+
+The decision log has an index: **`docs/adr/README.md`**. A new ADR must be listed in it, and
+`DecisionLogIndexTest` fails the build if it is not.
+
 ## Quality bar
 
 What "green" means, the gates on each stack, and the testing and code conventions every ticket is

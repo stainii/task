@@ -8,6 +8,9 @@ Node is pinned to 26 in `.nvmrc` — run `nvm use` first, or the CLI refuses to 
 `npm run lint`, `npm run format:check`, `npm test` and `npm run build` on every push; see
 `../docs/ci.md`.
 
+Running both stacks together, the ports and the login are in
+[`docs/operating-manual.md`](../docs/operating-manual.md); this file is the front-end's own detail.
+
 ## Development server
 
 To start a local development server, run:

@@ -132,6 +132,10 @@ It doesn't matter in task patch A gets sent to the server before task patch B. E
 
 ## Local Development
 
+Getting the whole thing running — both stacks, the ports, the login, and what to do when something
+breaks — is [`docs/operating-manual.md`](../docs/operating-manual.md). What follows is the back-end's
+own detail.
+
 ### Toolchain
 The versions this repo is built and tested against are pinned in the repo, not left to whatever is on your machine:
 
