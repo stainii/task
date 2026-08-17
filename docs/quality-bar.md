@@ -311,15 +311,20 @@ and [ADR-0005](adr/0005-migration-by-replay-into-one-history.md)'s importer.
 
 ### Shared golden fixtures for anything implemented twice
 
-Two rules in this app exist in both Java and TypeScript, and drift between them would be silent:
+Three rules in this app exist in both Java and TypeScript, and drift between them would be silent:
 
 - **the fold** — [ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md): *no fold rule
   without a fixture*, in [`/fold-fixtures/`](../fold-fixtures/README.md);
 - **template rendering** — [ADR-0011](adr/0011-completion-is-a-task-fact-the-template-reads.md):
   *no rendering rule without a fixture*, in [`/render-fixtures/`](../render-fixtures/README.md),
-  added by [#50](https://github.com/stainii/task/issues/50).
+  added by [#50](https://github.com/stainii/task/issues/50);
+- **when a template comes round** — [ADR-0013](adr/0013-one-anchor-and-a-trigger-that-shapes-the-form.md):
+  *no firing rule without a fixture*, in [`/firing-fixtures/`](../firing-fixtures/README.md), added
+  by [#68](https://github.com/stainii/task/issues/68). The rule under this bar's own *third
+  implementation* clause: the server asks a trigger when it **last** came round, the authoring
+  screen asks when it comes round **next**, and the second question got a second answer.
 
-Both directories work the same way, and the mechanism is the point:
+All three directories work the same way, and the mechanism is the point:
 
 - Fixtures live at the repo root, as plain JSON: the inputs plus the expected output, with **every
   field named including the nulls**.
@@ -328,13 +333,19 @@ Both directories work the same way, and the mechanism is the point:
 - **Both suites assert they ran a non-zero count**, so a broken path fails loudly instead of quietly
   testing nothing. That is exactly how #32's pitest run came to measure its own exclusion for four
   months.
-- **The rule under test is callable without a Spring context.** `Task.foldOf` and
-  `TaskTemplate#render` are both on the aggregate, which is what keeps the fixture runner a plain
-  unit test rather than something that needs a database to say what a date should be.
+- **The rule under test is callable without a Spring context.** `Task.foldOf`, `TaskTemplate#render`
+  and `Trigger#nextFiringDates` are all on the domain object, which is what keeps the fixture runners
+  plain unit tests rather than something that needs a database to say what a date should be.
 
 **A third implementation of anything gets the same treatment.** The test is not "is this logic
 complicated" — rendering is a `String.replace` loop and some `plusDays` — it is "does this rule exist
 in more than one place".
+
+**Where a fixture can also be pointed at production code, point it there.** `FiringFixtureTest`
+asserts that every date the preview lists is a date `latestFiringDateOn` — the hourly due check's own
+question — would fire on. Without that, the firing fixtures would pin two previews against each
+other and say nothing about the scheduler; with it, a forward rule that drifts a day off its backward
+mirror fails in the fixture suite rather than in the app.
 
 ### Testing SSE
 

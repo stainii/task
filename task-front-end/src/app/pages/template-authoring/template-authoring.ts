@@ -13,6 +13,7 @@ import { Router } from '@angular/router';
 
 import { NOW } from '../../clock';
 import { IsoDate, today } from '../../domain/dates';
+import { nextFiringDates } from '../../domain/firing';
 import { renderTemplate, TemplateRenderError } from '../../domain/render';
 import { IMPORTANCES, Importance, Task } from '../../domain/task';
 import { RenderedDefinition, TaskTemplate, Weekday, WEEKDAYS } from '../../domain/template';
@@ -23,9 +24,11 @@ import {
   emptyDraft,
   MonthlyOn,
   problemsOf,
+  sameTrigger,
   templateOf,
   TemplateDraft,
   TriggerKind,
+  triggerOf,
   variablesOfDraft,
 } from '../../domain/template-draft';
 import { Ordinal } from '../../domain/template';
@@ -33,7 +36,17 @@ import { RANDOM } from '../../random';
 import { LocalStore } from '../../store/local-store';
 import { TemplateService } from '../../sync/templates';
 import { templateNamePlaceholder } from '../../ui/placeholders';
-import { importanceLabel } from '../../ui/wording';
+import { dateLabel, importanceLabel } from '../../ui/wording';
+
+/**
+ * How many firings the preview lists.
+ *
+ * Three: enough to see the *shape* of a rule — that *every 2 weeks on Tuesday and Thursday* pairs
+ * its days and then skips a week — and few enough that the list stays a caption rather than a
+ * calendar. A rule you cannot recognise in three dates is a rule the sentence above it already
+ * failed to describe.
+ */
+const PREVIEW_DATES = 3;
 
 /**
  * **One authoring screen, and the trigger is the first field on it**
@@ -181,10 +194,8 @@ export class TemplateAuthoring {
    *
    * Shown for **every** template rather than only multi-task ones. A scheduled template gets its
    * rule read back in words instead of an anchor question, because *"every 14 weeks on Saturday"* is
-   * unreadable as four form controls — ADR-0013's strongest case for the preview existing at all.
-   * What it does **not** do is enumerate the next firing dates: that is a rule that already exists
-   * in Java, and a second implementation of it with no shared fixture directory to pin it is exactly
-   * what `docs/quality-bar.md` §5 forbids. Named as a limit, not solved by guessing.
+   * unreadable as four form controls — and {@link nextDates} puts the firings under it, which is
+   * ADR-0013's strongest case for the preview existing at all.
    */
   protected readonly shape = computed(() =>
     this.draft().definitions.map((definition) => ({
@@ -203,6 +214,54 @@ export class TemplateAuthoring {
 
   /** ADR-0013: the timeline earns its place only when there is something to compare. */
   protected readonly showTimeline = computed(() => this.draft().definitions.length > 1);
+
+  /**
+   * **The dates under the sentence** — *2026-09-05, 2026-10-03, 2026-11-07* beneath *the first
+   * Saturday of every month* ([#68](https://github.com/stainii/task/issues/68)).
+   *
+   * A sentence makes four controls legible; only dates make them *checkable*. Computed through
+   * `domain/firing.ts`, the TypeScript half of `Trigger#nextFiringDates`, pinned against the Java
+   * half by `/firing-fixtures/` — a preview computed some other way is a preview that can disagree
+   * with the scheduler, which is worse than no preview.
+   *
+   * ### Where the phase comes from, and the one case that has no dates
+   *
+   * `active_since` is *the date this template began firing under its current rule*, and re-ruling
+   * rewrites it (ADR-0017). So an **untouched** rule previews from the stored `active_since` — the
+   * firings it will really have — and a **changed** one previews from today, because that is what
+   * saving is about to write.
+   *
+   * A stored **min/max** rule is the one thing here with nothing to show: its next date hangs off
+   * the last closure, and the client does not hold it — closed tasks live one day (ADR-0004). The
+   * sentence above it is still right, so the honest answer is no date rather than a guess printed
+   * as a schedule. Change the interval and the round starts today, which the screen does know.
+   */
+  protected readonly nextDates = computed<readonly IsoDate[]>(() => {
+    const draft = this.draft();
+    if (draft.kind === 'MANUAL') {
+      return [];
+    }
+
+    const from = today(this.now());
+    const stored = this.stored();
+    const trigger = triggerOf(draft);
+    const lookahead = { from, activeSince: from, lastClosure: null, count: PREVIEW_DATES };
+
+    if (stored === null || !sameTrigger(stored.trigger, trigger)) {
+      return nextFiringDates(trigger, lookahead);
+    }
+    if (draft.kind === 'MIN_MAX') {
+      return [];
+    }
+    return nextFiringDates(trigger, { ...lookahead, activeSince: stored.activeSince ?? from });
+  });
+
+  /** Read as `dateLabel` says dates, against today, so the year appears only when it differs. */
+  protected readonly nextDatesLabel = computed(() =>
+    this.nextDates()
+      .map((date) => dateLabel(date, today(this.now())))
+      .join(' · '),
+  );
 
   constructor() {
     effect(() => {

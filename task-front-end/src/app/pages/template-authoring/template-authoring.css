@@ -205,6 +205,27 @@ textarea {
 }
 
 /*
+ * The dates under the rule (#68). One line, muted like the shape's `when`, with the dates
+ * themselves at full contrast — they are the part being read, and the lead-in is only there so the
+ * line is a sentence rather than three dates floating under a form.
+ */
+.next-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.next-dates .lead {
+  color: var(--app-muted);
+}
+
+.next-dates .dates {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
  * The timeline. Hidden below the breakpoint rather than removed from the DOM: ADR-0013 says it
  * appears on mobile *only when there is room*, which is a viewport question and therefore CSS's,
  * not a second rule in the component that would have to guess at a width.

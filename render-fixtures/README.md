@@ -4,10 +4,11 @@ Shared golden fixtures for **task template rendering**, required by
 [ADR-0011](../docs/adr/0011-completion-is-a-task-fact-the-template-reads.md): **no rendering rule
 without a fixture.**
 
-The sibling of [`/fold-fixtures/`](../fold-fixtures/README.md), and here for the same reason. Both
-the server and the front-end render a template: the server when a template fires, the front-end when
-it shows you what running a template is about to create, and when *"I already did this"* mints a task
-offline. Two implementations of one rule drifting apart would be silent, and would put a wrong date
+The sibling of [`/fold-fixtures/`](../fold-fixtures/README.md) and
+[`/firing-fixtures/`](../firing-fixtures/README.md), and here for the same reason as both of them.
+The server and the front-end each render a template: the server when a template fires, the front-end
+when it shows you what running a template is about to create, and when *"I already did this"* mints a
+task offline. Two implementations of one rule drifting apart would be silent, and would put a wrong date
 on a real task.
 
 ## What a fixture pins

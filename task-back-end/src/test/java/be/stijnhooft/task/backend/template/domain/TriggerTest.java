@@ -34,6 +34,14 @@ class TriggerTest {
         void mayHaveNoAnchorLabel() {
             assertThat(new Trigger.Manual(null).anchorLabel()).isNull();
         }
+
+        /// Nothing to preview: the dates come from an anchor someone types, which is why the
+        /// authoring screen shows a manual template's *shape* instead (ADR-0013).
+        @Test
+        void hasNoDatesToPreview() {
+            assertThat(new Trigger.Manual("When is the workshop?")
+                    .nextFiringDates(ACTIVE_SINCE, ACTIVE_SINCE, null, 3)).isEmpty();
+        }
     }
 
     @Nested
@@ -111,6 +119,43 @@ class TriggerTest {
             assertThat(trigger.defaultDueDateFor(ACTIVE_SINCE.plusDays(10))).contains(ACTIVE_SINCE.plusDays(21));
         }
 
+        /// **One date and never more, however many are asked for.** The firing after the next one
+        /// starts its clock at a closure that has not happened, so a second date would be a guess
+        /// dressed as a schedule — and drift is precisely what distinguishes this trigger from
+        /// `Calendar` (ADR-0001).
+        @Test
+        void previewsExactlyOneDateHoweverManyAreAsked() {
+            var trigger = Trigger.MinMax.ofIntervalAndWindow(10, 3);
+
+            assertThat(trigger.nextFiringDates(ACTIVE_SINCE, ACTIVE_SINCE, null, 5))
+                    .containsExactly(ACTIVE_SINCE.plusDays(10));
+        }
+
+        /// The same round start the firing itself uses — the later of the closure and `activeSince`
+        /// — so the preview cannot say one day and the scheduler another.
+        @Test
+        void previewsFromTheSameRoundStartAsTheFiring() {
+            var trigger = Trigger.MinMax.ofIntervalAndWindow(10, 0);
+            var lateClosure = ACTIVE_SINCE.plusDays(37);
+
+            assertThat(trigger.nextFiringDates(lateClosure, ACTIVE_SINCE, lateClosure, 1))
+                    .containsExactly(lateClosure.plusDays(10));
+            // A closure from before the template was re-ruled loses to `activeSince`, exactly as it
+            // does in `latestFiringDateOn`.
+            assertThat(trigger.nextFiringDates(ACTIVE_SINCE, ACTIVE_SINCE, ACTIVE_SINCE.minusDays(5), 1))
+                    .containsExactly(ACTIVE_SINCE.plusDays(10));
+        }
+
+        /// A template already past its round shows the date it became due, not a tidied-up future
+        /// one: *this fires on 11 March* is true and *it fires next month* would not be.
+        @Test
+        void showsADateAlreadyBehindWhenTheTemplateIsOverdue() {
+            var trigger = Trigger.MinMax.ofIntervalAndWindow(10, 0);
+
+            assertThat(trigger.nextFiringDates(ACTIVE_SINCE.plusDays(40), ACTIVE_SINCE, null, 3))
+                    .containsExactly(ACTIVE_SINCE.plusDays(10));
+        }
+
         @Test
         void refusesAnIntervalThatIsNotPositive() {
             assertThatThrownBy(() -> new Trigger.MinMax(0, 5))
@@ -142,6 +187,16 @@ class TriggerTest {
 
             assertThat(withoutClosure).contains(ACTIVE_SINCE.plusDays(14));
             assertThat(withRecentClosure).isEqualTo(withoutClosure);
+        }
+
+        /// **The case #68 exists for**: a rule can enumerate its own firings with nobody typing
+        /// anything, and the closure it ignores does not move them here either.
+        @Test
+        void listsAsManyDatesAsAsked() {
+            var trigger = new Trigger.Calendar(new CalendarRule.Days(7));
+
+            assertThat(trigger.nextFiringDates(ACTIVE_SINCE, ACTIVE_SINCE, ACTIVE_SINCE.plusDays(3), 3))
+                    .containsExactly(ACTIVE_SINCE, ACTIVE_SINCE.plusDays(7), ACTIVE_SINCE.plusDays(14));
         }
     }
 }

@@ -246,6 +246,32 @@ function calendarTrigger(draft: TemplateDraft): StoredTrigger {
   }
 }
 
+/**
+ * Whether two flat triggers say the same thing — *is this still the rule that was saved?*
+ *
+ * Here rather than in the screen that asks, because it is a fact about the wire shape and it has to
+ * be revised in the same breath as {@link triggerOf}: a tenth column added there and forgotten here
+ * would make an edited trigger look untouched, which is how the authoring preview would come to
+ * show the phase of a rule that no longer exists.
+ *
+ * Absent and null are read as one, because the two sides come from different places: the wire nulls
+ * every column its discriminator does not use, and `triggerOf` simply leaves them out.
+ */
+export function sameTrigger(left: StoredTrigger, right: StoredTrigger): boolean {
+  const fields = [
+    'type',
+    'anchorLabel',
+    'minDays',
+    'maxDays',
+    'calendarRule',
+    'calendarInterval',
+    'calendarWeekdays',
+    'calendarDayOfMonth',
+    'calendarOrdinal',
+  ] as const satisfies readonly (keyof StoredTrigger)[];
+  return fields.every((field) => (left[field] ?? null) === (right[field] ?? null));
+}
+
 const WEEKDAY_ORDER: Record<Weekday, number> = {
   MONDAY: 1,
   TUESDAY: 2,

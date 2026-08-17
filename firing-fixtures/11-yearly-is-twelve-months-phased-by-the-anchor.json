@@ -1,0 +1,14 @@
+{
+  "rule": "Yearly is Months(12), and a floor past this year's day lists next year's.",
+  "trigger": {
+    "type": "CALENDAR",
+    "calendarRule": "MONTHS",
+    "calendarInterval": 12,
+    "calendarDayOfMonth": 14
+  },
+  "activeSince": "2026-03-01",
+  "lastClosure": null,
+  "from": "2026-03-15",
+  "count": 2,
+  "expected": ["2027-03-14", "2028-03-14"]
+}

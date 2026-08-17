@@ -67,6 +67,30 @@ class CalendarRuleTest {
         void refusesANonPositiveInterval() {
             assertThatThrownBy(() -> new CalendarRule.Days(0)).isInstanceOf(IllegalArgumentException.class);
         }
+
+        @Test
+        void listsItsNextDatesForward() {
+            assertThat(rule.nextOccurrencesOnOrAfter(anchor, anchor, 3))
+                    .containsExactly(anchor, anchor.plusDays(10), anchor.plusDays(20));
+        }
+
+        /// The floor is *on or after*, so a date landing exactly on it is the first one listed and a
+        /// floor between two dates skips to the later. The boundary the preview is read against.
+        @Test
+        void startsAtTheFirstDateNotBeforeTheFloor() {
+            assertThat(rule.nextOccurrencesOnOrAfter(anchor.plusDays(10), anchor, 2))
+                    .containsExactly(anchor.plusDays(10), anchor.plusDays(20));
+            assertThat(rule.nextOccurrencesOnOrAfter(anchor.plusDays(11), anchor, 2))
+                    .containsExactly(anchor.plusDays(20), anchor.plusDays(30));
+        }
+
+        /// The anchor is the floor of the enumeration as well as its phase, so a floor before the
+        /// anchor cannot pull dates back in front of it.
+        @Test
+        void namesNothingBeforeTheAnchorGoingForward() {
+            assertThat(rule.nextOccurrencesOnOrAfter(anchor.minusDays(5), anchor, 2))
+                    .containsExactly(anchor, anchor.plusDays(10));
+        }
     }
 
     @Nested
@@ -127,6 +151,33 @@ class CalendarRuleTest {
             assertThat(rule.latestOccurrenceOnOrBefore(anchor.minusDays(1), anchor)).isEmpty();
         }
 
+        /// *Every 2 weeks on Tuesday and Thursday* — the sentence #68 exists to put dates under.
+        /// Both weekdays of a qualifying week come out before the rule skips the quiet one.
+        @Test
+        void listsEveryWeekdayOfAQualifyingWeekBeforeSkippingTheNext() {
+            var rule = new CalendarRule.Weeks(2, EnumSet.of(DayOfWeek.TUESDAY, DayOfWeek.THURSDAY));
+
+            // The anchor is Wednesday 4 March, so its own week's Tuesday is behind it.
+            assertThat(rule.nextOccurrencesOnOrAfter(anchor, anchor, 4))
+                    .containsExactly(
+                            LocalDate.of(2026, 3, 5),
+                            LocalDate.of(2026, 3, 17),
+                            LocalDate.of(2026, 3, 19),
+                            LocalDate.of(2026, 3, 31));
+        }
+
+        /// The forward mirror of the one step back: the floor sits in a qualifying week but after
+        /// the last weekday it names, so the answer is in the next qualifying week.
+        @Test
+        void stepsForwardWhenTheFloorHasPassedTheWeekdayInItsOwnQualifyingWeek() {
+            var rule = new CalendarRule.Weeks(2, Set.of(DayOfWeek.FRIDAY));
+
+            assertThat(rule.nextOccurrencesOnOrAfter(LocalDate.of(2026, 3, 6), anchor, 1))
+                    .containsExactly(LocalDate.of(2026, 3, 6));
+            assertThat(rule.nextOccurrencesOnOrAfter(LocalDate.of(2026, 3, 7), anchor, 2))
+                    .containsExactly(LocalDate.of(2026, 3, 20), LocalDate.of(2026, 4, 3));
+        }
+
         @Test
         void refusesARuleWithNoWeekday() {
             assertThatThrownBy(() -> new CalendarRule.Weeks(1, Set.of()))
@@ -181,6 +232,33 @@ class CalendarRuleTest {
                     .contains(LocalDate.of(2027, 3, 14));
         }
 
+        /// The clamp is visible in the *list* rather than only in one date, which is the whole point
+        /// of showing dates: *31 Aug, 30 Sep, 31 Oct* is a rule you can check by reading it.
+        @Test
+        void listsTheClampedDaysOfEachMonth() {
+            var rule = new CalendarRule.Months(1, 31);
+
+            assertThat(rule.nextOccurrencesOnOrAfter(LocalDate.of(2026, 2, 1), anchor, 4))
+                    .containsExactly(
+                            LocalDate.of(2026, 2, 28),
+                            LocalDate.of(2026, 3, 31),
+                            LocalDate.of(2026, 4, 30),
+                            LocalDate.of(2026, 5, 31));
+        }
+
+        /// The forward mirror of the one step back: the floor is past this month's day, so the first
+        /// date listed is next month's.
+        @Test
+        void stepsForwardWhenTheFloorHasPassedThisMonthsDay() {
+            var rule = new CalendarRule.Months(1, 14);
+            var march = LocalDate.of(2026, 3, 1);
+
+            assertThat(rule.nextOccurrencesOnOrAfter(LocalDate.of(2026, 3, 14), march, 1))
+                    .containsExactly(LocalDate.of(2026, 3, 14));
+            assertThat(rule.nextOccurrencesOnOrAfter(LocalDate.of(2026, 3, 15), march, 2))
+                    .containsExactly(LocalDate.of(2026, 4, 14), LocalDate.of(2026, 5, 14));
+        }
+
         @Test
         void refusesADayOutsideTheMonth() {
             assertThatThrownBy(() -> new CalendarRule.Months(1, 0)).isInstanceOf(IllegalArgumentException.class);
@@ -233,6 +311,32 @@ class CalendarRuleTest {
 
             assertThat(rule.latestOccurrenceOnOrBefore(LocalDate.of(2026, 2, 28), february))
                     .contains(LocalDate.of(2026, 2, 25));
+        }
+
+        /// #68's own worked example: *the first Saturday of every month* is unreadable as four form
+        /// controls until the dates are listed under it.
+        @Test
+        void listsTheFirstSaturdayOfTheNextMonths() {
+            var rule = new CalendarRule.NthWeekday(1, CalendarRule.Ordinal.FIRST, DayOfWeek.SATURDAY);
+
+            assertThat(rule.nextOccurrencesOnOrAfter(LocalDate.of(2026, 8, 17), anchor, 3))
+                    .containsExactly(
+                            LocalDate.of(2026, 9, 5),
+                            LocalDate.of(2026, 10, 3),
+                            LocalDate.of(2026, 11, 7));
+        }
+
+        /// A rule whose interval skips months lists only the months it qualifies, which is the shape
+        /// that is hardest to read off the controls and easiest to read off dates.
+        @Test
+        void listsOnlyItsOwnQualifyingMonths() {
+            var rule = new CalendarRule.NthWeekday(3, CalendarRule.Ordinal.LAST, DayOfWeek.FRIDAY);
+
+            assertThat(rule.nextOccurrencesOnOrAfter(anchor, anchor, 3))
+                    .containsExactly(
+                            LocalDate.of(2026, 3, 27),
+                            LocalDate.of(2026, 6, 26),
+                            LocalDate.of(2026, 9, 25));
         }
 
         @Test

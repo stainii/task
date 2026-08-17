@@ -1,0 +1,9 @@
+{
+  "rule": "A min/max template counts from the last closure, not from the calendar - it drifts on purpose.",
+  "trigger": { "type": "MIN_MAX", "minDays": 10, "maxDays": 10 },
+  "activeSince": "2026-03-01",
+  "lastClosure": "2026-04-07",
+  "from": "2026-04-07",
+  "count": 1,
+  "expected": ["2026-04-17"]
+}

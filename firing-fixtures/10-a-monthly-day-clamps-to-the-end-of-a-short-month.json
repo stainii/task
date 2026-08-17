@@ -1,0 +1,14 @@
+{
+  "rule": "Day 31 clamps to the end of a short month rather than skipping it: 28 Feb, 31 Mar, 30 Apr.",
+  "trigger": {
+    "type": "CALENDAR",
+    "calendarRule": "MONTHS",
+    "calendarInterval": 1,
+    "calendarDayOfMonth": 31
+  },
+  "activeSince": "2026-01-31",
+  "lastClosure": null,
+  "from": "2026-02-01",
+  "count": 4,
+  "expected": ["2026-02-28", "2026-03-31", "2026-04-30", "2026-05-31"]
+}

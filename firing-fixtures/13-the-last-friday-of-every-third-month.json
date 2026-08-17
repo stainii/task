@@ -1,0 +1,15 @@
+{
+  "rule": "The last Friday of every third month lists only its own qualifying months.",
+  "trigger": {
+    "type": "CALENDAR",
+    "calendarRule": "NTH_WEEKDAY",
+    "calendarInterval": 3,
+    "calendarOrdinal": "LAST",
+    "calendarWeekdays": "FRIDAY"
+  },
+  "activeSince": "2026-03-01",
+  "lastClosure": null,
+  "from": "2026-03-01",
+  "count": 3,
+  "expected": ["2026-03-27", "2026-06-26", "2026-09-25"]
+}

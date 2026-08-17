@@ -1,0 +1,13 @@
+{
+  "rule": "A calendar rule names no date before active_since, however far back the floor is asked from.",
+  "trigger": {
+    "type": "CALENDAR",
+    "calendarRule": "DAYS",
+    "calendarInterval": 7
+  },
+  "activeSince": "2026-03-01",
+  "lastClosure": null,
+  "from": "2026-02-01",
+  "count": 2,
+  "expected": ["2026-03-01", "2026-03-08"]
+}

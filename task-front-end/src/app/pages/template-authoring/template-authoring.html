@@ -339,6 +339,22 @@
   </ol>
 
   <!--
+    **The dates under the sentence** (#68). A rule read back in words makes four controls legible;
+    only the dates make them checkable — *"every 14 weeks on Saturday"* is unverifiable until
+    *25 Aug · 27 Aug · 8 Sep* is printed under it, which ADR-0013 calls the strongest case for the
+    preview existing at all.
+
+    Absent rather than empty when there is nothing to say: a manual template's dates come from an
+    anchor someone types, and a stored min/max rule's hang off a closure the client does not hold.
+  -->
+  @if (nextDates().length > 0) {
+    <p class="next-dates">
+      <span class="lead">Fires on</span>
+      <span class="dates">{{ nextDatesLabel() }}</span>
+    </p>
+  }
+
+  <!--
     **The timeline appears additionally when there is more than one task, with the numbers still
     visible** (ADR-0013). It earns its place only when there is something to compare: for one task it
     is a ruler, a legend and a drag affordance wrapped around two numbers. On a narrow screen it is

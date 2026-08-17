@@ -5,7 +5,9 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -38,6 +40,41 @@ public sealed interface CalendarRule
     /// Empty when the rule has not come round yet.
     Optional<LocalDate> latestOccurrenceOnOrBefore(LocalDate today, LocalDate anchor);
 
+    /// The first date this rule names on or after `from`, never earlier than `anchor`.
+    ///
+    /// The forward mirror of [#latestOccurrenceOnOrBefore], and the primitive the authoring
+    /// preview is built on ([#68](https://github.com/stainii/task/issues/68)). A calendar rule runs
+    /// for ever, so there is always one and the answer is a date rather than an `Optional`.
+    ///
+    /// Like its mirror it is arithmetic and not a walk: each rule computes the answer directly, at
+    /// worst stepping *forward* one interval when `from` falls inside a qualifying period but after
+    /// the day it names.
+    LocalDate firstOccurrenceOnOrAfter(LocalDate from, LocalDate anchor);
+
+    /// The next `count` dates this rule names, in order, starting at the later of `from` and
+    /// `anchor` — *2026-09-05, 2026-10-03, 2026-11-07* under *the first Saturday of every month*.
+    ///
+    /// The one thing that walks, and it walks exactly `count` steps: the enumeration is the
+    /// preview's, so its length is however many dates a screen shows.
+    ///
+    /// **Asking for none, or for fewer than none, lists none** rather than throwing. It has to be
+    /// the same answer the TypeScript half gives — an exception on one side and an empty list on
+    /// the other is precisely the divergence `/firing-fixtures/` exists to prevent, and both suites
+    /// assert it for every fixture.
+    default List<LocalDate> nextOccurrencesOnOrAfter(LocalDate from, LocalDate anchor, int count) {
+        if (count <= 0) {
+            return List.of();
+        }
+        var dates = new ArrayList<LocalDate>(count);
+        var cursor = floorOf(from, anchor);
+        for (var remaining = count; remaining > 0; remaining--) {
+            var next = firstOccurrenceOnOrAfter(cursor, anchor);
+            dates.add(next);
+            cursor = next.plusDays(1);
+        }
+        return List.copyOf(dates);
+    }
+
     /// Every `interval` days, counting from the anchor.
     record Days(int interval) implements CalendarRule {
 
@@ -52,6 +89,13 @@ public sealed interface CalendarRule
             }
             var elapsed = ChronoUnit.DAYS.between(anchor, today);
             return Optional.of(anchor.plusDays(elapsed - elapsed % interval));
+        }
+
+        @Override
+        public LocalDate firstOccurrenceOnOrAfter(LocalDate from, LocalDate anchor) {
+            var floor = floorOf(from, anchor);
+            var overshoot = ChronoUnit.DAYS.between(anchor, floor) % interval;
+            return overshoot == 0 ? floor : floor.plusDays(interval - overshoot);
         }
     }
 
@@ -99,6 +143,29 @@ public sealed interface CalendarRule
             return Optional.empty();
         }
 
+        @Override
+        public LocalDate firstOccurrenceOnOrAfter(LocalDate from, LocalDate anchor) {
+            var floor = floorOf(from, anchor);
+            var anchorWeek = mondayOf(anchor);
+            var elapsedWeeks = ChronoUnit.WEEKS.between(anchorWeek, mondayOf(floor));
+            var overshoot = elapsedWeeks % interval;
+            var qualifyingWeeks = overshoot == 0 ? elapsedWeeks : elapsedWeeks + (interval - overshoot);
+
+            // Terminates on the second pass at the latest: the floor may sit in a qualifying week but
+            // after the last weekday that week names, and the next qualifying week names all of them.
+            // A rule with no weekday would spin here, which is why the constructor refuses one.
+            for (var weeks = qualifyingWeeks; ; weeks += interval) {
+                var weekStart = anchorWeek.plusWeeks(weeks);
+                var occurrence = weekdays.stream()
+                        .map(weekday -> weekStart.with(TemporalAdjusters.nextOrSame(weekday)))
+                        .filter(date -> !date.isBefore(floor))
+                        .min(Comparator.naturalOrder());
+                if (occurrence.isPresent()) {
+                    return occurrence.get();
+                }
+            }
+        }
+
         private static LocalDate mondayOf(LocalDate date) {
             return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         }
@@ -123,6 +190,12 @@ public sealed interface CalendarRule
             return latestQualifyingMonth(today, anchor, interval,
                     month -> month.atDay(Math.min(dayOfMonth, month.lengthOfMonth())));
         }
+
+        @Override
+        public LocalDate firstOccurrenceOnOrAfter(LocalDate from, LocalDate anchor) {
+            return firstInQualifyingMonth(from, anchor, interval,
+                    month -> month.atDay(Math.min(dayOfMonth, month.lengthOfMonth())));
+        }
     }
 
     /// The *first / second / third / fourth / **last*** given weekday of every `interval` months —
@@ -138,6 +211,11 @@ public sealed interface CalendarRule
         public Optional<LocalDate> latestOccurrenceOnOrBefore(LocalDate today, LocalDate anchor) {
             return latestQualifyingMonth(today, anchor, interval, month -> ordinal.resolve(month, weekday));
         }
+
+        @Override
+        public LocalDate firstOccurrenceOnOrAfter(LocalDate from, LocalDate anchor) {
+            return firstInQualifyingMonth(from, anchor, interval, month -> ordinal.resolve(month, weekday));
+        }
     }
 
     /// Which one of the month's weekdays [NthWeekday] names. There is no `FIFTH`: a month has at
@@ -151,6 +229,28 @@ public sealed interface CalendarRule
                 return month.atEndOfMonth().with(TemporalAdjusters.previousOrSame(weekday));
             }
             return month.atDay(1).with(TemporalAdjusters.nextOrSame(weekday)).plusWeeks(ordinal());
+        }
+    }
+
+    /// The forward mirror of [#latestQualifyingMonth], shared by [Months] and [NthWeekday]: find the
+    /// earliest qualifying month at or after the floor, ask the rule which date it names there, and
+    /// step *forward* one interval if that date is already behind the floor.
+    ///
+    /// The loop terminates on its second pass at the latest — every qualifying month names exactly
+    /// one date, and the month after the floor's own names one that cannot precede it.
+    private static LocalDate firstInQualifyingMonth(LocalDate from, LocalDate anchor, int interval,
+                                                    Function<YearMonth, LocalDate> dateInMonth) {
+        var floor = floorOf(from, anchor);
+        var anchorMonth = YearMonth.from(anchor);
+        var elapsedMonths = ChronoUnit.MONTHS.between(anchorMonth, YearMonth.from(floor));
+        var overshoot = elapsedMonths % interval;
+        var qualifyingMonths = overshoot == 0 ? elapsedMonths : elapsedMonths + (interval - overshoot);
+
+        for (var months = qualifyingMonths; ; months += interval) {
+            var occurrence = dateInMonth.apply(anchorMonth.plusMonths(months));
+            if (!occurrence.isBefore(floor)) {
+                return occurrence;
+            }
         }
     }
 
@@ -177,6 +277,13 @@ public sealed interface CalendarRule
             }
         }
         return Optional.empty();
+    }
+
+    /// **The anchor is the floor as well as the phase**: a template names no date before it began
+    /// firing under its current rule (ADR-0017). Said once, because every forward rule needs it and
+    /// four spellings of one comparison is four chances to spell it `isAfter` by mistake.
+    private static LocalDate floorOf(LocalDate from, LocalDate anchor) {
+        return from.isBefore(anchor) ? anchor : from;
     }
 
     private static void requirePositive(int interval) {

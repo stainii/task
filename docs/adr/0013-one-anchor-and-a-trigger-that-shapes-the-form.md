@@ -265,6 +265,28 @@ One preview component, one rule:
   nobody typing anything. This is the strongest case for the preview existing at all:
   *"every 14 weeks on Saturday"* is unreadable until the next firings are listed under it.
 
+**The dates are worth their cost — decided in
+[#68](https://github.com/stainii/task/issues/68), which was free to rule them out of scope and did
+not.** Once #61 had the rule reading back as a sentence, the argument above — *the controls are
+unreadable* — was already answered, and the dates could have stopped there. They did not, because a
+sentence and a schedule prove different things: *every 2 weeks on Tuesday and Thursday* is legible
+and still unverifiable, and only the dates say whether the rule you typed is the rule you meant.
+
+**Built in two steps, and the gap between them is worth keeping.** #61 stopped short of the dates
+because enumerating firings forward is a second answer to a question `CalendarRule` already answers
+backwards, and this repo's rule for anything implemented twice is a shared fixture directory that did
+not exist yet. #68 built the directory
+([`/firing-fixtures/`](../../firing-fixtures/README.md)) and then the dates.
+
+**Amendment: *scheduled templates show dates in both* holds for calendar rules, and for a min/max
+rule only while it is being authored.** The two statements that look like a contradiction are two
+layers. The *domain* rule is unchanged and stated in `Trigger#nextFiringDates`: a `MIN_MAX` trigger
+names exactly one date, its round start plus `min`. The *screen* cannot always supply that round
+start — it is the last closure, and the client holds closed tasks for one day (ADR-0004) — so a
+**stored, untouched** min/max template shows its sentence and no date, because a date it cannot
+compute would be a guess printed as a schedule. Edit the interval and re-ruling restarts the round
+today (ADR-0017), which the screen does know, and the date appears.
+
 ## Consequences
 
 - **Two production workarounds become expressible**, and a third is retired: the recurrence rule in

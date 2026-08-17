@@ -1,0 +1,13 @@
+{
+  "rule": "Every N days counts from active_since, which is both the phase and the first date.",
+  "trigger": {
+    "type": "CALENDAR",
+    "calendarRule": "DAYS",
+    "calendarInterval": 7
+  },
+  "activeSince": "2026-03-01",
+  "lastClosure": null,
+  "from": "2026-03-01",
+  "count": 3,
+  "expected": ["2026-03-01", "2026-03-08", "2026-03-15"]
+}

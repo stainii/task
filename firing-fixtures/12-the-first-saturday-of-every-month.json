@@ -1,0 +1,15 @@
+{
+  "rule": "The first Saturday of every month - the sentence that is unreadable until the dates are listed under it.",
+  "trigger": {
+    "type": "CALENDAR",
+    "calendarRule": "NTH_WEEKDAY",
+    "calendarInterval": 1,
+    "calendarOrdinal": "FIRST",
+    "calendarWeekdays": "SATURDAY"
+  },
+  "activeSince": "2026-03-01",
+  "lastClosure": null,
+  "from": "2026-08-17",
+  "count": 3,
+  "expected": ["2026-09-05", "2026-10-03", "2026-11-07"]
+}

@@ -3,6 +3,7 @@ package be.stijnhooft.task.backend.template.domain;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /// *When does this template come round?* — asked of the trigger itself, never of a scheduler.
@@ -56,6 +57,34 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
     /// [#latestFiringDateOn] is: adding a fourth shape must not compile until it has answered both.
     Optional<LocalDate> defaultDueDateFor(LocalDate firingDate);
 
+    /// The dates this trigger is going to come round on next, at most `count` of them — what the
+    /// authoring screen lists under the rule it has just read back as a sentence
+    /// ([ADR-0013](../../../../../../../../docs/adr/0013-one-anchor-and-a-trigger-that-shapes-the-form.md)'s
+    /// *strongest case for the preview existing at all*, built by
+    /// [#68](https://github.com/stainii/task/issues/68)).
+    ///
+    /// **The three shapes answer with different lengths, and the difference is the model showing
+    /// through** rather than an inconsistency:
+    ///
+    /// - [Manual] lists **nothing**. Its dates come from an anchor someone types.
+    /// - [MinMax] lists **exactly one**, however many are asked for. The firing after the next one
+    ///   starts its clock at a closure that has not happened, so a second date would be a guess
+    ///   dressed as a schedule.
+    /// - [Calendar] lists **`count`**, because a rule enumerates its own firings with nobody typing
+    ///   anything.
+    ///
+    /// [MinMax]'s one date **may lie before `from`**, and that is the truth being shown: a template
+    /// past its round is already due, and *this fires on 11 March* beats a tidied-up future date.
+    /// A [Calendar] rule's dates never do — they are floored at `from`.
+    ///
+    /// Pinned across both implementations by `/firing-fixtures/`, on `/render-fixtures/`'s contract.
+    ///
+    /// @param from         the date to look forward from — *today*, in the preview
+    /// @param activeSince  as on [#latestFiringDateOn]: the floor and the phase
+    /// @param lastClosure  as on [#latestFiringDateOn], and read by [MinMax] alone
+    /// @param count        how many dates the caller has room for
+    List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count);
+
     /// Run by hand. It never comes round on its own, so it never fires: someone opens the template
     /// and types the anchor date.
     ///
@@ -81,6 +110,11 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
         @Override
         public Optional<LocalDate> defaultDueDateFor(LocalDate firingDate) {
             return Optional.empty();
+        }
+
+        @Override
+        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count) {
+            return List.of();
         }
     }
 
@@ -149,6 +183,21 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
             var firingDate = roundStarted.plusDays(min);
             return firingDate.isAfter(today) ? Optional.empty() : Optional.of(firingDate);
         }
+
+        /// **One date, and `count` cannot buy a second.** The round after this one begins at a
+        /// closure that has not happened, so every further date would be invented — and inventing
+        /// them would draw this trigger as the calendar it deliberately is not.
+        ///
+        /// The round start is computed exactly as [#latestFiringDateOn] computes it, so the preview
+        /// and the scheduler cannot name different days.
+        @Override
+        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count) {
+            if (count <= 0) {
+                return List.of();
+            }
+            var roundStarted = lastClosure == null || lastClosure.isBefore(activeSince) ? activeSince : lastClosure;
+            return List.of(roundStarted.plusDays(min));
+        }
     }
 
     /// On the calendar, following one [CalendarRule]. Its dates are absolute, so a closure never
@@ -166,6 +215,13 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
         @Override
         public Optional<LocalDate> defaultDueDateFor(LocalDate firingDate) {
             return Optional.empty();
+        }
+
+        /// The rule enumerates itself, and `lastClosure` is unread here for the same reason it is
+        /// unread above: a closure moves no calendar date.
+        @Override
+        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count) {
+            return rule.nextOccurrencesOnOrAfter(from, activeSince, count);
         }
     }
 }

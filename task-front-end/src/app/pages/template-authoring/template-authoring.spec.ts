@@ -358,9 +358,8 @@ describe('the preview while authoring', () => {
   });
 
   /**
-   * A scheduled template has no anchor to name, so it reads its **rule** back instead. Not its next
-   * dates: enumerating firings forward is a rule that already exists in `CalendarRule`, and
-   * quality-bar §5 forbids a second implementation with no shared fixtures to pin it.
+   * A scheduled template has no anchor to name, so it reads its **rule** back instead — and since
+   * #68 the dates go under it, which ADR-0013 calls the strongest case for the preview existing.
    */
   it('reads a scheduled rule back as a sentence rather than as four controls', async () => {
     heldTemplates = [
@@ -379,6 +378,72 @@ describe('the preview while authoring', () => {
     await open('bins');
 
     expect(texts('.shape li').join(' ')).toContain('every 2 weeks on Tuesday and Thursday');
+  });
+
+  /**
+   * **The dates under the sentence** (#68). *Every 2 weeks on Tuesday and Thursday* is legible as a
+   * sentence and still unverifiable as one: only the dates say whether the rule you typed is the
+   * rule you meant. They are the phase of the *stored* `activeSince`, not of today, so an untouched
+   * template previews the firings it will actually have.
+   */
+  it('lists the next dates under a scheduled rule', async () => {
+    heldTemplates = [
+      aTemplate({
+        id: 'bins',
+        activeSince: '2026-01-01',
+        trigger: {
+          type: 'CALENDAR',
+          calendarRule: 'WEEKS',
+          calendarInterval: 2,
+          calendarWeekdays: 'TUESDAY,THURSDAY',
+        },
+        taskDefinitions: [aDefinition({ name: 'Vuilbakken' })],
+      }),
+    ];
+
+    await open('bins');
+
+    // Today is Friday 14 August, past that week's Thursday, so the next qualifying week is 24 Aug.
+    expect(texts('.next-dates').join(' ')).toContain('25 Aug');
+    expect(texts('.next-dates').join(' ')).toContain('27 Aug');
+    expect(texts('.next-dates').join(' ')).toContain('8 Sep');
+  });
+
+  /**
+   * **A min/max template shows no dates while its rule is untouched**, because the date hangs off
+   * the last closure and the client does not hold it: closed tasks live one day (ADR-0004). The
+   * sentence above is right; a date would be a guess printed as a schedule.
+   */
+  it('shows a stored min/max template its rule and no dates', async () => {
+    heldTemplates = [aTemplate({ id: 'bed', trigger: minMax(14, 3) })];
+
+    await open('bed');
+
+    expect(texts('.shape li').join(' ')).toContain('every 14 days');
+    expect(texts('.next-dates')).toEqual([]);
+  });
+
+  /**
+   * Re-ruling rewrites `active_since` (ADR-0017), so the moment the interval changes the round
+   * starts today — and that is a date the screen genuinely knows.
+   */
+  it('dates a min/max template as soon as its interval is changed', async () => {
+    heldTemplates = [aTemplate({ id: 'bed', trigger: minMax(14, 3) })];
+
+    await open('bed');
+    await fill('interval', '20');
+
+    // 14 August plus twenty days.
+    expect(texts('.next-dates').join(' ')).toContain('3 Sep');
+  });
+
+  /** Nothing to enumerate: a manual template's dates come from an anchor someone types. */
+  it('lists no dates for a manual template', async () => {
+    heldTemplates = [aTemplate({ id: 'workshop', trigger: manual('When is the workshop?') })];
+
+    await open('workshop');
+
+    expect(texts('.next-dates')).toEqual([]);
   });
 });
 
