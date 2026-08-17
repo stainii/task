@@ -65,16 +65,63 @@ export class Outbox {
     this.failures().filter((failure) => failure.status !== 404),
   );
 
+  /**
+   * **How many patches are waiting to go** — FE-027's number, and the appbar indicator's whole
+   * input ([#58](https://github.com/stainii/task/issues/58)).
+   *
+   * New state, because nothing counted this before: `SyncStatus` holds `online`, `reachable`,
+   * `lastSyncedAt` and `storeUnavailable`, and this class held `failures`. It lives here because
+   * this is the class that knows when the queue changes, and it is read off the store rather than
+   * incremented — a counter maintained by hand is a second answer that can drift from the queue it
+   * is counting.
+   *
+   * FE-027 exists because forty offline changes looked exactly like zero in portal, which is why
+   * this is a count and not a flag.
+   */
+  readonly queued = signal(0);
+
   private draining: Promise<DrainOutcome> | null = null;
 
   async restore(): Promise<void> {
     this.failures.set(await this.store.failures());
+    this.queued.set(await this.store.pendingCount());
+  }
+
+  /**
+   * Re-reads the queue's length.
+   *
+   * Called wherever something was written that a drain has not yet seen — a local patch — so the
+   * indicator moves at the moment of the act rather than one network round trip later. **It reports
+   * a store failure rather than throwing it**, per `SyncStatus`'s ordering rule: its callers are
+   * fire-and-forget, and the app is already unusable when this is what fails.
+   */
+  async refreshQueued(): Promise<void> {
+    try {
+      this.queued.set(await this.store.pendingCount());
+    } catch (error) {
+      this.status.storeFailed(error);
+    }
   }
 
   /** Forgets one failure. The patch stays in the task's history; only the notice goes. */
   async forget(patchId: string): Promise<void> {
     await this.store.forgetFailure(patchId);
     this.failures.set(await this.store.failures());
+  }
+
+  /**
+   * *Fix and retry*: queues a refused patch again and takes its notice off the band.
+   *
+   * The notice goes because it has been **acted on**, not because the patch has succeeded — if the
+   * server refuses it a second time it comes back through the ordinary drop path, which is the only
+   * shape in which this cannot quietly lose the fact. Nothing here sends: `SyncService` owns the
+   * pump, and this class never decides when to reach the network.
+   */
+  async sendAgain(patchId: string): Promise<void> {
+    await this.store.sendAgain(patchId);
+    await this.store.forgetFailure(patchId);
+    this.failures.set(await this.store.failures());
+    this.queued.set(await this.store.pendingCount());
   }
 
   /**
@@ -91,7 +138,11 @@ export class Outbox {
 
   private async drainOnce(): Promise<DrainOutcome> {
     for (;;) {
-      const [next] = await this.store.pending();
+      // Read once and counted here rather than through a separate query: this is the one place that
+      // sees the queue's length on every pass, so the indicator cannot disagree with the drain.
+      const pending = await this.store.pending();
+      this.queued.set(pending.length);
+      const [next] = pending;
       if (next === undefined) {
         return 'drained';
       }

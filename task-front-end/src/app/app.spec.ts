@@ -78,6 +78,15 @@ describe('App', () => {
     expect(shell.querySelector('button.more')?.getAttribute('aria-label')).toBe('More');
   });
 
+  it('carries FE-027’s indicator on the appbar, where nothing is wrong', async () => {
+    // Its states are `queued-indicator.spec.ts`'s business. What only the shell can say is *where*
+    // it is: inside `header.appbar`, beside the omnibox, and not in a band — a queued change is
+    // healthy, and a band above the work is for something that is not.
+    const shell = await navigate('/');
+
+    expect(shell.querySelector('header.appbar app-queued-indicator')).toBeTruthy();
+  });
+
   it.each([
     ['/', 'tasks'],
     ['/in/house', 'tasks'],

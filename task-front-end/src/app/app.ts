@@ -21,6 +21,7 @@ import { DateConfirm } from './ui/date-confirm';
 import { Notices } from './ui/notices';
 import { Omnibox } from './ui/omnibox';
 import { Overlays } from './ui/overlays';
+import { QueuedIndicator } from './ui/queued-indicator';
 import { Toasts } from './ui/toasts';
 import { UndoToast } from './ui/undo-toast';
 
@@ -49,6 +50,7 @@ type Destination = 'tasks' | 'templates' | 'elsewhere';
     MatMenuTrigger,
     MatTooltip,
     Omnibox,
+    QueuedIndicator,
     CreateToast,
     UndoToast,
     DateConfirm,

@@ -319,6 +319,41 @@ export class LocalStore {
   }
 
   /**
+   * **How many patches are waiting** — the appbar indicator's whole input
+   * ([#58](https://github.com/stainii/task/issues/58), FE-027).
+   *
+   * Counted on the index rather than through {@link pending}, which reads every queued patch back
+   * out of the `patches` store to answer a question about the queue's *length*. This runs on every
+   * write and every drain pass, so it stays a count.
+   */
+  async pendingCount(): Promise<number> {
+    const db = await this.database();
+    return request<number>(db.transaction('outbox').objectStore('outbox').count());
+  }
+
+  /**
+   * Queues a patch the outbox dropped, so it is sent again — the rejected band's *Fix and retry*.
+   *
+   * **At the back of the queue**, because the outbox drains strictly in order and everything made
+   * since this patch was refused is newer intent: re-inserting at its old position would replay a
+   * stale value over the edits that followed it.
+   *
+   * A patch this device no longer holds, or one already queued, is a no-op — the entry is the
+   * intent, and two of them for one patch would send it twice.
+   */
+  async sendAgain(patchId: string): Promise<void> {
+    const db = await this.database();
+    const tx = db.transaction(['patches', 'outbox'], 'readwrite');
+    const patch = await request<TaskPatch | undefined>(tx.objectStore('patches').get(patchId));
+    const outbox = tx.objectStore('outbox');
+    const queued = await request<IDBValidKey | undefined>(outbox.index('patchId').getKey(patchId));
+    if (patch !== undefined && queued === undefined) {
+      await request(outbox.add({ patchId }));
+    }
+    await committed(tx);
+  }
+
+  /**
    * Takes a patch out of the outbox — the server has it, or it was dropped as permanently wrong.
    *
    * The patch itself stays: it is part of the task's history either way, and the failed-to-sync

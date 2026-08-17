@@ -30,6 +30,29 @@ export const VERBS = {
   },
 } as const satisfies Record<string, Verb>;
 
+/**
+ * The one **state** in the vocabulary, and an exception to ADR-0019 rather than an application of it
+ * ([ADR-0015](../../../../docs/adr/0015-postpone-pushes-the-start-date-and-the-fold-speaks.md), *The
+ * queued indicator speaks while draining*).
+ *
+ * That ADR spends glyphs on verbs; *offline* is a state. It earns the exception on ADR-0019's own
+ * test — a cloud with a line through it is the most conventional icon in the whole vocabulary and is
+ * not a glyph that has to be **explained** — and it carries `Offline` as its accessible name and
+ * tooltip like every other glyph here.
+ *
+ * **The vocabulary is now mixed**, which it was not before. The next state proposing a glyph argues
+ * the same case from scratch rather than citing this one.
+ */
+export const STATES = {
+  offline: {
+    name: 'Offline',
+    paths: ['M17.5 19H9a7 7 0 0 1 6.7-9', 'M3 3l18 18'],
+  },
+} as const satisfies Record<string, Verb>;
+
+/** The whole drawn vocabulary: four verbs and one state. ADR-0019's tripwire is roughly a dozen. */
+export const GLYPHS = { ...VERBS, ...STATES };
+
 interface Verb {
   readonly name: string;
   readonly paths: readonly string[];
@@ -37,6 +60,8 @@ interface Verb {
 }
 
 export type VerbName = keyof typeof VERBS;
+
+export type GlyphName = keyof typeof GLYPHS;
 
 /**
  * One verb, drawn as inline SVG on `currentColor`: one asset serves both themes, there is no font
@@ -61,7 +86,12 @@ export type VerbName = keyof typeof VERBS;
   `,
 })
 export class Glyph {
-  readonly verb = input.required<VerbName>();
+  /**
+   * Named `name` rather than `verb` because the vocabulary is no longer verbs alone: `offline` is a
+   * state, and an input called `verb` would have made the one exception unsayable — or, worse,
+   * sayable while calling it something it is not.
+   */
+  readonly name = input.required<GlyphName>();
 
-  protected readonly drawing = computed<Verb>(() => VERBS[this.verb()]);
+  protected readonly drawing = computed<Verb>(() => GLYPHS[this.name()]);
 }

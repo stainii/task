@@ -222,4 +222,58 @@ describe('the outbox', () => {
     // The patch itself stays: it is part of the task's history whatever the server thought of it.
     expect(await store.task(TASK)).not.toBeNull();
   });
+  /**
+   * **What the appbar indicator counts** (FE-027, [#58](https://github.com/stainii/task/issues/58)).
+   *
+   * FE-027 exists because of one measured portal failure: forty offline changes looked exactly like
+   * zero. So the number is the test, not the presence of a number.
+   */
+  describe('the pending count', () => {
+    it('counts what is waiting, and stops as the queue drains', async () => {
+      await outbox.restore();
+      expect(outbox.queued()).toBe(0);
+
+      await queue(CREATED, RENAMED);
+      await outbox.refreshQueued();
+      expect(outbox.queued()).toBe(2);
+
+      await outbox.drain();
+      expect(outbox.queued()).toBe(0);
+    });
+
+    it('still counts what a stalled drain could not send', async () => {
+      // Offline is the state the indicator is for, and the count has to survive the drain that
+      // could not run: this is the forty-changes case FE-027 was raised about.
+      api.fallback = { outcome: 'unreachable', status: 0 };
+      await queue(CREATED, RENAMED, POSTPONED);
+
+      expect(await outbox.drain()).toBe('unreachable');
+
+      expect(outbox.queued()).toBe(3);
+    });
+
+    it('is restored from the store, because a reload does not empty the queue', async () => {
+      await queue(CREATED);
+
+      await outbox.restore();
+
+      expect(outbox.queued()).toBe(1);
+    });
+  });
+
+  describe('sending a refused patch again', () => {
+    it('puts it back in the queue and takes the notice down', async () => {
+      // *Fix and retry* on the rejected band. The failure goes because it has been acted on; if the
+      // server refuses it a second time it comes back by the ordinary path.
+      api.answers.set(RENAMED.id, { outcome: 'rejected', status: 400 });
+      await queue(CREATED, RENAMED);
+      await outbox.drain();
+
+      await outbox.sendAgain(RENAMED.id);
+
+      expect(outbox.failures()).toEqual([]);
+      expect(outbox.queued()).toBe(1);
+      expect(await store.pending()).toEqual([RENAMED]);
+    });
+  });
 });

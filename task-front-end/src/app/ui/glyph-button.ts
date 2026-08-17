@@ -26,7 +26,7 @@ import { Glyph, VERBS, VerbName } from './glyph';
       [attr.aria-label]="name()"
       [matTooltip]="name()"
     >
-      <app-glyph [verb]="verb()" />
+      <app-glyph [name]="verb()" />
     </button>
   `,
   styles: `

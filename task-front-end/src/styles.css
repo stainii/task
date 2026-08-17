@@ -36,6 +36,22 @@
   --app-fit-in: light-dark(#fb8c00, #ffa726);
   --app-back-burner: light-dark(#9e9e9e, #8e8a94);
 
+  /*
+   * The queued/offline indicator (FE-027, ADR-0015) and the rejected-changes band (ADR-0014).
+   *
+   * Two different registers on purpose. The queued colours are **quiet**: nothing is wrong there and
+   * there is nothing to act on, which is the whole reason that affordance sits on the appbar rather
+   * than in a band. The rejected colours are not quiet, because a rejection is something you believe
+   * you did that did not happen — but they are not `--app-overdue` either, since a refused change is
+   * not late work.
+   */
+  --app-queued: light-dark(#8a6d1f, #e6c760);
+  --app-queued-bg: light-dark(#fdf6e3, #2c2718);
+  --app-queued-line: light-dark(#ecdcae, #4a411f);
+  --app-rejected: light-dark(#b3261e, #ff9c94);
+  --app-rejected-bg: light-dark(#fdf1f0, #2e1a19);
+  --app-rejected-line: light-dark(#f2d3d0, #5c2f2b);
+
   /* the 10px left edge on every task panel (FE-005) */
   --app-stripe-width: 10px;
 

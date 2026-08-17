@@ -4,16 +4,17 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { By } from '@angular/platform-browser';
 
 import { GlyphButton } from './glyph-button';
-import { Glyph, VERBS, VerbName } from './glyph';
+import { Glyph, GLYPHS, GlyphName, STATES, VERBS, VerbName } from './glyph';
 
 const verbNames = Object.keys(VERBS) as VerbName[];
+const glyphNames = Object.keys(GLYPHS) as GlyphName[];
 
 @Component({
   imports: [Glyph],
-  template: `<app-glyph [verb]="verb" />`,
+  template: `<app-glyph [name]="glyph" />`,
 })
 class GlyphHost {
-  verb: VerbName = 'edit';
+  glyph: GlyphName = 'edit';
 }
 
 @Component({
@@ -26,9 +27,9 @@ class GlyphButtonHost {
 }
 
 describe('Glyph', () => {
-  it.each(verbNames)('draws %s as inline SVG on currentColor', async (verb) => {
+  it.each(glyphNames)('draws %s as inline SVG on currentColor', async (glyph) => {
     const fixture = TestBed.createComponent(GlyphHost);
-    fixture.componentInstance.verb = verb;
+    fixture.componentInstance.glyph = glyph;
     await fixture.whenStable();
 
     const svg = (fixture.nativeElement as HTMLElement).querySelector('svg');
@@ -49,8 +50,20 @@ describe('Glyph', () => {
     ).toBe('true');
   });
 
-  it('spends its glyphs on verbs only, and stays well inside the dozen ADR-0019 caps it at', () => {
+  it('spends its glyphs on verbs, and stays well inside the dozen ADR-0019 caps it at', () => {
     expect(verbNames).toEqual(['edit', 'postpone', 'complete', 'cancel']);
+  });
+
+  /**
+   * **One state, and it is an exception rather than an application of the rule** (ADR-0015, *The
+   * queued indicator speaks while draining*). ADR-0019 spends glyphs on verbs; *offline* is a state,
+   * and it earns its place on that ADR's own test — it is not a glyph that has to be explained. The
+   * vocabulary goes four to five, and the next state proposing one has to argue the same case rather
+   * than cite this one.
+   */
+  it('spends exactly one glyph on a state, which is the whole exception', () => {
+    expect(Object.keys(STATES)).toEqual(['offline']);
+    expect(glyphNames).toHaveLength(5);
   });
 });
 

@@ -61,6 +61,18 @@ export class SyncService {
   /** Something is queued that a human has to see: FE-029's failed-to-sync list. */
   readonly failures = this.outbox.needsAttention;
 
+  /** How many patches are waiting to go — FE-027's number, on the appbar (#58). */
+  readonly queued = this.outbox.queued;
+
+  /**
+   * The browser's own answer about the radio, which says nothing about the server.
+   *
+   * Exposed beside {@link onlineButNotSyncing} rather than folded into it, because the appbar
+   * indicator is about *this device* and the banner is about *the server*: a train tunnel is a
+   * glyph and a dead server is a sentence, and they are two different facts.
+   */
+  readonly online = this.status.online;
+
   /** A sync needs authentication and the device is online, so there is something to prompt for. */
   readonly loginRequired = this.auth.loginRequired;
 
@@ -166,6 +178,11 @@ export class SyncService {
   async record(patch: TaskPatch): Promise<Task | null> {
     const task = await this.store.recordLocalPatch(patch);
     this.status.changed();
+    // Unawaited, and deliberately: the acknowledgement this method makes is *the patch is durably
+    // in the outbox*, so a count that failed to be read may not turn a successful write into a
+    // rejection. The drain sets the same number a moment later; this only makes the indicator move
+    // at the moment of the act rather than one round trip after it.
+    void this.outbox.refreshQueued();
     this.send();
     return task;
   }
@@ -206,6 +223,18 @@ export class SyncService {
   /** Forgets one failed-to-sync entry — the user has seen it. */
   forget(patchId: string): Promise<void> {
     return this.outbox.forget(patchId);
+  }
+
+  /**
+   * *Fix and retry*: queues a refused patch again and starts the pump.
+   *
+   * The pump is started here rather than in the outbox for the same reason every other trigger is:
+   * this class owns when the app reaches the network, and the outbox only ever answers *what
+   * happened when it did*.
+   */
+  async sendAgain(patchId: string): Promise<void> {
+    await this.outbox.sendAgain(patchId);
+    this.send();
   }
 
   async stop(): Promise<void> {

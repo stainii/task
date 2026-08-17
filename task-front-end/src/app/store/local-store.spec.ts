@@ -271,6 +271,55 @@ describe('the local store', () => {
     });
   });
 
+  /**
+   * The two questions [#58](https://github.com/stainii/task/issues/58) asks of the outbox: **how
+   * many are waiting**, for the appbar indicator, and **put this one back**, for the rejected band's
+   * *Fix and retry*.
+   */
+  describe('the queue, counted and re-opened', () => {
+    it('counts what is waiting without reading the patches', async () => {
+      await store.recordLocalPatch(CREATED);
+      await store.recordLocalPatch(RENAMED);
+
+      expect(await store.pendingCount()).toBe(2);
+    });
+
+    it('stops counting one the server has taken', async () => {
+      await store.recordLocalPatch(CREATED);
+      await store.stopSending(CREATED.id);
+
+      expect(await store.pendingCount()).toBe(0);
+    });
+
+    it('queues a dropped patch again, at the back', async () => {
+      // *Fix and retry* on a refusal: the patch is still in the task's history, only its outbox
+      // entry went. It rejoins at the **back** because the queue drains strictly in order and the
+      // patches made since are newer intent — putting it in front would replay an old value over
+      // them.
+      await store.recordLocalPatch(CREATED);
+      await store.stopSending(CREATED.id);
+      await store.recordLocalPatch(RENAMED);
+
+      await store.sendAgain(CREATED.id);
+
+      expect(await store.pending()).toEqual([RENAMED, CREATED]);
+    });
+
+    it('does not queue a patch twice', async () => {
+      await store.recordLocalPatch(CREATED);
+
+      await store.sendAgain(CREATED.id);
+
+      expect(await store.pending()).toEqual([CREATED]);
+    });
+
+    it('has nothing to queue again for a patch it does not hold', async () => {
+      await store.sendAgain('aaaaaaaa-0000-0000-0000-00000000ffff');
+
+      expect(await store.pending()).toEqual([]);
+    });
+  });
+
   it('empties everything on a hard reset', async () => {
     await store.recordLocalPatch(CREATED);
     await store.replaceTemplates([{ id: 'bins' } as unknown as TaskTemplate]);

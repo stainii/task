@@ -6,6 +6,14 @@
   -->
   <app-omnibox />
 
+  <!--
+    FE-027's queued/offline affordance (ADR-0015). It is on the appbar rather than in a band because
+    **nothing is wrong** — a train tunnel and a draining queue are both healthy — and there is
+    nothing to act on. A rejected change is the opposite of that, and it goes in a band above the
+    work.
+  -->
+  <app-queued-indicator />
+
   <button
     type="button"
     class="more"
