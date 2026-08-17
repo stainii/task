@@ -16,6 +16,8 @@ page links there instead of copying it — a second copy is a copy that goes sta
 | run it on this laptop | [From a clean clone to a running app](#from-a-clean-clone-to-a-running-app) |
 | understand the shape of it | [The architecture in one page](#the-architecture-in-one-page) |
 | know *why* something is the way it is | [the decision log](adr/README.md) |
+| change something in Keycloak | [Keycloak in production](#keycloak-in-production-which-no-file-in-this-repo-describes) |
+| merge a schema change safely | [the pre-flight dry run](#before-merging-anything-that-changes-the-schema) |
 | fix something that is broken | [When the common things break](#when-the-common-things-break) |
 | get the data back | [Backups, restore, and rebuilding the box](#backups-restore-and-rebuilding-the-box) |
 | deploy, or undo a deploy | [Deploy and rollback](#deploy-and-rollback) |
@@ -92,6 +94,41 @@ everything is almost always missing the role.
 
 ---
 
+## Keycloak in production, which no file in this repo describes
+
+Everything above is the **dev fixture**. The production realm is live state: created once, configured
+out-of-band, never imported from this repo
+([`compose/keycloak/README.md`](../task-back-end/compose/keycloak/README.md),
+[#31](https://github.com/stainii/task/issues/31)). That makes this page the only record of it, so:
+
+**The admin console is on the LAN, on purpose.** `/admin/**` is never routed through the tunnel;
+Keycloak publishes a LAN-only host port instead. **Administering Keycloak means being on the local
+network** — a conscious inconvenience, written down here because it is exactly what gets rediscovered
+at the worst possible moment.
+
+**Every setting below is applied to the live realm by hand.** Changing the committed fixture is not
+changing the realm. [ADR-0010](adr/0010-a-tunnel-an-allowlist-and-a-role.md) rewrote the fixture so the
+resemblance is worth something, and the list is the resemblance:
+
+- realm **`stijnhooft-realm`**, named after its owner — Keycloak is shared infrastructure, and `task`
+  is one client in it;
+- the `task` client is **public**, with **PKCE S256**, **real redirect URIs** (never a wildcard — on a
+  public client that is account takeover, and PKCE does not prevent it), **empty `webOrigins`**
+  (everything is same-origin) and **no direct access grants**;
+- **brute-force protection on**, **30-day SSO sessions**, 5-minute access tokens;
+- the realm role **`task-user`**.
+
+**The one with teeth: a new Keycloak user gets nothing until granted `task-user`.** A working login
+followed by `403` on every screen is this, essentially every time.
+
+> **Do not narrow `/realms/**` in nginx.** It is routed whole, and must stay that way. Keycloak's
+> **account console** lives under it, and it is the only way to sign a lost or stolen device out
+> remotely — which 30-day sessions make the standing remedy. Tightening it to
+> `/realms/*/protocol/**` looks like hardening, removes that silently, and breaks nothing until the
+> day it matters.
+
+---
+
 ## The architecture in one page
 
 **One deployable, not thirteen.** That is the point of the whole migration: `task-back-end` is a
@@ -142,6 +179,13 @@ diff. Do not hand-maintain a picture of this — read `docs/modules/components.p
   [ADR-0017](adr/0017-a-calendar-template-fires-for-its-latest-unclosed-date.md)) — one hourly
   `@Scheduled` check in `template/schedule/DueCheckSchedule`, which also runs at startup.
 
+**One thing here has a stated expiry.** Keycloak sits in `task`'s single compose file rather than a
+stack of its own, and [ADR-0007](adr/0007-the-box-pulls-nightly-behind-a-dump.md) allowed that only
+because **nothing else authenticates against that realm today**. The moment a second app does, the
+stacks split: from then on `task`'s nightly deploy cadence is somebody else's outage. That is a
+revisit condition, not a *later* — if you are reading this because you are about to point a second app
+at `stijnhooft-realm`, this is the paragraph you needed.
+
 The rest of the *why* is in [the decision log](adr/README.md), and the domain vocabulary — every term
 this code uses in a specific sense — is in [`CONTEXT.md`](../CONTEXT.md).
 
@@ -171,7 +215,7 @@ state what the server is running, which is why the third line is fetched rather 
 | Nothing has fired for a while; no new tasks from templates | The scheduler is not running, or the app has not restarted | `DueCheckSchedule` runs hourly *and at startup*, so a restart is a valid first move — and if it fires a backlog, the schedule was the problem. There is deliberately **no heartbeat** for this; ADR-0009 explains why. |
 | Changes made on the phone never appear elsewhere | The outbox is stalled | The outbox stops on `5xx` and network errors **by design** and the PWA keeps rendering from IndexedDB, so this looks like nothing is wrong. `/status`'s *online but not syncing* banner is the tell. Check the back-end is answering `/api/config` at all. |
 | The app looks a version behind | A half-completed deploy, or a cached bundle | `/status`'s persistent build-date mismatch banner covers exactly this. A single day's skew after a nightly deploy is routine; a *persistent* one is not. |
-| The app will not start after a schema change | Flyway migration failed | The failure is in the log with the version that broke. Migrations are `task-back-end/src/main/resources/db/migration`; **never edit a migration that has run** — add `V9__…`. Locally the cheapest fix is dropping the schema and letting Flyway rebuild from `V1`. |
+| The app will not start after a schema change | Flyway migration failed | The failure is in the log with the version that broke. Migrations are `task-back-end/src/main/resources/db/migration`; **never edit a migration that has run** — add `V9__…`. On a dev database the cheapest fix is dropping the schema and letting Flyway rebuild from `V1`; **on production that is data loss**, and the way not to arrive here at all is the [pre-flight dry run](#before-merging-anything-that-changes-the-schema). |
 | Locked out of Keycloak, or the realm is gone | Keycloak's own state is lost | The realm is **live state that this repo does not mirror** — `realm-export.json` is a dev fixture and must never be imported over production. Restoring it is part of [rebuilding the box](#backups-restore-and-rebuilding-the-box). Losing the realm locks you out of your own data, which is why ADR-0008 backs it up as a first-class artifact. |
 | `release version 26 not supported` | `~/.mavenrc` overrides `sdk env` | `MAVEN_SKIP_RC=1`, or make 26 the sdkman default. |
 | A test "passes" that cannot possibly pass | `./mvnw surefire:test -Dtest=Foo` compiles nothing | Use `./mvnw test -Dtest=Foo`. Found while canarying a boundary test that had been deliberately broken. |
@@ -195,6 +239,9 @@ Two things that are easy to get wrong under pressure:
 - **Config is part of the restore, not just data.** The VAPID keypair in particular: losing it
   invalidates every existing push subscription. The re-subscribe-on-open rule is what makes that
   survivable rather than a manual repair.
+- **There is no TLS certificate on the box to reissue** — Cloudflare terminates. What actually puts the
+  app back on the internet after a rebuild is the **tunnel credential**, which ADR-0007's amendment
+  already put in the archive. Losing it is what makes a rebuilt box unreachable, not a certificate.
 
 > **Hole — owned by [#24](https://github.com/stainii/task/issues/24).** ADR-0008 puts the backup and
 > restore **scripts** in #24's list of artifacts, and they do not exist yet. Until that ticket lands,
@@ -212,6 +259,25 @@ The shape is decided — [ADR-0007](adr/0007-the-box-pulls-nightly-behind-a-dump
 **pulls**, nightly, behind a dump; there is no inbound port and no staging environment; every green
 push to `main` is a deployment, which is why the [quality bar](quality-bar.md) is the only thing
 between a commit and the real database.
+
+**Rolling back is four steps, in this order:** restore the dump → **bump the epoch** → pin the previous
+image digest → `up -d`. The epoch step is the one that gets left out of a manual written from memory,
+and skipping it silently strands every client that was ahead of the restore — see
+[ADR-0004](adr/0004-one-write-verb-two-clocks-offline-sync.md)'s amendment, and *Backups* above.
+
+### Before merging anything that changes the schema
+
+**Restore last night's dump locally and run the candidate migration against it.**
+
+This is a procedure standing in for an environment. ADR-0007 decided there is **no staging**, and named
+the gap honestly: CI proves a migration applies to an *empty* database, never to yours. A `NOT NULL`
+added to a column that has nulls, or a unique index over data that is not unique, passes CI cleanly and
+fails at 02:00, unattended, on the only copy of years of real data. The dry run costs nothing standing,
+and because it exercises the restore path it doubles as a rehearsal for
+[ADR-0008](adr/0008-every-backup-restores-itself-before-it-is-kept.md)'s drill.
+
+(The restore *command* is still #24's — see the hole under *Backups*. The step is written here anyway,
+because a procedure nobody can find is a procedure nobody runs.)
 
 > **Hole — owned by [#24](https://github.com/stainii/task/issues/24).** The pipeline itself, runtime
 > secrets, Flyway-on-deploy and **a rollback that has actually been rolled back** are that ticket's

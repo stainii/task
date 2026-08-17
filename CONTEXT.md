@@ -3,7 +3,9 @@
 The ubiquitous language for this repo. Both `task-back-end` and `task-front-end` model the same
 domain, so there is one glossary, not one per stack layer (see `docs/agents/domain.md`).
 
-Decisions that shaped these terms live in `docs/adr/`.
+Decisions that shaped these terms live in `docs/adr/`, indexed one line each in
+[`docs/adr/README.md`](docs/adr/README.md). If you are here to *run* the thing rather than to look a
+word up, start at [`docs/operating-manual.md`](docs/operating-manual.md).
 
 ## Core terms
 
