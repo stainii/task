@@ -144,6 +144,10 @@ export class PatchStream {
 
       await this.sleep(backoff);
       backoff = Math.min(backoff * 2, PatchStream.MAX_BACKOFF_MS);
+      // The same rule as the outbox's pump: `connect` refuses to dial while the radio is believed
+      // off, so a retry that never re-reads the radio can only repeat the belief. See
+      // `SyncStatus#refreshOnline`.
+      this.status.refreshOnline();
     }
   }
 

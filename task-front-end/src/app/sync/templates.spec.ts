@@ -21,6 +21,7 @@ describe('the templates the client holds', () => {
   let status: SyncStatus;
   let held: TaskTemplate[];
   let listing: () => Promise<TaskTemplate[]>;
+  let storing: (templates: TaskTemplate[]) => Promise<void>;
   const api = {
     list: () => listing(),
     create: vi.fn((template: TaskTemplate) => Promise.resolve(template)),
@@ -34,6 +35,10 @@ describe('the templates the client holds', () => {
   beforeEach(() => {
     held = [];
     listing = () => Promise.resolve([BINS]);
+    storing = (templates) => {
+      held = [...templates];
+      return Promise.resolve();
+    };
     vi.clearAllMocks();
     TestBed.configureTestingModule({
       providers: [
@@ -44,10 +49,7 @@ describe('the templates the client holds', () => {
             templates: () => Promise.resolve([...held]),
             lastSyncedAt: () => Promise.resolve(null),
             setLastSyncedAt: () => Promise.resolve(),
-            replaceTemplates: (templates: TaskTemplate[]) => {
-              held = [...templates];
-              return Promise.resolve();
-            },
+            replaceTemplates: (templates: TaskTemplate[]) => storing(templates),
           },
         },
       ],
@@ -79,6 +81,27 @@ describe('the templates the client holds', () => {
 
     expect(held.map((template) => template.id)).toEqual(['bins']);
     expect(status.reachable()).toBe(false);
+  });
+
+  /**
+   * The other half of that sentence: a store failure is **not** an unreachable server.
+   *
+   * The two are told apart because they raise different flags and one of them clears — a browser
+   * that has evicted the database is not going to start answering because the train left the
+   * tunnel. And it has to be *caught*: both start-up callers `void` this promise, so a rejection
+   * escaping here is an unhandled one and nothing else, which is the silence ADR-0009 refuses.
+   */
+  it('reports the store rather than the network when the list cannot be written down', async () => {
+    const before = status.revision();
+    storing = () => Promise.reject(new Error('no storage here'));
+
+    await expect(service.refresh()).resolves.toBeUndefined();
+
+    expect(status.storeUnavailable()).toBe(true);
+    expect(status.reachable()).toBe(true);
+    // Nothing was written, so nothing may claim it was: an overview that re-read here would find
+    // the same list it already had and count it as news.
+    expect(status.revision()).toBe(before);
   });
 
   describe('whether a template can be edited at all', () => {

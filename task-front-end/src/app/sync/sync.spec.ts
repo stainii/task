@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOW } from '../clock';
 import { TaskPatch } from '../domain/task';
@@ -10,6 +10,8 @@ import { EVENT_SOURCE } from './stream';
 import { SendResult, SyncApi } from './sync-api';
 import { SyncStatus } from './sync-status';
 import { SyncService } from './sync';
+import { TemplateApi } from './template-api';
+import { radio, until } from '../testing';
 
 /**
  * The wiring: what starts the loops, and what a local write is allowed to claim.
@@ -46,10 +48,12 @@ describe('the sync service', () => {
   let status: SyncStatus;
   let sent: string[];
   let answer: SendResult;
+  let templateFetches: number;
 
   beforeEach(async () => {
     globalThis.indexedDB = new IDBFactory();
     sent = [];
+    templateFetches = 0;
     answer = { outcome: 'accepted', status: 200 };
 
     TestBed.configureTestingModule({
@@ -63,6 +67,18 @@ describe('the sync service', () => {
           useValue: {
             token: () => Promise.resolve('a-token'),
             loginRequired: { set: () => undefined },
+          },
+        },
+        {
+          // Templates ride the same two moments as the rest of sync — boot, and the radio coming
+          // back — so this file has to count them to prove the second one still happens when the
+          // event that used to be the only trigger never arrives.
+          provide: TemplateApi,
+          useValue: {
+            list: () => {
+              templateFetches++;
+              return Promise.resolve([]);
+            },
           },
         },
         {
@@ -85,17 +101,8 @@ describe('the sync service', () => {
 
   afterEach(async () => {
     await sync.stop();
+    vi.restoreAllMocks();
   });
-
-  async function until(condition: () => boolean): Promise<void> {
-    for (let attempt = 0; attempt < 200; attempt++) {
-      if (condition()) {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    throw new Error('The sync service never reached the expected state.');
-  }
 
   it('acknowledges a write only once it is durably queued', async () => {
     const task = await sync.record(CREATED);
@@ -119,18 +126,19 @@ describe('the sync service', () => {
 
     // And the drain it kicked off must not reject into nothing. Nobody awaits the pump, so an
     // escaping rejection is an unhandled one and no other effect — the state has to be *reported*.
-    await until(() => sync.storeUnavailable());
+    await until('The sync service', () => sync.storeUnavailable());
   });
 
   it('sends what was recorded without being asked twice', async () => {
     await sync.record(CREATED);
 
-    await until(() => sent.length === 1);
+    await until('The sync service', () => sent.length === 1);
     expect(await store.pending()).toEqual([]);
     expect(status.lastSyncedAt()).toBe('2026-03-05T09:00:00.000Z');
   });
 
   it('waits quietly while offline and drains when the radio comes back', async () => {
+    radio(false);
     status.online.set(false);
     await sync.record(CREATED);
 
@@ -139,17 +147,52 @@ describe('the sync service', () => {
     expect(sent).toEqual([]);
     expect(sync.onlineButNotSyncing()).toBe(false);
 
+    radio(true);
     window.dispatchEvent(new Event('online'));
 
-    await until(() => sent.length === 1);
+    await until('The sync service', () => sent.length === 1);
     expect(await store.pending()).toEqual([]);
+  });
+
+  /**
+   * The gap [#69](https://github.com/stainii/task/issues/69) found, and it is the client's, not the
+   * test harness's.
+   *
+   * `online` is the browser's *courtesy*, not its contract: it is missed on a loaded machine, and a
+   * phone coming out of a tunnel is the same shape. If it is the only thing that can lift the
+   * offline gate, a device that misses it never syncs again — the outbox retries on schedule and
+   * every retry is refused by a signal that is simply stale. The backoff loop looks like a safety
+   * net and is not one.
+   *
+   * So the radio comes back here with **no event at all**. The retry has to find that out for
+   * itself — which is what turns an unbounded wait into one backoff tick, capped at
+   * `MAX_BACKOFF_MS`.
+   */
+  it('drains when the radio comes back even though the browser never fires `online`', async () => {
+    radio(false);
+    status.online.set(false);
+    await sync.record(CREATED);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(sent).toEqual([]);
+
+    const atBoot = templateFetches;
+    radio(true);
+
+    await until('The sync service', () => sent.length === 1, 1_000);
+    expect(await store.pending()).toEqual([]);
+    expect(status.online()).toBe(true);
+
+    // And the radio coming back is reacted to once, wherever the news came from: the template
+    // fetch rides the same moment, and a missed event must not cost it for the session.
+    await until('The sync service', () => templateFetches > atBoot);
   });
 
   it('reports online-but-not-syncing once a reachable-looking server refuses to answer', async () => {
     answer = { outcome: 'unreachable', status: 503 };
     await sync.record(CREATED);
 
-    await until(() => sync.onlineButNotSyncing());
+    await until('The sync service', () => sync.onlineButNotSyncing());
 
     // The queue is intact, in order, and the banner says the true thing: the radio is fine and the
     // server is not.

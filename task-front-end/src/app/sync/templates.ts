@@ -53,8 +53,17 @@ export class TemplateService {
       return;
     }
 
-    await this.store.replaceTemplates(templates);
-    await this.status.succeeded();
+    try {
+      await this.store.replaceTemplates(templates);
+      await this.status.succeeded();
+    } catch (error) {
+      // The flag the comment above already names, now actually raised. Both start-up callers
+      // `void` this promise, so a store failure escaping here is an unhandled rejection and no
+      // other effect — the same trap `SyncService` and `PatchStream` each guard against, and the
+      // one ADR-0009 exists to refuse.
+      this.status.storeFailed(error);
+      return;
+    }
     this.status.changed();
   }
 

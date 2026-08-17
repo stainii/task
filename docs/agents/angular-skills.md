@@ -12,9 +12,12 @@ schematic sweep would only churn formatting.**
 **Kept current with the code, on purpose.** A compliance snapshot that has quietly gone stale is
 this project's recurring shape — a gate that still reports success after it stopped describing
 anything — so a ticket that adds a component or an effect updates the counts below with it. Last
-moved by [#67](https://github.com/stainii/task/issues/67), which built the overlay layer
-([ADR-0020](../adr/0020-one-overlay-layer-and-one-owner-of-escape.md)): one new component and four
-new effects, against one effect deleted.
+moved by [#69](https://github.com/stainii/task/issues/69): one new effect, `SyncService`'s reaction
+to the radio coming back — and a recount, which found the row already read **8** against nine on
+disk. The missing one is template authoring's load; this note's own warning, arriving on schedule
+for the second time. Before it, [#67](https://github.com/stainii/task/issues/67) built the
+overlay layer ([ADR-0020](../adr/0020-one-overlay-layer-and-one-owner-of-escape.md)): one new
+component and four new effects, against one effect deleted.
 
 ## What was checked
 
@@ -30,7 +33,7 @@ arriving on schedule.)
 | `inject()`                                    | All DI; no constructor-parameter injection                               |
 | `ChangeDetectionStrategy.OnPush`              | All 13 components                                                        |
 | Signals for state                             | `computed`/`signal` throughout, plus `linkedSignal`, `resource`, `untracked`, `PendingTasks` |
-| Effects for side effects only                 | Exactly 8: navigation, four store re-reads, and #67's three registrations |
+| Effects for side effects only                 | Exactly 10: navigation, four store re-reads, #67's three registrations, template authoring's load, and #69's radio |
 | `provideHttpClient` + functional interceptors | `src/app/app.config.ts`                                                  |
 | Host bindings via `host` metadata             | the app's one Escape binding, on `App`                                   |
 
@@ -42,6 +45,13 @@ navigation-shaped side effect the row above was written about, so it is named se
 alternative was calling `open`/`close` by hand at every site that sets the signal, which is the
 remembering-to that ADR-0020 exists to remove. #67 also **deleted** one effect, `TaskPage`'s
 `document:` Escape being replaced by a constructor registration.
+
+**#69's effect is a race resolver, and that is also worth stating.** `SyncService` reacts to
+`SyncStatus.online` becoming true rather than being told by whoever discovered it: the browser's
+`online` event, the outbox's retry and the stream's retry can each be the first to notice, so a
+hand-off from the discoverer leaves the other two seeing a signal that is already true and the work
+belonging to nobody. The effect writes no signal — it nudges the stream, wakes the pump and refetches
+the templates — so it is a side effect in the row above's sense, not state propagation.
 
 The compliance is not accidental, and two places already argue the skill's own reasoning from first
 principles: `task-page.ts:109` explains why the dialog's load is a `resource` rather than an

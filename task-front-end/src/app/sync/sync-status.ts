@@ -23,7 +23,29 @@ export class SyncStatus {
   private readonly now = inject(NOW);
 
   /** The browser's own answer, which is about the radio and says nothing about the server. */
-  readonly online = signal(typeof navigator === 'undefined' || navigator.onLine);
+  readonly online = signal(SyncStatus.radio());
+
+  /**
+   * Re-reads the radio, because the `online` event is a courtesy rather than a contract.
+   *
+   * The event is what makes coming back *prompt*, and it is the only part of this the app cannot
+   * insist on: a loaded machine drops it, and a phone leaving a tunnel is the same shape. If it is
+   * also the only thing that can lift the offline gate, then missing it once is permanent — the
+   * outbox goes on retrying to schedule and every retry is turned away by a signal that is merely
+   * stale, so the backoff loop looks like a safety net and is not one
+   * ([#69](https://github.com/stainii/task/issues/69)).
+   *
+   * `navigator.onLine` is the live answer and always current, so both loops ask it again before
+   * each retry. That makes the event an optimisation — worth having, never load-bearing — and the
+   * worst case a missed one can cost one backoff cap rather than the rest of the session.
+   */
+  refreshOnline(): void {
+    this.online.set(SyncStatus.radio());
+  }
+
+  private static radio(): boolean {
+    return typeof navigator === 'undefined' || navigator.onLine;
+  }
 
   /**
    * Whether the server answered the last time this client tried it.

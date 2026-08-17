@@ -1,7 +1,7 @@
 import { FetchEventSourceInit } from '@microsoft/fetch-event-source';
 import { TestBed } from '@angular/core/testing';
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOW } from '../clock';
 import { Snapshot } from '../domain/sync';
@@ -11,6 +11,7 @@ import { AuthService } from './auth';
 import { EVENT_SOURCE, PatchStream } from './stream';
 import { SyncApi } from './sync-api';
 import { SyncStatus } from './sync-status';
+import { radio, until } from '../testing';
 
 /**
  * The read side: the boot path, the resume, and the resync.
@@ -185,24 +186,14 @@ describe('the patch stream', () => {
 
   afterEach(async () => {
     await stream.stop();
+    vi.restoreAllMocks();
   });
-
-  /** Waits for the loop to reach a point a test can drive, without guessing at a delay. */
-  async function until(condition: () => boolean): Promise<void> {
-    for (let attempt = 0; attempt < 200; attempt++) {
-      if (condition()) {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    throw new Error('The stream never reached the expected state.');
-  }
 
   it('takes a snapshot on first run and streams from its watermark, not from now', async () => {
     snapshots.push({ epoch: 3, watermark: 40, tasks: [snapshotTask([A_CREATED])] });
 
     stream.start();
-    await until(() => transport.connections === 1);
+    await until('The stream', () => transport.connections === 1);
 
     // The watermark, not the moment the stream attached: every patch landing between the two would
     // otherwise be lost for ever, invisibly, since both calls succeed.
@@ -216,12 +207,12 @@ describe('the patch stream', () => {
     await store.setCursor({ epoch: 3, sequence: 40 });
 
     stream.start();
-    await until(() => transport.connections === 1);
+    await until('The stream', () => transport.connections === 1);
     await transport.accept();
     transport.emit('patch', JSON.stringify(A_CREATED), '3:39');
     transport.emit('patch', JSON.stringify(A_RENAMED), '3:41');
 
-    await until(() => status.revision() >= 2);
+    await until('The stream', () => status.revision() >= 2);
 
     expect((await store.task(TASK_A))?.name).toBe('Buy sourdough');
     expect(await store.cursor()).toEqual({ epoch: 3, sequence: 41 });
@@ -231,7 +222,7 @@ describe('the patch stream', () => {
     await store.setCursor({ epoch: 3, sequence: 40 });
 
     stream.start();
-    await until(() => transport.connections === 1);
+    await until('The stream', () => transport.connections === 1);
     await transport.accept();
     transport.emit('heartbeat', 'keepalive');
 
@@ -242,13 +233,13 @@ describe('the patch stream', () => {
     await store.setCursor({ epoch: 3, sequence: 40 });
 
     stream.start();
-    await until(() => transport.connections === 1);
+    await until('The stream', () => transport.connections === 1);
     await transport.accept();
     transport.emit('patch', JSON.stringify(A_CREATED), '3:41');
-    await until(() => status.revision() >= 1);
+    await until('The stream', () => status.revision() >= 1);
 
     transport.closeCleanly();
-    await until(() => transport.connections === 2);
+    await until('The stream', () => transport.connections === 2);
 
     // No gap and no duplicate: the second connection asks for what came *after* the last patch it
     // actually stored — not after the cursor it started with, and not from the beginning.
@@ -263,11 +254,11 @@ describe('the patch stream', () => {
     snapshots.push({ epoch: 4, watermark: 7, tasks: [] });
 
     stream.start();
-    await until(() => transport.connections === 1);
+    await until('The stream', () => transport.connections === 1);
     await transport.accept();
     transport.emit('resync', '4');
 
-    await until(() => transport.connections === 2);
+    await until('The stream', () => transport.connections === 2);
 
     expect(transport.urls[1]).toBe('/api/task-patches?since=7&epoch=4');
     // What came from the server is gone; what this device has not sent is not.
@@ -280,10 +271,10 @@ describe('the patch stream', () => {
     await store.setCursor({ epoch: 3, sequence: 40 });
 
     stream.start();
-    await until(() => transport.connections === 1);
+    await until('The stream', () => transport.connections === 1);
     await transport.accept(401);
 
-    await until(() => TestBed.inject(AuthService).loginRequired());
+    await until('The stream', () => TestBed.inject(AuthService).loginRequired());
     expect(transport.connections).toBe(1);
   });
 
@@ -291,11 +282,33 @@ describe('the patch stream', () => {
     await store.setCursor({ epoch: 3, sequence: 40 });
 
     stream.start();
-    await until(() => transport.connections === 1);
+    await until('The stream', () => transport.connections === 1);
     await transport.accept();
     transport.drop();
 
-    await until(() => !status.reachable());
+    await until('The stream', () => !status.reachable());
     expect(status.online()).toBe(true);
+  });
+
+  /**
+   * The read side's half of [#69](https://github.com/stainii/task/issues/69).
+   *
+   * `connect` declines to dial while the radio is believed off, so a reconnect loop that never asks
+   * the radio again can only repeat the belief it started with. Miss one `online` event and the
+   * device stops receiving anything anyone else does — silently, because a stream that is not
+   * connected looks exactly like a server with nothing to say.
+   */
+  it('reconnects when the radio comes back even though the browser never fires `online`', async () => {
+    await store.setCursor({ epoch: 3, sequence: 40 });
+    radio(false);
+    status.online.set(false);
+
+    stream.start();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(transport.connections).toBe(0);
+
+    radio(true);
+
+    await until('The stream', () => transport.connections === 1, 1_000);
   });
 });

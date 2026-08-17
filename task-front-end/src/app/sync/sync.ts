@@ -1,4 +1,4 @@
-import { computed, inject, Injectable } from '@angular/core';
+import { computed, effect, inject, Injectable } from '@angular/core';
 
 import { LocalStore } from '../store/local-store';
 import { Task, TaskPatch } from '../domain/task';
@@ -75,6 +75,32 @@ export class SyncService {
   private wake: (() => void) | null = null;
   private started = false;
 
+  /** What the last reaction to the radio was about, so that only a *change* provokes another. */
+  private radioWasOn = true;
+
+  /**
+   * Everything the radio coming back deserves, wherever the news came from.
+   *
+   * An effect on the fact rather than a call at each place that could discover it, and that is the
+   * point: the browser's `online` event, the outbox's retry and the stream's retry can each be the
+   * first to find out, and they race. Written as a hand-off from whichever one noticed, the other
+   * two see a signal that is *already* true, conclude nothing changed, and the work silently
+   * belongs to nobody — which is how the template fetch went missing in the first draft of
+   * [#69](https://github.com/stainii/task/issues/69). The signal changing is the one event that
+   * happens exactly once however it was learned.
+   */
+  private readonly radio = effect(() => {
+    const on = this.status.online();
+    const returned = on && !this.radioWasOn;
+    this.radioWasOn = on;
+    if (!returned || !this.started) {
+      return;
+    }
+    this.stream.nudge();
+    this.send();
+    void this.templates.refresh();
+  });
+
   /**
    * Unregisters the browser listeners on {@link stop}.
    *
@@ -111,19 +137,15 @@ export class SyncService {
       // it is the difference between waiting quietly and reporting a fault.
       const listeners = new AbortController();
       this.listeners = listeners;
-      window.addEventListener(
-        'online',
-        () => {
-          this.status.online.set(true);
-          this.stream.nudge();
-          this.send();
-          void this.templates.refresh();
-        },
-        { signal: listeners.signal },
-      );
-      window.addEventListener('offline', () => this.status.online.set(false), {
-        signal: listeners.signal,
-      });
+      // Both events do the same one thing, which is why they are registered together: **neither is
+      // believed.** An event is the notice that the radio changed and `navigator.onLine` is what it
+      // changed to, so each one is a prompt to go and ask. What to *do* about the answer is not
+      // decided here either — see the `radio` effect above.
+      for (const event of ['online', 'offline']) {
+        window.addEventListener(event, () => this.status.refreshOnline(), {
+          signal: listeners.signal,
+        });
+      }
     }
 
     this.stream.start();
@@ -233,6 +255,18 @@ export class SyncService {
       }
       await this.sleep(backoff);
       backoff = Math.min(backoff * 2, SyncService.MAX_BACKOFF_MS);
+
+      // A retry that trusts what the last `online` event said is not a retry: if that event was
+      // missed, every pass refuses itself and the queue waits for ever (`SyncStatus#refreshOnline`).
+      const before = this.status.online();
+      this.status.refreshOnline();
+      if (!before && this.status.online()) {
+        // And the ladder climbed while the radio was off says nothing about a live link, so it is
+        // dropped rather than carried. Without this, coming back at the cap costs a full minute of
+        // waiting *before* the first attempt and another full minute if that attempt is unlucky,
+        // which is not a ceiling anything can be derived from.
+        backoff = SyncService.MIN_BACKOFF_MS;
+      }
     }
   }
 

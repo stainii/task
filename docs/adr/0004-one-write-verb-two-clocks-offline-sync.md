@@ -188,6 +188,20 @@ and network mean the patch is fine and the world is not, so stop and preserve or
 A dropped patch is data loss the user must be able to see: the client keeps dropped patches in a
 visible **failed-to-sync** list rather than discarding them silently.
 
+**A retry re-reads the radio; it never trusts what it was last told about it.** The browser's
+`online` event is what makes coming back *prompt*, and it is the one signal here that is a courtesy
+rather than a contract — a loaded machine drops it, and a phone leaving a tunnel is the same shape.
+If it is also the only thing that can lift the offline stall, then missing it once is permanent: the
+outbox goes on retrying to schedule and every retry is turned away by a belief that is merely stale,
+so the backoff looks like a safety net and is not one. Both loops therefore ask `navigator.onLine`
+again before each attempt, which makes the event an optimisation and caps the cost of missing one at
+a single backoff interval ([#69](https://github.com/stainii/task/issues/69)).
+
+The client then reacts to **the radio being back**, not to whichever of the three — event, outbox
+retry, stream retry — happened to find out. They race, and a hand-off from the discoverer leaves the
+other two looking at a fact that is already true and concluding there is nothing to do, so work that
+rides the same moment (the template fetch) belongs to nobody.
+
 **`409` never reaches the client.** `Task` and `TaskPatch` carry `@Version`, so two devices patching
 the same task in the same instant produce an optimistic-locking failure — today a `500`, which under
 the table above would stall the queue. The server retries internally instead, keeping the state out

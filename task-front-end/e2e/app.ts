@@ -57,17 +57,27 @@ export async function openWitness(browser: Browser): Promise<Page> {
 /**
  * How long a patch is given to cross the wire.
  *
- * **Derived, not picked.** `SyncService.MAX_BACKOFF_MS` is 60 seconds, so a stalled outbox can sit
- * a full minute between attempts. Coming back online is *supposed* to cut that short —
- * `SyncService` wakes the pump on the browser's `online` event — but that event is the one part of
- * this the test harness emulates rather than causes, and on a loaded CI runner it does not always
- * arrive. Then the queue drains on its own timer, and anything at or under 60 seconds fails a
- * client that is behaving exactly as ADR-0004 says it should. This was measured: 60s was green on a
- * laptop for a week and red on the runner.
+ * **Derived, not picked** — and the derivation only became sound in
+ * [#69](https://github.com/stainii/task/issues/69). Before it, the pump could be lifted out of
+ * offline by the browser's `online` event and nothing else, and that event is the one part of this
+ * the harness emulates rather than causes: a loaded runner drops it and the client then waits for
+ * ever, not for 60 seconds. No number derived from `MAX_BACKOFF_MS` was safe against that, which is
+ * why 60s went red, why 120s went red after it, and why the fix was in the client rather than here.
  *
- * Twice the cap, so a wait that expires means the patch is not coming at all.
+ * Both loops now re-read the radio on every retry, so a missed event costs one backoff tick and no
+ * more. `SyncService.MAX_BACKOFF_MS` is 60 seconds and is the ceiling on that tick, which is what
+ * makes a budget derivable at all — where twice the cap used to be a guess dressed as arithmetic.
+ *
+ * The cap **plus a crossing**, though, not the cap alone: the radio is re-read *after* the sleep, so
+ * a worst-case wait spends the whole 60 seconds before the first request is even attempted, and the
+ * patch still has to reach the server and reach the witness down its stream. Thirty seconds for that
+ * is generous on any runner that is working at all.
+ *
+ * That 60 is a ceiling rather than an instalment because the pump drops the ladder it climbed while
+ * the radio was off — the backoff resets on the crossing, so the second minute this budget would
+ * otherwise have to allow for cannot happen. A wait that expires means the patch is not coming.
  */
-export const SYNCED = { timeout: 120_000 };
+export const SYNCED = { timeout: 90_000 };
 
 /** Types a name into the omnibox — *find*, the second of its three jobs (ADR-0014). */
 export async function typeToFind(page: Page, name: string): Promise<void> {
