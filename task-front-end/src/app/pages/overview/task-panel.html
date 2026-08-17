@@ -35,7 +35,20 @@
 
   @if (open()) {
     <div class="body">
-      <p class="description">{{ task().description ?? 'No description.' }}</p>
+      <!--
+        **URLs linkified, and nothing else** (ADR-0015). Built from runs rather than from a string of
+        HTML, which is the security half of the same decision: nothing here writes markup, so nothing
+        pasted into a description can inject any. `noopener` because this app holds a live session.
+      -->
+      <p class="description">
+        @for (run of description(); track $index) {
+          @if (run.href; as href) {
+            <a [href]="href" target="_blank" rel="noopener noreferrer">{{ run.text }}</a>
+          } @else {
+            {{ run.text }}
+          }
+        }
+      </p>
 
       <div class="verbs">
         <span class="constructive">

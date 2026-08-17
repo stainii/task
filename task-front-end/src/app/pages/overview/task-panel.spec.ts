@@ -227,3 +227,37 @@ describe('the swipe', () => {
     expect(element().querySelector('button[aria-label="Complete"]')).toBeNull();
   });
 });
+
+describe('the description', () => {
+  it('turns a URL into a link, and nothing else into anything', async () => {
+    // ADR-0015: descriptions linkify URLs, **and nothing else**. Markdown invites a formatting
+    // toolbar, which invites an editor.
+    await show(aTask({ description: 'Bestel bij https://example.com/parts — code *AB12*' }));
+    await expand();
+
+    const panel = element();
+    const link = panel.querySelector<HTMLAnchorElement>('.description a');
+    expect(link?.getAttribute('href')).toBe('https://example.com/parts');
+    expect(link?.textContent).toBe('https://example.com/parts');
+    expect(panel.querySelector('.description')?.textContent).toContain('code *AB12*');
+  });
+
+  it('opens a link away from the app, without handing the new page a handle on it', async () => {
+    // `noopener` is not decoration here: the app is a PWA holding a live session, and a page opened
+    // from it could otherwise reach back through `window.opener`.
+    await show(aTask({ description: 'https://example.com/parts' }));
+    await expand();
+
+    const panel = element();
+    const link = panel.querySelector<HTMLAnchorElement>('.description a');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
+  it('still says so out loud when there is no description', async () => {
+    await show(aTask({ description: null }));
+    await expand();
+
+    expect(text('.description')).toBe('No description.');
+  });
+});

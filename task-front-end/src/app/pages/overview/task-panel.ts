@@ -23,6 +23,7 @@ import {
 } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
 import { GlyphButton } from '../../ui/glyph-button';
+import { linkify } from '../../ui/linkify';
 import { dueLabel, dueTone } from '../../ui/wording';
 
 /**
@@ -86,6 +87,16 @@ export class TaskPanel {
   protected readonly bucket = computed(() => bucketOf(this.task(), this.today()));
   protected readonly due = computed(() => dueLabel(this.task().dueDate, this.today()));
   protected readonly tone = computed(() => dueTone(this.task().dueDate, this.today()));
+
+  /**
+   * The description, split into plain runs and links (ADR-0015: *URLs, and nothing else*).
+   *
+   * Said out loud when there is none, rather than left blank: an empty body reads as *this panel is
+   * broken*, where the fact is *there is nothing more to say about this task*.
+   */
+  protected readonly description = computed(() =>
+    linkify(this.task().description ?? 'No description.'),
+  );
 
   protected readonly rightFill = computed(() => Math.max(0, this.travel()));
   protected readonly leftFill = computed(() => Math.max(0, -this.travel()));
