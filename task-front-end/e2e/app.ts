@@ -76,6 +76,14 @@ export async function openWitness(browser: Browser): Promise<Page> {
  * That 60 is a ceiling rather than an instalment because the pump drops the ladder it climbed while
  * the radio was off — the backoff resets on the crossing, so the second minute this budget would
  * otherwise have to allow for cannot happen. A wait that expires means the patch is not coming.
+ *
+ * **[#71](https://github.com/stainii/task/issues/71) left the number alone**, which is worth saying
+ * because the recurrence looked at first like the third failure of the same arithmetic. It was not:
+ * the client had a wait with no ceiling *at all* — `AuthService`'s Keycloak initialisation, awaited
+ * by both loops and by nothing else, hung when the radio went out mid-boot — so no budget could have
+ * been large enough and no budget was too small. It is bounded at the seam now
+ * (`AuthService.ANSWER_TIMEOUT_MS`), and the bound is paid once, ten seconds after boot, while this
+ * test is still offline and waiting on nothing.
  */
 export const SYNCED = { timeout: 90_000 };
 
@@ -125,6 +133,27 @@ export function signInPrompt(page: Page): Locator {
  */
 export function notSyncing(page: Page): Locator {
   return page.locator('.banner.not-syncing');
+}
+
+/**
+ * Waits until this device says it has nothing left to send — FE-027's appbar indicator, gone.
+ *
+ * The suite's rule is *wait for a state, never for a duration*, and this is the one state that says
+ * **the outbox drained** rather than *the server heard about it*. It is not a substitute for the
+ * witness: a device that emptied its queue into a server that dropped every patch would satisfy this
+ * and prove nothing, which is the whole reason the witness exists.
+ *
+ * It is here to **place the blame** ([#71](https://github.com/stainii/task/issues/71)). Twice now the
+ * only thing a red run said was *the witness never saw the rename*, which is equally consistent with
+ * the device never sending, the server never accepting and the stream never delivering — and the two
+ * causes found so far were both the first of those. Asserted here, a stopped client fails on the
+ * device that stopped, one assertion before the witness gets the blame for it.
+ *
+ * `.indicator` is present while there is a queue and while the radio is off, and absent only when the
+ * device is online with nothing waiting, which is exactly the state this waits for.
+ */
+export async function drained(page: Page): Promise<void> {
+  await expect(page.locator('.indicator')).toBeHidden(SYNCED);
 }
 
 /**

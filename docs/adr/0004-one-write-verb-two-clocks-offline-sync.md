@@ -197,6 +197,17 @@ so the backoff looks like a safety net and is not one. Both loops therefore ask 
 again before each attempt, which makes the event an optimisation and caps the cost of missing one at
 a single backoff interval ([#69](https://github.com/stainii/task/issues/69)).
 
+**And a retry that cannot come back is not a retry either: every wait on the network has a ceiling.**
+A backoff loop is only a safety net if each pass *ends*. The one wait in this client that had no
+ceiling was the Keycloak initialisation both loops await before they reach the network at all —
+`keycloak-js` resolves its silent `check-sso` on a message from a hidden iframe and on nothing else,
+so a radio lost during those seconds left every later request awaiting a promise that would never
+settle. The result is the most expensive shape this contract has: **not a stalled sync but a stopped
+one**, indistinguishable from health, because nothing failed for `reachable` to go false on and
+nothing was refused for the login prompt to rise on. So an answer this client cannot get promptly is
+answered ***not now*** — never awaited indefinitely, and never remembered as a verdict
+([#71](https://github.com/stainii/task/issues/71)).
+
 The client then reacts to **the radio being back**, not to whichever of the three — event, outbox
 retry, stream retry — happened to find out. They race, and a hand-off from the discoverer leaves the
 other two looking at a fact that is already true and concluding there is nothing to do, so work that
