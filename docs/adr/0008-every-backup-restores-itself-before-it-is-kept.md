@@ -324,3 +324,48 @@ After that, #29's pre-flight keeps the path warm; no scheduled re-drill.
   defaults — and the only one that had already caused real, unnoticed harm rather than being caught
   in design. It is also the purest: a backup script whose success log is a string literal, standing
   in for a backup that never contained anything.
+
+## Amendments
+
+### A live restore replaces the cluster; it does not load over it
+
+Amended by [Set up continuous deployment](https://github.com/stainii/task/issues/24), 2026-08-23.
+
+This ADR described restoring as "load the dump" and specified `restore.sh`'s steps. The first drill
+found that the obvious implementation of that step cannot work: a `pg_dumpall` begins by dropping the
+roles it is about to recreate, and the first role it drops is the one the application connects as.
+Loading it means connecting *as* that role, and Postgres refuses — `current user cannot be dropped` —
+leaving the stack down with the database already dropped and the dump not loaded. Precisely the
+position from which one would least like to discover the flaw.
+
+So `restore.sh live` discards the data volume and loads the dump into a **brand-new cluster**,
+bootstrapped under a throwaway superuser name that appears nowhere in the dump. Every role and both
+databases are then created with no conflict, and — usefully — it is the same path a rebuilt box
+takes, so the *rebuilding the box* recipe and the everyday restore exercise one mechanism rather
+than two.
+
+Two smaller findings from the same drill, both of the shape this ADR is about:
+
+- **Waiting for a new Postgres means asking over TCP.** The image's entrypoint runs `initdb` against
+  a temporary server that listens on the unix socket only, then shuts it down and starts the real
+  one. `pg_isready` over the socket answers yes during that window, and a restore started there is
+  cut off mid-stream — which looks exactly like a corrupt dump, the worst false accusation this
+  script could make.
+- **rclone is handed its config directory, writable.** It refreshes the Drive token and saves it by
+  renaming the old file aside, which cannot be done to a bind-mounted file. Uploads worked while
+  every run logged `Failed to save config: device or resource busy` — a token it could not persist,
+  which fails for real months later, at night.
+
+### The nightly row-count assertion is a drop check until cutover
+
+Amended by [Set up continuous deployment](https://github.com/stainii/task/issues/24), 2026-08-23.
+
+This ADR asked the verification to assert row counts "non-zero and within sight of yesterday's". The
+non-zero half cannot hold yet: until [#17](https://github.com/stainii/task/issues/17) imports the
+real history, this database is legitimately empty, and a hard non-zero rule would block every deploy
+between now and then — the shape of gate that gets commented out and never restored.
+
+`backup.sh` therefore fails on a **drop of more than 10%** against the last recorded run, and the
+floor arms itself the moment there is data to protect. Growth is never suspicious; an append-only
+patch log does not shrink on its own. Proven both ways on 2026-08-22: a seeded previous count made
+the run refuse to keep the archive, and the deploy that depends on it stopped.

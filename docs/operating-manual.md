@@ -121,6 +121,44 @@ resemblance is worth something, and the list is the resemblance:
 **The one with teeth: a new Keycloak user gets nothing until granted `task-user`.** A working login
 followed by `403` on every screen is this, essentially every time.
 
+**The admin console is at http://192.168.0.116:8082**, and Keycloak is told that address explicitly
+(`KEYCLOAK_HOSTNAME_ADMIN`) so the console's own links do not point at the public host.
+
+**If the console says "Timeout when waiting for 3rd party check iframe message"**, it is not broken:
+that iframe is loaded from the *public* hostname (`KEYCLOAK_HOSTNAME`), so the error means
+`https://task.stijnhooft.be` is not reaching this stack — a tunnel or DNS problem, diagnosed from the
+admin console by accident. Check what answers it: `curl -sI https://task.stijnhooft.be | grep -i server`
+should name our nginx, not portal's.
+
+**How the live realm was built** (2026-08-23, by [#24](https://github.com/stainii/task/issues/24)) —
+with `kcadm` inside the container, so the bootstrap password came from the container's own
+environment and never appeared in a command line or a log:
+
+```bash
+docker exec -i task-keycloak-1 bash -s <<'INNER'
+kc=/opt/keycloak/bin/kcadm.sh
+$kc config credentials --server http://localhost:8080 --realm master \
+   --user "$KC_BOOTSTRAP_ADMIN_USERNAME" --password "$KC_BOOTSTRAP_ADMIN_PASSWORD"
+$kc create realms -s realm=stijnhooft-realm -s enabled=true -s bruteForceProtected=true \
+   -s ssoSessionIdleTimeout=2592000 -s ssoSessionMaxLifespan=2592000 \
+   -s accessTokenLifespan=300 -s revokeRefreshToken=false -s sslRequired=external
+$kc create roles -r stijnhooft-realm -s name=task-user
+$kc create clients -r stijnhooft-realm -s clientId=task -s publicClient=true \
+   -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+   -s 'redirectUris=["https://task.stijnhooft.be/*"]' -s 'webOrigins=[]' \
+   -s rootUrl=https://task.stijnhooft.be
+id=$($kc get clients -r stijnhooft-realm -q clientId=task --fields id --format csv --noquotes)
+$kc update "clients/$id" -r stijnhooft-realm -s 'attributes."pkce.code.challenge.method"=S256'
+INNER
+```
+
+**The PKCE line is separate for a reason**: passing `attributes={...}` to `create clients` is accepted
+and silently dropped. Setting it afterwards works, and `kcadm get ... --fields attributes` renders it
+as `{ }` either way — check with the full `get`, not the filtered one.
+
+**Users are not created here.** A user, and its password, is made in the console. Whoever makes one
+must also grant it `task-user`, or it logs in perfectly and gets `403` on every screen.
+
 > **Do not narrow `/realms/**` in nginx.** It is routed whole, and must stay that way. Keycloak's
 > **account console** lives under it, and it is the only way to sign a lost or stolen device out
 > remotely — which 30-day sessions make the standing remedy. Tightening it to
@@ -205,10 +243,13 @@ state what the server is running, which is why the third line is fetched rather 
 
 **Logs**: `task-back-end/logs/task-back-end.log`, rolled daily and kept 30 days.
 
-> **Hole — owned by [#24](https://github.com/stainii/task/issues/24).** ADR-0009 requires those logs
-> to sit on a volume that outlives container recreation, "or a nightly deploy erases the week".
-> Nothing in this repo provides that volume: `compose.yaml` has no back-end service, and the deploy
-> unit is #24's unbuilt work. Locally the path above is simply a directory.
+Locally that path is simply a directory. **In production the logs live on a Docker volume**, mounted
+at `/logs` in the back-end container, precisely so that the nightly deploy recreating the container
+does not erase the week:
+
+```bash
+ssh stijn@192.168.0.116 'docker exec task-back-end-1 tail -n 100 /logs/task-back-end.log'
+```
 
 | Symptom | Most likely cause | What to do |
 |---|---|---|
@@ -243,13 +284,63 @@ Two things that are easy to get wrong under pressure:
   app back on the internet after a rebuild is the **tunnel credential**, which ADR-0007's amendment
   already put in the archive. Losing it is what makes a rebuilt box unreachable, not a certificate.
 
-> **Hole — owned by [#24](https://github.com/stainii/task/issues/24).** ADR-0008 puts the backup and
-> restore **scripts** in #24's list of artifacts, and they do not exist yet. Until that ticket lands,
-> the procedure above is a decision, not a runbook: there is nothing here to copy and paste. #24 also
-> owes this page its *rebuilding the box* section — bare machine to running app, including how the
-> production Keycloak realm was built, since nothing in this repo reflects it and
-> [`compose/keycloak/README.md`](../task-back-end/compose/keycloak/README.md) says every change to it
-> is applied by hand.
+### The commands
+
+All of them live in [`deploy/`](../deploy) and run on the box, from `/home/stijn/task`.
+
+```bash
+deploy/backup.sh                                   # dump, prove it by restoring it, archive, upload, prune
+deploy/restore.sh scratch <archive|dump.sql.gz>    # load into a throwaway Postgres and leave it up
+deploy/restore.sh live    <archive>                # replace the running stack's data with the archive
+```
+
+**Where the copies are** — ADR-0008's three, none of which needed a new account or a new credential:
+
+| Copy | Where | Kept |
+|---|---|---|
+| the box | `/home/stijn/task-backups/task-backup-<stamp>.zip` | 7 days |
+| the cloud | `google-drive:task-backups`, via the rclone config the box already had | 30 days |
+| the laptop | inside `~/server_backup_<date>.zip`, because `backup-server.sh` zips `/home/stijn` | unpruned |
+
+**Read this when you want to know whether backups are healthy** — it is what ADR-0008's recurring
+*check the backup* task is for, and it can say no:
+
+```bash
+ssh stijn@192.168.0.116 'tail -n 20 /home/stijn/task-backups/backup.log'
+```
+
+**A live restore replaces the cluster; it does not load over it.** `pg_dumpall` drops the role the
+application connects as, and Postgres refuses to drop the role you are connected as — so `restore.sh`
+discards the data volume and loads into a brand-new cluster under a throwaway superuser. Which is
+also why the rebuild recipe below is the same mechanism rather than a second one.
+
+**Drilled 2026-08-23, on the box.** A marker realm was created, the stack restored from that morning's
+archive, and afterwards: the marker was gone, `stijnhooft-realm` with its `task` client and
+`task-user` role were back, and the epoch had gone from 1 to 2. The empty-database half of that drill
+is weak on purpose — there is no real data on the box until [#17](https://github.com/stainii/task/issues/17).
+The data half was drilled on the laptop the same day, against a task written through the API: it came
+back, and the epoch moved.
+
+### Rebuilding the box from nothing
+
+Bare machine to running app. Budget an evening; nothing here is fast, and nothing is lost.
+
+1. **Install Docker** and `git`, `zip`, `unzip`.
+2. **Get the archive.** From Google Drive (the copy that survives the box dying), or from
+   `~/server_backup_<date>.zip` on the laptop. You need one `task-backup-<stamp>.zip`.
+3. **Clone this repo** to `/home/stijn/task`. It holds the *how*: the compose file, the scripts, the
+   systemd units. The archive holds the *what*: the dump and `production.env`.
+4. **Put `production.env` back** from inside the archive, at `deploy/production.env`, mode `600`. It
+   carries the database password, the VAPID pair — losing which invalidates every push subscription —
+   and the **tunnel credential**, which is the thing that actually puts the app back on the internet.
+   There is no certificate to reissue; Cloudflare terminates TLS.
+5. **Restore**: `deploy/restore.sh live <archive>`. This creates the cluster, both databases, the
+   Keycloak realm and its users, and bumps the epoch. Expect every device to refetch.
+6. **Install the timer** (see *Deploy and rollback*).
+
+The Keycloak realm comes back with the dump, because ADR-0008 put it in the same Postgres instance.
+How it was built in the first place is under *Keycloak in production* above — needed only if you are
+ever recreating it from nothing rather than restoring it.
 
 ---
 
@@ -276,14 +367,49 @@ fails at 02:00, unattended, on the only copy of years of real data. The dry run 
 and because it exercises the restore path it doubles as a rehearsal for
 [ADR-0008](adr/0008-every-backup-restores-itself-before-it-is-kept.md)'s drill.
 
-(The restore *command* is still #24's — see the hole under *Backups*. The step is written here anyway,
-because a procedure nobody can find is a procedure nobody runs.)
+```bash
+deploy/restore.sh scratch ~/task-backups/task-backup-<stamp>.zip
+# it prints a JDBC URL; point the candidate migration at that, not at production
+```
 
-> **Hole — owned by [#24](https://github.com/stainii/task/issues/24).** The pipeline itself, runtime
-> secrets, Flyway-on-deploy and **a rollback that has actually been rolled back** are that ticket's
-> work, and it is deferred until the server is powered on again. The real commands belong here when
-> they exist. Do not write them from the ADR in the meantime — a runbook that has never been run is
-> the thing this manual exists to prevent.
+### The commands
+
+```bash
+systemctl status task-deploy.timer          # when the next deploy is due
+systemctl start  task-deploy.service        # deploy now, the same way the timer does
+journalctl -u task-deploy.service -n 50     # or tail ~/task-backups/deploy.log
+```
+
+`deploy.sh` runs `backup.sh` first and **stops if it fails** — better to skip a night than to migrate
+unbacked, which is also why a broken backup silently stalls deploys until someone reads the log.
+
+**Which version is running** is not written anywhere on the box; it is derived. `deploy.sh` takes
+`git rev-parse HEAD` after the pull, so the box runs the images built from the commit it just checked
+out, and both images necessarily match. Ask the app what it is running:
+
+```bash
+curl -s https://task.stijnhooft.be/api/config    # buildTime is the back-end's; the app shows it too
+```
+
+If the images for that commit are not published yet — CI still running, or `main` red — the pull
+fails and **the running stack is left exactly as it was**.
+
+### Rolling back, for real
+
+Four steps, in this order. The epoch one is invisible, and `restore.sh` does it for you:
+
+```bash
+deploy/restore.sh live ~/task-backups/task-backup-<stamp>.zip   # restore + bump the epoch
+echo 'TASK_VERSION=<previous-commit-sha>' >> deploy/production.env   # pin
+deploy/deploy.sh                                                # up, on the pinned images
+```
+
+**Remove that `TASK_VERSION` line when you are done**, or the nightly deploy quietly stops advancing
+for ever. The log says `PINNED` on every run precisely so this cannot go unnoticed.
+
+**Drilled 2026-08-23, on the box.** Pinned to the previous commit: the served `buildTime` went from
+09:07:49 back to 08:54:51 and both images moved together. Unpinned and redeployed: it came forward
+again. That is the whole rollback path, run rather than described.
 
 ---
 

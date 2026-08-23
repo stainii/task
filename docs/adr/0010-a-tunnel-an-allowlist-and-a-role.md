@@ -348,3 +348,19 @@ Named so they are accepted rather than overlooked:
 
 Nothing about rate limiting, WAF rules or intrusion detection — Cloudflare sits in front and absorbs
 some scanner noise, but nothing here relies on it. No new tickets, and no fog graduated.
+
+## Amendments
+
+### Keycloak runs `start`, not `start --optimized`
+
+Amended by [Set up continuous deployment](https://github.com/stainii/task/issues/24), 2026-08-23.
+
+`--optimized` refuses to apply build-time options at run time, and `db` is a build-time option. An
+optimized start therefore needs an image built with `kc.sh build --db=postgres` — a **third image**,
+on a tag of its own, which is no longer the same pinned Keycloak that `compose.yaml` and the test
+suite run. [ADR-0007](0007-the-box-pulls-nightly-behind-a-dump.md)'s refusal of a staging environment
+rests on that pin ("#20's pins keep dev-compose and the test suite on the same images"), and it is
+worth more than the ~15 seconds `start` spends re-running the build on boot.
+
+What this ADR actually ruled out was `start-dev`, which disables the very checks the hostname and
+proxy flags rely on. That ruling stands; production runs `start`.

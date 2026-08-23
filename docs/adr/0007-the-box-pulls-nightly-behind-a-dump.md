@@ -407,3 +407,41 @@ them, deliberately, because a push client that quietly fails every morning is AD
 The committed values in `application.yml` are a throwaway keypair that has never signed anything, per
 [#31](https://github.com/stainii/task/issues/31). There is still **no client secret anywhere**: the
 VAPID private key is ours, not a credential issued to us, and it authenticates nothing to Keycloak.
+
+### The image tag is derived from the commit the box pulled, not written into `.env`
+
+Amended by [Set up continuous deployment](https://github.com/stainii/task/issues/24), 2026-08-23.
+
+The `.env` table lists `TASK_VERSION` as "the shared image tag for both services", which read as a
+value a human writes. Nothing said who writes it, and on a pull-based deploy with no acknowledgement
+the honest answer is: nobody should. `deploy.sh` derives it from `git rev-parse HEAD` immediately
+after the pull, so the box runs the images built from the commit it has just checked out, and the
+two images match because they were tagged by the same workflow run from the same SHA.
+
+`TASK_VERSION` in `production.env` therefore becomes the **pin**, and that is exactly what a rollback
+is: write the previous commit's SHA there and the nightly deploy stops advancing until it is removed.
+Drilled on 2026-08-23 — the running build went back one version and forward again, both images
+together.
+
+One property falls out that the ADR wanted but had no mechanism for: if the commit's images are not
+published yet — CI still running, or `main` red — the pull fails and **the running stack is left
+exactly as it was**. A night that deploys nothing is a night that deploys nothing, rather than half a
+deploy.
+
+### The back-end fetches Keycloak's signing keys over the Docker network
+
+Amended by [Set up continuous deployment](https://github.com/stainii/task/issues/24), 2026-08-23.
+
+This ADR named `KEYCLOAK_ISSUER_URI` as the one value that must not be baked into an image, and left
+it at that. Left at that, Spring performs OIDC discovery against it — the **public** address — so a
+container three hops away is reached by leaving the box, crossing Cloudflare and coming back in
+through the tunnel, and the back-end's ability to validate any token at all depends on `cloudflared`
+having connected. At 02:30, with the whole stack starting at once, that is a race whose symptom is
+every authenticated request answering `401` while the application reports itself healthy. Found by
+running this file rather than by reading it.
+
+The production stack therefore also sets `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` to
+Keycloak's address on the Docker network. The `iss` claim is still validated against the public
+issuer, so nothing about the trust boundary changes; the two values disagreeing fails loudly — every
+request `401` — rather than silently, which is the only reason this ADR's "two properties that are
+supposed to agree are two properties that can disagree" rule is bent here.
