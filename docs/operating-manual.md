@@ -372,6 +372,24 @@ deploy/restore.sh scratch ~/task-backups/task-backup-<stamp>.zip
 # it prints a JDBC URL; point the candidate migration at that, not at production
 ```
 
+### Installing the timer, once
+
+The unit files live in [`deploy/systemd/`](../deploy/systemd) and are **symlinked, not copied**, so
+there is exactly one copy of them and it is the one in git — `git pull` updates the schedule in
+place, and the nightly archive needs no extra item. Root is needed once, ever:
+
+```bash
+sudo systemctl link /home/stijn/task/deploy/systemd/task-deploy.service
+sudo systemctl enable --now /home/stijn/task/deploy/systemd/task-deploy.timer
+```
+
+After editing either unit, `sudo systemctl daemon-reload`.
+
+**`Persistent=true` is the reason this is systemd rather than a container.** The box is switched off
+for weeks at a time — it was, for the whole of this ticket's deferral — and a schedule with no
+catch-up means those nights have no backup and no deploy, silently. systemd runs the missed job on
+the next boot instead.
+
 ### The commands
 
 ```bash

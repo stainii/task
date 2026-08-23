@@ -1,3 +1,12 @@
+# Installed by SYMLINK, never copied — see docs/operating-manual.md:
+#
+#     sudo systemctl link /home/stijn/task/deploy/systemd/task-deploy.service
+#     sudo systemctl enable --now /home/stijn/task/deploy/systemd/task-deploy.timer
+#
+# So this file has one copy, it is this one, and `git pull` is how the schedule changes. A copy in
+# /etc/systemd/system would be a second source of truth that nothing keeps in step and that the
+# nightly archive would have to be taught to carry.
+
 [Unit]
 Description=task: back up, pull, deploy (ADR-0007, one unit and in this order)
 Documentation=https://github.com/stainii/task/blob/main/docs/operating-manual.md
