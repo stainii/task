@@ -79,6 +79,13 @@ Hover-reveal was rejected as a discoverability trap for `CANCELLED`, which is a 
 > serve the two verbs swipe does not reach. Recorded so nobody re-derives the button measurement and
 > finds it does not reproduce.
 
+> **Amended again by [ADR-0021](0021-the-name-wraps-and-the-grid-caps-at-two-columns.md): the grid
+> is two columns, and desktop density is no longer measured in them.** The paragraph above treats a
+> two-column grid as the cost of always-visible buttons — the thing to be avoided. #73 arrives at
+> two columns on its own terms, because the row now wraps rather than truncates and width is better
+> spent on a name that fits. So *forcing a two-column grid* has stopped being an argument against
+> anything here; only the swipe-coverage reason above still rejects always-visible buttons.
+
 ### Contexts are cards above one global list
 
 The overview is a row of **context cards**, then the task bands beneath them.

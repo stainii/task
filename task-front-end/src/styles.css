@@ -52,6 +52,17 @@
   --app-rejected-bg: light-dark(#fdf1f0, #2e1a19);
   --app-rejected-line: light-dark(#f2d3d0, #5c2f2b);
 
+  /*
+   * *You can press this*, as a surface tint (ADR-0021).
+   *
+   * A token rather than the `color-mix()` written out per component: the task row and the fold bar
+   * are the two things on the overview that say it, they sit in different stylesheets, and two
+   * copies of one colour is how two surfaces quietly stop matching. Every use is behind
+   * `@media (hover: hover)` — a touch device holds `:hover` after a tap, which would leave one row
+   * looking permanently picked.
+   */
+  --app-hover: color-mix(in srgb, var(--app-ink) 2%, var(--app-surface));
+
   /* the 10px left edge on every task panel (FE-005) */
   --app-stripe-width: 10px;
 

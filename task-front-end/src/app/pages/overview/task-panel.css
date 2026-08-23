@@ -31,10 +31,21 @@
   border-left-color: var(--app-back-burner);
 }
 
+/*
+ * **Two lines, not one** (#73). The row used to be a single flex line with the name on `flex: 1`
+ * and the meta on `flex: none`, so the chip, the due label and the caret took their full width
+ * first and the *name absorbed every shortfall*: on a 390px phone a name past roughly ten
+ * characters was cut, and `62 days overdue` costs about 100px on its own. Opening the panel did
+ * not help either — the body renders the description, never the name.
+ *
+ * A column has no shortfall to absorb. The name gets the full width and wraps; everything that
+ * used to compete with it sits on the line below.
+ */
 .row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   width: 100%;
   padding: 11px 13px;
   border: 0;
@@ -45,19 +56,15 @@
   cursor: pointer;
 }
 
+/* Nothing clips it any more. `pretty` is for the widow on the last line, not for the fix itself. */
 .name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-wrap: pretty;
 }
 
 .meta {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: none;
 }
 
 .context {
@@ -83,9 +90,39 @@
   font-weight: 600;
 }
 
+.notes {
+  font-size: 11px;
+  color: var(--app-muted);
+}
+
+/* The far edge of line two, where the whole web has taught people to look for it. */
 .caret {
+  margin-left: auto;
   color: var(--app-muted);
   font-size: 11px;
+}
+
+/*
+ * Says *this is pressable*, and only where a pointer can hover: after a tap a touch device holds
+ * `:hover` until you touch something else, which would leave one row looking permanently picked.
+ * No transition — nothing else on this screen animates, and a fading row hover would be the only
+ * one.
+ */
+@media (hover: hover) {
+  /*
+   * Three sides, never the shorthand: `border-color` sets the left edge too, and the left edge is
+   * the importance stripe (FE-005). One shorthand here would repaint every task's bucket grey for
+   * as long as the pointer was over it.
+   */
+  .panel:hover {
+    border-top-color: color-mix(in srgb, var(--app-ink) 12%, var(--app-line));
+    border-right-color: color-mix(in srgb, var(--app-ink) 12%, var(--app-line));
+    border-bottom-color: color-mix(in srgb, var(--app-ink) 12%, var(--app-line));
+  }
+
+  .row:hover {
+    background: var(--app-hover);
+  }
 }
 
 .body {

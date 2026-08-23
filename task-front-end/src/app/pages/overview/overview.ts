@@ -114,13 +114,20 @@ export class Overview {
    * the exceeded case, so this is a gap rather than a contradiction — but the band is topped up
    * with work that is *not* due, and a heading is a fact in words (ADR-0019): `Due today` over five
    * tasks due next month states something false. *Decided by recommendation; no ADR covers it.*
+   *
+   * **Which is why `Due today` is gone from the ordinary case entirely** (#73). Having one due task
+   * does not make the four rows borrowed from `Also…` to reach the cap due as well, so the heading
+   * was false there too — just harder to see. `Today's work` is what the band has always actually
+   * held, and it is close to the words the map already uses for it: ADR-0015 and `CONTEXT.md` both
+   * call this band *the day's work*. The exceeded case keeps `Due today`, because when the cap
+   * breaks every row in the band really is due.
    */
   protected readonly dueTitle = computed(() => {
     const { capExceeded, dueCount } = this.work();
     if (capExceeded) {
       return `Due today — all ${dueCount}`;
     }
-    return dueCount > 0 ? 'Due today' : 'Next up';
+    return dueCount > 0 ? "Today's work" : 'Next up';
   });
 
   protected readonly capExceeded = computed(() => this.work().capExceeded);
@@ -174,6 +181,15 @@ export class Overview {
    * itself would skip a task as already-on-screen that the global cap had folded away.
    */
   protected readonly onScreen = computed(() => new Set(this.visible().map((task) => task.id)));
+
+  /**
+   * Whether we are standing at `/` rather than inside a context.
+   *
+   * Named here rather than written as `value() === undefined` in the template, where the reader has
+   * to know that `value` is the route's context before the expression means anything. The panels
+   * are told *show the chip*; this is the one place that translates the route into that fact.
+   */
+  protected readonly atRoot = computed(() => this.value() === undefined);
 
   /** `house — 2 open`, and how to leave. Absent at `/`, where there is no scope to say. */
   protected readonly scope = computed(() => {

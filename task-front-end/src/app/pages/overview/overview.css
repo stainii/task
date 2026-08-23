@@ -27,14 +27,17 @@
 }
 
 /*
- * One grid that reflows by width, **capped at three columns** (ADR-0015). Past three the width has
- * to go into the columns and not into more of them: `repeat(auto-fill, minmax(270px, 1fr))` yields
- * five at 1500px and truncates almost every task name, which is the exact failure the panel's
- * expand-to-reveal exists to avoid.
+ * One grid that reflows by width, **capped at two columns** (ADR-0021, amending ADR-0015).
  *
- * At three columns a cap of five leaves one empty cell in the second row. **It stays empty** —
- * outlining it turns an absence into a UI element, and the dashed outline collides with the fold
- * bar, which uses the same border to mean *you can click this*.
+ * The cap was three, measured on task names truncating at five columns. #73's row wraps instead of
+ * truncating, so that measurement no longer says anything — and the same width the cap used to
+ * spend on a third column now buys a name that fits one line. At 1120px three columns leave a
+ * panel around 330px; two leave about 520px.
+ *
+ * The empty-cell reasoning survives the change of number: a cap of five over two columns leaves
+ * one empty cell, and **it stays empty** — outlining it turns an absence into a UI element, and the
+ * dashed outline collides with the fold bar, which uses the same border to mean *you can click
+ * this*.
  */
 .grid {
   display: grid;
@@ -46,12 +49,6 @@
 @media (min-width: 700px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1080px) {
-  .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -72,8 +69,21 @@
   cursor: pointer;
 }
 
-.foldbar:hover {
-  border-color: var(--app-muted);
+/*
+ * Dashed says *you can click this*, and the hover firms it — but a border style is a convention you
+ * have to have learned, so the chevron below carries the same message in a shape everyone knows.
+ */
+@media (hover: hover) {
+  .foldbar:hover {
+    border-color: var(--app-muted);
+    background: var(--app-hover);
+  }
+}
+
+/* Pushed to the far edge, past the sentence, so it reads as the bar's control and not a fifth word. */
+.chevron {
+  margin-left: auto;
+  font-size: 11px;
 }
 
 /*

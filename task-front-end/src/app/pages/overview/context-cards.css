@@ -3,10 +3,10 @@
 }
 
 /*
- * The card row reflows freely, unlike the task grid below it, which is capped at three columns
- * (ADR-0015). The cap exists because width past three columns starts truncating **task names**;
- * a card's widest line is a context and a short sentence, and there are as many cards as you have
- * contexts rather than as many as the day's work.
+ * The card row reflows freely, unlike the task grid below it, which is capped at two columns
+ * (ADR-0021). The cap exists to give a task name room; a card's widest line is a context and a
+ * short sentence, and there are as many cards as you have contexts rather than as many as the
+ * day's work.
  */
 .cards {
   display: grid;
@@ -98,11 +98,15 @@
   background: var(--app-back-burner);
 }
 
+/*
+ * **Up to two lines** (#73). This was one line with an ellipsis, on the argument that the card is a
+ * glance — but the name of the next task is the whole point of the line, and
+ * `next: Architectuurreview inplannen met het team · in 2 weeks` does not survive 210px, so the
+ * glance showed everything except the thing it was for. The cards are a grid, so one wrapping card
+ * lifts its neighbours rather than misaligning them.
+ */
 .next {
   font-size: 12px;
   color: var(--app-muted);
-  /* One line: the card is a glance, and a wrapping sentence turns the row into a paragraph wall. */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-wrap: pretty;
 }

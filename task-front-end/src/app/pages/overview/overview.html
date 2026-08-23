@@ -44,7 +44,12 @@
 
     <div class="grid">
       @for (task of visible(); track task.id) {
-        <app-task-panel [task]="task" [today]="today()" (acted)="acted($event)" />
+        <app-task-panel
+          [task]="task"
+          [today]="today()"
+          [showContext]="atRoot()"
+          (acted)="acted($event)"
+        />
       }
     </div>
   </section>
@@ -55,7 +60,12 @@
         <h2 class="band-title">{{ fold.title }}</h2>
         <div class="grid">
           @for (task of fold.tasks; track task.id) {
-            <app-task-panel [task]="task" [today]="today()" (acted)="acted($event)" />
+            <app-task-panel
+              [task]="task"
+              [today]="today()"
+              [showContext]="atRoot()"
+              (acted)="acted($event)"
+            />
           }
         </div>
       } @else {
@@ -81,6 +91,12 @@
           @if (fold.summary; as summary) {
             <span class="summary">{{ summary }}</span>
           }
+          <!--
+            The same caret the panel row uses, at the far edge. Until now the dashed border was the
+            only thing on the bar saying *you can open this*, which is a convention you have to have
+            learned; a chevron is the one the whole web already taught.
+          -->
+          <span class="chevron" aria-hidden="true">▾</span>
         </button>
       }
     </section>
