@@ -38,37 +38,46 @@ public final class ComposeFile {
      *                               duplication this class exists to remove.
      */
     public static String imageOf(String service) {
-        Map<String, Object> services = services();
+        return imageOf(COMPOSE_FILE, service);
+    }
+
+    /**
+     * The same, for another compose file — #24's {@code deploy/compose.yaml}, which names Postgres
+     * and Keycloak a second time because the box runs it. ProductionComposeTest holds the two files
+     * to the same tags.
+     */
+    public static String imageOf(Path composeFile, String service) {
+        Map<String, Object> services = services(composeFile);
         Object definition = services.get(service);
         if (!(definition instanceof Map<?, ?> fields)) {
             throw new IllegalStateException(
-                    "No service '" + service + "' in " + COMPOSE_FILE.toAbsolutePath()
+                    "No service '" + service + "' in " + composeFile.toAbsolutePath()
                             + " (found: " + services.keySet() + ")");
         }
         Object image = fields.get("image");
         if (image == null) {
             throw new IllegalStateException(
-                    "Service '" + service + "' in " + COMPOSE_FILE.toAbsolutePath() + " has no image:");
+                    "Service '" + service + "' in " + composeFile.toAbsolutePath() + " has no image:");
         }
         return image.toString();
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> services() {
-        if (!Files.isRegularFile(COMPOSE_FILE)) {
+    private static Map<String, Object> services(Path composeFile) {
+        if (!Files.isRegularFile(composeFile)) {
             throw new IllegalStateException(
-                    "Cannot find " + COMPOSE_FILE.toAbsolutePath()
+                    "Cannot find " + composeFile.toAbsolutePath()
                             + ". Tests must run with task-back-end as the working directory.");
         }
-        try (InputStream in = Files.newInputStream(COMPOSE_FILE)) {
+        try (InputStream in = Files.newInputStream(composeFile)) {
             Map<String, Object> root = new Yaml().load(in);
             Object services = root == null ? null : root.get("services");
             if (!(services instanceof Map)) {
-                throw new IllegalStateException("No services: block in " + COMPOSE_FILE.toAbsolutePath());
+                throw new IllegalStateException("No services: block in " + composeFile.toAbsolutePath());
             }
             return (Map<String, Object>) services;
         } catch (IOException e) {
-            throw new IllegalStateException("Could not read " + COMPOSE_FILE.toAbsolutePath(), e);
+            throw new IllegalStateException("Could not read " + composeFile.toAbsolutePath(), e);
         }
     }
 }

@@ -1,0 +1,97 @@
+name: publish
+
+# Publishes the two images the box deploys (#24, ADR-0007). There is no release ritual: a green
+# `main` publishes, and the box picks it up on the next nightly poll.
+#
+# WHY THIS IS A SEPARATE WORKFLOW FROM ci.yml. That file states its job is to run the quality bar
+# and nothing else, and to keep no secrets on its path so that a pull request from a fork runs the
+# full suite rather than half of it. Publishing needs a token with `packages: write`. Splitting the
+# two keeps CI's property intact and makes this workflow's dependency explicit: it runs only after
+# CI has CONCLUDED SUCCESSFULLY on `main`, which means the `green` job passed — the single check
+# that proves no gate was skipped or cancelled.
+#
+# THE PACKAGES MUST BE PUBLIC. GHCR packages are created private even under a public repository, and
+# the box holds no registry credential by design (ADR-0007's zero-secrets-in-both-directions). If a
+# deploy ever fails with "denied" or "manifest unknown" against ghcr.io, check the package's
+# visibility first — that is this system's most likely first-time-only failure.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: two images, one tag
+    # `completed` fires for failures and cancellations too. Without this, a red main would publish.
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The commit CI actually tested, not whatever `main` points at now. Those differ whenever
+          # two pushes land close together, and publishing the second under the first's green would
+          # be exactly the fiction this repo keeps finding in its own gates.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Read the pinned toolchain
+        id: toolchain
+        # The same two files ci.yml reads, for the same reason: a version copied into a Dockerfile
+        # is a copy that can be half-moved, and a half-moved toolchain is silent (ToolchainPinsTest).
+        run: |
+          java="$(sed -n 's/^java=\([0-9][0-9]*\).*/\1/p' .sdkmanrc)"
+          node="$(tr -d '[:space:]' < task-front-end/.nvmrc)"
+          test -n "$java" || { echo "::error::could not read java= from .sdkmanrc"; exit 1; }
+          test -n "$node" || { echo "::error::could not read task-front-end/.nvmrc"; exit 1; }
+          echo "java=$java" >> "$GITHUB_OUTPUT"
+          echo "node=$node" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ONE TAG, BOTH IMAGES, ALWAYS. ADR-0004 put the fold in two implementations — Java on the
+      # server, TypeScript in the browser — pinned together by shared golden fixtures because drift
+      # between them is SILENT. Separate tags would let production run fold N in the browser and N-1
+      # on the server. Publishing both under the commit SHA, and deploying both from one compose
+      # variable, makes skew require deliberately writing two different values.
+      - name: back-end
+        uses: docker/build-push-action@v6
+        with:
+          context: task-back-end
+          push: true
+          build-args: JAVA_VERSION=${{ steps.toolchain.outputs.java }}
+          tags: ghcr.io/stainii/task-back-end:${{ github.event.workflow_run.head_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: front-end
+        uses: docker/build-push-action@v6
+        with:
+          context: task-front-end
+          push: true
+          build-args: NODE_VERSION=${{ steps.toolchain.outputs.node }}
+          tags: ghcr.io/stainii/task-front-end:${{ github.event.workflow_run.head_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Say what was published
+        run: |
+          {
+            echo "Published \`${{ github.event.workflow_run.head_sha }}\`:"
+            echo ""
+            echo "- \`ghcr.io/stainii/task-back-end\`"
+            echo "- \`ghcr.io/stainii/task-front-end\`"
+            echo ""
+            echo "The box picks this up at 02:30 (deploy/systemd/task-deploy.timer)."
+          } >> "$GITHUB_STEP_SUMMARY"

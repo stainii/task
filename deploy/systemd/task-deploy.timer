@@ -1,0 +1,19 @@
+[Unit]
+Description=task: nightly deploy (ADR-0007)
+Documentation=https://github.com/stainii/task/blob/main/docs/operating-manual.md
+
+[Timer]
+# At night, because a PWA that swaps out mid-use is worse than one that swaps overnight.
+#
+# The old "clear of 04:00" constraint is GONE, and deliberately so: it existed only because the due
+# check was a single daily firing that a container restart could eat. ADR-0016 replaced that with an
+# hourly state comparison, so a restart landing on a tick loses nothing — the next tick re-derives
+# the same state.
+OnCalendar=*-*-* 02:30:00
+# The box is not always awake. Without this, a night it was off is a night that is simply skipped —
+# including its backup.
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

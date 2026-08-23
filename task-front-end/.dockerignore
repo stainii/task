@@ -1,0 +1,11 @@
+# Everything the image build must not inherit from a developer's working copy. node_modules in
+# particular: `npm ci` installs it inside the image for the image's own platform, and copying a
+# macOS tree over it produces a build that fails in ways that look like Angular's fault.
+node_modules
+dist
+.angular
+playwright-report
+test-results
+e2e
+prototypes
+*.iml

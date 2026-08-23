@@ -1,0 +1,172 @@
+# The production stack (#24, ADR-0007 / ADR-0008 / ADR-0010).
+#
+# Committed, because the box gets it by `git pull` — and holding no secrets, because this repo is
+# public by choice (#31). Every value that matters arrives from the gitignored production.env beside
+# it on the box, at mode 600. task-back-end/compose.yaml stays the dev fixture; this file is the
+# only description of what actually runs.
+#
+# NOTHING PUBLISHES A HOST PORT EXCEPT KEYCLOAK'S LAN ADMIN (ADR-0010). There is no port-forwarding
+# on this network, so a published port is reachable from the house and nowhere else, and an
+# unpublished one is reachable from nothing but this compose network. Postgres deliberately gets
+# none: `docker exec` covers debugging and ADR-0008's laptop pull goes over SSH.
+
+name: task
+
+services:
+  postgres:
+    # Pinned, and pinned in agreement with the dev fixture and the test suite — ProductionComposeTest
+    # fails the build if this tag and task-back-end/compose.yaml's ever drift. ADR-0007's decision to
+    # run no staging environment rests on those two being the same database.
+    image: postgres:18.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Read by the init script below, which runs only on an empty data directory.
+      KEYCLOAK_DB: ${KEYCLOAK_DB}
+    volumes:
+      # /var/lib/postgresql, NOT /var/lib/postgresql/data. From 18 the image stores the cluster in a
+      # major-version-specific subdirectory so that `pg_upgrade --link` can work across a single
+      # mount; a volume at the old path makes the container refuse to start outright. Found by
+      # bringing this file up rather than by reading it — the dev fixture has no volume at all, so
+      # nothing else in this repo would ever have met it.
+      - postgres-data:/var/lib/postgresql
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # The deploy hangs off this: nothing migrates against a database that is not accepting
+      # connections yet.
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  keycloak:
+    # ADR-0008: Keycloak's realm lives in a database inside this same Postgres instance, not in a
+    # file store inside the container. That is what makes the backup one artifact — a single
+    # pg_dumpall covers tasks, patch history, the realm and its users — and it is what stops
+    # "losing the realm locks you out of your own data" from being a scheduled event.
+    image: quay.io/keycloak/keycloak:26.7.0
+    # ADR-0010 asked for `start --optimized`. It is `start`, and the difference is deliberate:
+    # --optimized refuses to apply build-time options at run time, and KC_DB is a build-time option,
+    # so an optimized start needs an image built with `kc.sh build --db=postgres` — a THIRD image,
+    # on a tag of its own, no longer the same pinned Keycloak the dev fixture and the test suite
+    # run. That pin is what ADR-0007's "no staging" argument rests on, and it is worth more than the
+    # ~15 seconds `start` spends re-running the build on boot. What ADR-0010 actually ruled out was
+    # start-dev, which disables the very checks the flags below rely on; that ruling stands.
+    command: start
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB}
+      KC_DB_USERNAME: ${POSTGRES_USER}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # Each of the next three half-works rather than fails if it is wrong, which is worse
+      # (ADR-0010).
+      #
+      # hostname pinned: otherwise Keycloak derives its URLs from the request, and a login through
+      # the LAN address mints tokens whose `iss` the back-end rejects.
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+      # hostname-admin as the LAN URL, or the admin console's own links point at the public host.
+      KC_HOSTNAME_ADMIN: ${KEYCLOAK_HOSTNAME_ADMIN}
+      # TLS terminates at Cloudflare, so Keycloak only ever sees plain HTTP. Without this it either
+      # refuses the login or emits http:// redirects.
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: 'true'
+      KC_HEALTH_ENABLED: 'true'
+      # Keycloak 26 deprecated KEYCLOAK_ADMIN/KEYCLOAK_ADMIN_PASSWORD: setting those names does
+      # nothing at all and yields a Keycloak with no admin account — discovered on the first deploy,
+      # on the box, with no admin console to fix it from. These are the names that work, and they
+      # only take effect on an empty database.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD}
+    ports:
+      # The one published port in this file. /admin/** is never routed through the tunnel, so
+      # administering Keycloak means being on the local network — a conscious inconvenience
+      # (ADR-0010), and the reason a future advisory in Keycloak's admin REST API is unreachable
+      # before it is read.
+      - '${KEYCLOAK_ADMIN_PORT}:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  back-end:
+    # Both images carry the same tag, always. ADR-0004 put the fold in two implementations — Java
+    # here, TypeScript in the browser — pinned together by shared golden fixtures because drift
+    # between them is silent. One variable is what makes skew require deliberately writing two
+    # different values. deploy/deploy.sh derives it from the commit it just pulled.
+    image: ghcr.io/stainii/task-back-end:${TASK_VERSION}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      # ADR-0007's one value that must never be baked into an image — the single thing that would
+      # have to change if this stack ever moved to a different host.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: ${KEYCLOAK_ISSUER_URI}
+      # And where to fetch the signing keys, which is NOT derived from the issuer here — the one
+      # place this stack deliberately configures two things that have to agree.
+      #
+      # Left alone, Spring performs OIDC discovery against the issuer URI, which is the public
+      # https:// address. From inside this network that means leaving the box, crossing Cloudflare
+      # and coming back in through the tunnel to reach a container three hops away — and it makes
+      # the back-end's ability to validate ANY token depend on the tunnel being up, at 02:30, when
+      # the whole stack is starting at once and cloudflared may not have connected yet. Found in a
+      # local run of this file: the decoder failed to build and every authenticated request was 401
+      # while the app looked perfectly healthy.
+      #
+      # The keys come over the Docker network instead. The `iss` claim is still validated against
+      # KEYCLOAK_ISSUER_URI above, so a token minted by anything else is still rejected; the two
+      # values disagreeing fails loudly (every request 401), never silently.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI}
+      # ADR-0012's application server identity. Losing this pair invalidates every existing push
+      # subscription, which is the concrete artifact behind ADR-0008's "restore config, not just
+      # data". The application refuses to start without them, deliberately.
+      PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY}
+      PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY}
+      PUSH_VAPID_SUBJECT: ${PUSH_VAPID_SUBJECT}
+      LOG_DIR: /logs
+    volumes:
+      - back-end-logs:/logs
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:8080/actuator/health']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      # Flyway runs at startup (ADR-0007) and a cold JVM is not instant; without this the container
+      # is marked unhealthy while it is merely still starting.
+      start_period: 90s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  front-end:
+    image: ghcr.io/stainii/task-front-end:${TASK_VERSION}
+    # nginx resolves back-end and keycloak once, at start. depends_on is what stops it exiting on
+    # "host not found in upstream" during a cold boot.
+    depends_on:
+      - back-end
+      - keycloak
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/index.html']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  cloudflared:
+    # The tunnel dials out; nothing dials in. This container is why there is no inbound port, no
+    # certificate on the box to renew, and no way for a scanner sweeping IP ranges to find any of
+    # this. Its credential lives in production.env, so ADR-0008's archive contains everything needed
+    # to put a rebuilt box back on the internet.
+    image: cloudflare/cloudflared:2026.8.2
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - front-end
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  back-end-logs:

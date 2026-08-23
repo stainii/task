@@ -1,0 +1,18 @@
+[Unit]
+Description=task: back up, pull, deploy (ADR-0007, one unit and in this order)
+Documentation=https://github.com/stainii/task/blob/main/docs/operating-manual.md
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=stijn
+WorkingDirectory=/home/stijn/task
+ExecStart=/home/stijn/task/deploy/deploy.sh
+# The verification restore starts a throwaway Postgres and waits for it; the deploy then waits for
+# the back-end's healthcheck. Neither is fast, and a timeout that fires mid-restore would leave a
+# half-loaded scratch container behind for no reason.
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

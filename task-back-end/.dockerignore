@@ -1,0 +1,7 @@
+# target/ is a developer's previous build. The image builds its own jar, and copying a stale one in
+# is how an image ships code that is not the commit it is tagged with.
+target
+logs
+http-requests
+compose
+compose.yaml
