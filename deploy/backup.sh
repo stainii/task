@@ -70,6 +70,13 @@ dump() {
     user="$(env_value POSTGRES_USER)"
     [ -n "$user" ] || die "POSTGRES_USER is not set in $ENV_FILE"
 
+    # A stack that is not running is not a backup that failed; it is a machine in a state nobody
+    # meant it to be in. Saying which one it is here saves reading a compose error at breakfast.
+    compose ps --status running --services 2>/dev/null | grep -qx postgres \
+        || die "the postgres container is not running, so there is nothing to dump. Bring the stack
+     up first (docker compose --file deploy/compose.yaml --env-file deploy/production.env up -d).
+     On a box being rebuilt from nothing, see docs/operating-manual.md."
+
     say "dump: pg_dumpall as '$user'"
     # No pipefail escape hatch: if pg_dumpall fails, the gzip of its partial output must not be
     # mistaken for a backup.
@@ -170,17 +177,14 @@ package() {
 # been the first secret ever to live on the deploy path.
 upload() {
     local archive="$1"
-    if ! command -v rclone >/dev/null; then
-        die "rclone is not installed, so the off-box copy cannot be made"
-    fi
     say "upload: $RCLONE_REMOTE"
-    rclone copy "$archive" "$RCLONE_REMOTE" || die "the upload failed; the local copy is kept"
+    rclone_upload "$archive" || die "the upload failed; the local copy is kept"
 }
 
 prune() {
     say "prune: $LOCAL_KEEP_DAYS days here, $CLOUD_KEEP_DAYS in the cloud"
     find "$ARCHIVE_DIR" -maxdepth 1 -name 'task-backup-*.zip' -mtime "+$LOCAL_KEEP_DAYS" -delete
-    rclone delete --min-age "${CLOUD_KEEP_DAYS}d" "$RCLONE_REMOTE" || true
+    rclone_prune || true
 }
 
 main "$@"

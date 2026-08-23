@@ -21,6 +21,43 @@ LOG_FILE="$ARCHIVE_DIR/backup.log"
 LOCAL_KEEP_DAYS=7
 CLOUD_KEEP_DAYS=30
 RCLONE_REMOTE="${TASK_RCLONE_REMOTE:-google-drive:task-backups}"
+# rclone is not installed as a binary on the box — it runs as a container, configured by a file the
+# machine already had, holding the Google Drive remote that ADR-0008's off-box copy uses. So this
+# needs no new account and no new credential: the thing that would otherwise have been the first
+# secret ever to live on the deploy path.
+RCLONE_CONFIG="${TASK_RCLONE_CONFIG:-$HOME/rclone/config/rclone.conf}"
+
+# Prefers a real rclone when there is one (the laptop, during ADR-0008's drill) and falls back to
+# the container. `latest` rather than a pin, matching the machine's existing rclone compose file:
+# nothing here is reproducible-build material, and a broken upload tool fails loudly.
+#
+# The container sees $ARCHIVE_DIR as /data, which is why uploading is its own function rather than
+# a bare `rclone copy` at the call site — the path differs between the two ways of running it, and
+# that is exactly the kind of detail that works on the laptop and fails at 02:30.
+rclone_upload() {
+    local archive="$1"
+    if command -v rclone >/dev/null 2>&1; then
+        rclone --config "$RCLONE_CONFIG" copy "$archive" "$RCLONE_REMOTE"
+    else
+        rclone_container copy "/data/$(basename "$archive")" "$RCLONE_REMOTE"
+    fi
+}
+
+rclone_prune() {
+    if command -v rclone >/dev/null 2>&1; then
+        rclone --config "$RCLONE_CONFIG" delete --min-age "${CLOUD_KEEP_DAYS}d" "$RCLONE_REMOTE"
+    else
+        rclone_container delete --min-age "${CLOUD_KEEP_DAYS}d" "$RCLONE_REMOTE"
+    fi
+}
+
+rclone_container() {
+    [ -f "$RCLONE_CONFIG" ] || die "no rclone binary and no config at $RCLONE_CONFIG"
+    docker run --rm \
+        --volume "$RCLONE_CONFIG:/config/rclone/rclone.conf:ro" \
+        --volume "$ARCHIVE_DIR:/data" \
+        rclone/rclone:latest "$@"
+}
 
 say() {
     printf '%s  %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
