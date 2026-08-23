@@ -25,9 +25,29 @@ import java.util.UUID;
 /// exactly where it matters most.
 public interface TaskImport {
 
-    /// Truncates tasks and their patches, because ADR-0005 requires the importer to be re-runnable
-    /// and idempotent — **truncate and rebuild, never append**, so a dry run is free.
-    void deleteAllTasks();
+    /// Truncates tasks and their patches **and advances the sync epoch with them**, in one
+    /// transaction.
+    ///
+    /// The truncate is what ADR-0005 asks for: the importer is re-runnable and idempotent —
+    /// **truncate and rebuild, never append** — so a dry run is free. The epoch is what
+    /// [#72](https://github.com/stainii/task/issues/72) added, and it is not a second concern
+    /// bolted on: restarting `task_patch_sequence` at 1 *is* starting a new lineage of history, the
+    /// same condition `restore.sh` bumps the epoch for (ADR-0008, step four). A device that synced
+    /// before the import holds a cursor ahead of the server, and without the bump it concludes it
+    /// is up to date permanently while the server reissues its numbers to different patches.
+    ///
+    /// **The bump is the first act rather than the last, and in the truncate's own transaction.**
+    /// The load that follows is thousands of transactions and can fail halfway; bumping afterwards
+    /// would leave every partial import — and every crash — sitting in a new lineage under the old
+    /// epoch, which is the silent failure itself. Bumping first can only ever cost a resync nobody
+    /// needed.
+    ///
+    /// The name says *lineage* rather than *delete* on purpose. This is the step
+    /// [#72](https://github.com/stainii/task/issues/72) found missing precisely because it was
+    /// invisible, and a caller reading `deleteAllTasks()` has no reason to think about cursors.
+    ///
+    /// @return the epoch the server is now on, so the import report can print it
+    long startNewLineage();
 
     /// Folds one portal task into existence from its translated patches.
     ///

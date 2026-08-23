@@ -74,7 +74,10 @@ public class PortalImporter {
 
         reconcilePrefixes(deploymentNames, deployments, tasks, flowIds, report);
 
-        taskImport.deleteAllTasks();
+        // Both truncates come before anything is written, and the first of them advances the sync
+        // epoch in its own transaction (#72). Reported rather than merely done: the step exists
+        // because it was invisible, so the number it produced is on the report's face.
+        report.count("sync epoch after the import", taskImport.startNewLineage());
         taskTemplateImport.deleteAllTemplates();
 
         var importanceByDeployment = todo.importanceByDeployment();

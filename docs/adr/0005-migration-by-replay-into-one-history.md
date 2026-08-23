@@ -591,3 +591,47 @@ open** against 12,455 completed, 13 of them overdue — the number
 [#39](https://github.com/stainii/task/issues/39) needs, or the dogfooding copy looks empty and reads
 as a bug. The cutover bar is written above and is [#17](https://github.com/stainii/task/issues/17)'s
 to apply.
+
+## Amendments
+
+### The import is an epoch-advancing operation
+
+[#72](https://github.com/stainii/task/issues/72). This ADR made the importer **re-runnable and
+idempotent** — *truncate and rebuild, never append* — and treated that as a property of the
+importer's own convenience: a dry run is free. It is also, unremarked until now, a **rewind of
+`sequence`**, and therefore the same operation
+[ADR-0004](0004-one-write-verb-two-clocks-offline-sync.md)'s epoch amendment (added via
+[ADR-0007](0007-the-box-pulls-nightly-behind-a-dump.md)) was written for.
+
+`TRUNCATE task_patch, task CASCADE` followed by `ALTER SEQUENCE task_patch_sequence RESTART WITH 1`
+**is** a new lineage of history, by ADR-0004's own definition. `V5__sync_epoch.sql` seeds the epoch
+at 1 and nothing on the import path moved it, so ADR-0004's promise — *N means the same patch
+forever within one epoch* — was broken silently by the one path that reissues every N. That is
+identical to the hazard `deploy/restore.sh` exists as a script rather than a runbook to prevent, and
+the reason it went unnoticed for so long is the same one: **the step is invisible and has no
+immediate symptom.** The app comes up, the tasks are there, and a device that synced beforehand
+concludes it is up to date permanently.
+
+**The importer therefore advances the epoch itself.** `TaskImport#startNewLineage` — the method that
+used to be called `deleteAllTasks` — truncates, restarts the counter and bumps `sync_epoch` in **one
+transaction**.
+
+Two things about the shape are load-bearing:
+
+- **It is the import's first act, not its last.** The load that follows is thousands of separate
+  transactions and can fail halfway, or the process can be killed. A bump at the end would leave
+  every partial import sitting in a new lineage under the old epoch, which is the silent failure
+  itself. Bumping first can only ever cost a resync nobody needed, and clients hard-reset cheaply.
+- **The name says lineage rather than delete.** A caller reading `deleteAllTasks()` has no reason to
+  think about cursors, and this defect *is* the invisibility of the step.
+
+The boundary test is `ImportEpochIntegrationTest`, in CI. It is deliberately **not** part of
+`PortalArchiveImportIntegrationTest`, which is skipped wherever the archive is not restored — that
+is, everywhere except one machine. The epoch step needs no corpus, and the assertion standing
+between a partial import and permanent silent divergence should not be one only the author's laptop
+ever runs.
+
+**Not discharged by the dogfooding route.** [#39](https://github.com/stainii/task/issues/39) settled
+that its round trip goes local scratch import → `pg_dumpall` → `restore.sh live`, which gets a bump
+for free from `restore.sh`. This makes the fix belt-and-braces *for that path* and load-bearing for
+any direct run of the importer — which is what this ADR's own cutover wording describes.

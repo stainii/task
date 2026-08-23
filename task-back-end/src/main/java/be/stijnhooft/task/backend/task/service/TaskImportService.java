@@ -4,6 +4,7 @@ import be.stijnhooft.task.backend.task.TaskImport;
 import be.stijnhooft.task.backend.task.domain.Task;
 import be.stijnhooft.task.backend.task.domain.TaskPatch;
 import be.stijnhooft.task.backend.task.exception.IncompleteTaskHistoryException;
+import be.stijnhooft.task.backend.task.repository.SyncEpoch;
 import be.stijnhooft.task.backend.task.repository.TaskPatchSequence;
 import be.stijnhooft.task.backend.task.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,15 +33,22 @@ public class TaskImportService implements TaskImport {
 
     private final TaskRepository taskRepository;
     private final TaskPatchSequence taskPatchSequence;
+    private final SyncEpoch syncEpoch;
     private final JdbcClient jdbcClient;
 
     /// Truncate, not delete-all-through-the-repository: the point is a free dry run, and cascading
     /// 38,000 patch rows one aggregate at a time turns a re-run into a coffee break.
+    ///
+    /// The three statements are one transaction because they are one fact: **from the moment this
+    /// commits, sequence 41 no longer means what the phone in the author's pocket thinks it means**.
+    /// Emptying the tables, rewinding the counter and naming the new lineage cannot become visible
+    /// at different times without opening the window ADR-0004's epoch was written to close.
     @Override
     @Transactional
-    public void deleteAllTasks() {
+    public long startNewLineage() {
         jdbcClient.sql("TRUNCATE TABLE task_patch, task CASCADE").update();
         jdbcClient.sql("ALTER SEQUENCE task_patch_sequence RESTART WITH 1").update();
+        return syncEpoch.bump();
     }
 
     @Override

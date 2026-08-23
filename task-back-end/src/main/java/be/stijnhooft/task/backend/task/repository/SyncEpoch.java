@@ -28,6 +28,28 @@ public class SyncEpoch {
         return cached == UNREAD ? refresh() : cached;
     }
 
+    /// Starts a new lineage of history, and is only ever called **in the same transaction as the
+    /// thing that rewound the sequence** — never after it. Between two separate commits the server
+    /// hands out numbers it has already issued while the epoch still promises they are unique, which
+    /// is exactly the silent divergence ADR-0004's epoch exists to prevent.
+    ///
+    /// `restore.sh` does the same `UPDATE` from outside the application (ADR-0008, step four); this
+    /// is the in-process path, for [the importer](be.stijnhooft.task.backend.task.TaskImport), whose
+    /// truncate-and-reload is the other operation that starts a lineage
+    /// ([#72](https://github.com/stainii/task/issues/72)).
+    ///
+    /// The cache is written before the transaction commits, so a rollback leaves this process
+    /// believing the epoch is one higher than it is. That is the harmless direction: a too-high
+    /// epoch answers clients with a resync they did not need, while a too-low one is the permanent
+    /// silence. The next [#refresh] — one per client connection — corrects it either way.
+    public long bump() {
+        var epoch = jdbcClient.sql("UPDATE sync_epoch SET epoch = epoch + 1 WHERE id = 1 RETURNING epoch")
+                .query(Long.class)
+                .single();
+        current = epoch;
+        return epoch;
+    }
+
     public long refresh() {
         var epoch = jdbcClient.sql("SELECT epoch FROM sync_epoch WHERE id = 1")
                 .query(Long.class)

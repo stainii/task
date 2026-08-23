@@ -266,6 +266,10 @@ Two things that are easy to get wrong under pressure:
 - **Restoring rewinds `sequence`**, which the sync contract as written cannot survive. That is what
   the **epoch** is for — ADR-0007 amended ADR-0004 to add it. Clients hard-reset rather than silently
   losing the patches in the gap. If you restore, expect every device to refetch, and let it.
+  Restoring is not the only operation that rewinds `sequence`: **the portal importer truncates and
+  reloads**, which is the same thing. It bumps the epoch itself, in the truncate's own transaction
+  ([#72](https://github.com/stainii/task/issues/72)), so there is no invisible step to remember on
+  that path — but expect the same refetch on every device after an import.
 - **Config is part of the restore, not just data.** The VAPID keypair in particular: losing it
   invalidates every existing push subscription. The re-subscribe-on-open rule is what makes that
   survivable rather than a manual repair.

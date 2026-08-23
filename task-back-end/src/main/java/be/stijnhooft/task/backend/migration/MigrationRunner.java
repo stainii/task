@@ -48,7 +48,9 @@ public class MigrationRunner implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        log.warn("Running the one-shot portal import. This TRUNCATES tasks, patches and templates.");
+        log.warn("Running the one-shot portal import. This TRUNCATES tasks, patches and templates, "
+                + "and advances the sync epoch with them (#72) - every device that has synced will "
+                + "resync from scratch, which is the intended and only safe outcome.");
 
         var deployments = new ArrayList<RecurringTasksReader>();
         for (var deployment : properties.deployments()) {
