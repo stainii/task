@@ -53,8 +53,14 @@ rclone_prune() {
 
 rclone_container() {
     [ -f "$RCLONE_CONFIG" ] || die "no rclone binary and no config at $RCLONE_CONFIG"
+    # The DIRECTORY is mounted, not the file, and writable. rclone refreshes the Drive OAuth token
+    # and saves it back by renaming the old config aside — which cannot be done to a bind-mounted
+    # file, so every run printed "Failed to save config after 10 tries: device or resource busy"
+    # and silently kept a token it could not persist. Uploads still worked, which is exactly what
+    # made it easy to ignore: it would have failed for real only once the stored token stopped
+    # being accepted, months later, on a night nobody was watching.
     docker run --rm \
-        --volume "$RCLONE_CONFIG:/config/rclone/rclone.conf:ro" \
+        --volume "$(dirname "$RCLONE_CONFIG"):/config/rclone" \
         --volume "$ARCHIVE_DIR:/data" \
         rclone/rclone:latest "$@"
 }
@@ -85,8 +91,29 @@ env_value() {
     sed -n "s/^${key}=//p" "$ENV_FILE" | tail -n 1
 }
 
+# Every compose invocation carries the image tag, because two of them bring containers up and a
+# blank TASK_VERSION resolves to `ghcr.io/stainii/task-back-end:` — an error at best, and at worst
+# whatever a registry decides an empty tag means. Callers may set TASK_VERSION themselves (deploy.sh
+# does, so it can log the version it resolved before pulling); otherwise it is derived here.
 compose() {
-    docker compose --file "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+    TASK_VERSION="${TASK_VERSION:-$(target_version)}" \
+        docker compose --file "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+}
+
+# Normally the tag is the commit the box has checked out, so it runs the code it pulled and both
+# images necessarily match — ADR-0004's fold lives in Java and in TypeScript, and drift between them
+# is silent, which is why one variable feeds both services.
+#
+# Setting TASK_VERSION in production.env PINS it, and that is what a rollback is: write the previous
+# commit's SHA there and the nightly deploy stops advancing the stack until it is removed again.
+target_version() {
+    local pinned
+    pinned="$(env_value TASK_VERSION)"
+    if [ -n "$pinned" ]; then
+        printf '%s\n' "$pinned"
+    else
+        git -C "$REPO_DIR" rev-parse HEAD
+    fi
 }
 
 # Compose derives volume names from the project name, which this stack fixes with `name:` rather

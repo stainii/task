@@ -46,6 +46,9 @@ main() {
 
     local version
     version="$(target_version)"
+    if [ -n "$(env_value TASK_VERSION)" ]; then
+        say "deploy: PINNED to $version by production.env — the nightly deploy is not advancing."
+    fi
     say "deploy: version $version"
 
     say "deploy: pulling images"
@@ -61,23 +64,6 @@ main() {
 
     report_health
     say "deploy: done"
-}
-
-# Normally the tag is the commit that was just pulled, so the box runs the code it checked out and
-# both images necessarily match (ADR-0004's fold lives in Java and TypeScript; drift between them is
-# silent, which is why one variable feeds both services).
-#
-# Setting TASK_VERSION in production.env PINS it, and that is what a rollback is: write the previous
-# commit's SHA in there and the nightly deploy stops moving the stack until it is removed.
-target_version() {
-    local pinned
-    pinned="$(env_value TASK_VERSION)"
-    if [ -n "$pinned" ]; then
-        say "deploy: PINNED to $pinned by production.env — the nightly deploy is not advancing."
-        printf '%s\n' "$pinned"
-    else
-        git -C "$REPO_DIR" rev-parse HEAD
-    fi
 }
 
 # ADR-0009 gave "did the deploy actually happen" to the app itself — a pull-based deploy has no
