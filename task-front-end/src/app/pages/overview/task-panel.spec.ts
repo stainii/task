@@ -20,11 +20,17 @@ const NOW_AT = new Date('2026-08-14T10:00:00Z');
 
 @Component({
   imports: [TaskPanel],
-  template: `<app-task-panel [task]="task()" [today]="today" (acted)="acted = $event" />`,
+  template: `<app-task-panel
+    [task]="task()"
+    [today]="today"
+    [showContext]="showContext()"
+    (acted)="acted = $event"
+  />`,
 })
 class Host {
   readonly task = signal<Task>(aTask());
   readonly today = TODAY;
+  readonly showContext = signal(true);
   acted: PanelAction | null = null;
 }
 
@@ -107,6 +113,30 @@ describe('the collapsed row', () => {
     await show(aTask({ importance: 'IMPORTANT', dueDate: addDays(TODAY, 2) }));
 
     expect(element().querySelector('.panel')?.getAttribute('data-bucket')).toBe('focus');
+  });
+
+  it('marks the rows that have something behind the caret', async () => {
+    await show(aTask({ description: 'Ring the plumber first.' }));
+
+    expect(text('.notes')).toBe('notes');
+  });
+
+  it.each([[null], [''], ['   ']])(
+    'stays silent about notes when the description is %o',
+    async (description) => {
+      await show(aTask({ description }));
+
+      expect(element().querySelector('.notes')).toBeNull();
+    },
+  );
+
+  it('drops the context chip where every row would carry the same one', async () => {
+    await show(aTask({ name: 'Descale the coffee machine', context: 'house' }));
+    fixture.componentInstance.showContext.set(false);
+    await fixture.whenStable();
+
+    expect(element().querySelector('.context')).toBeNull();
+    expect(text('.name')).toBe('Descale the coffee machine');
   });
 
   it('keeps the verbs behind the expansion', async () => {
@@ -258,6 +288,18 @@ describe('the description', () => {
     await show(aTask({ description: null }));
     await expand();
 
+    expect(text('.description')).toBe('No description.');
+  });
+
+  it('says the same for a description that is only whitespace', async () => {
+    // The row and the body are two views of one fact. This is the input where they can disagree:
+    // a blank paragraph here, under a row that has already said there are no notes, would be the
+    // panel answering *is there anything in this* twice, differently, one click apart.
+    await show(aTask({ description: '   ' }));
+
+    expect(element().querySelector('.notes')).toBeNull();
+
+    await expand();
     expect(text('.description')).toBe('No description.');
   });
 });

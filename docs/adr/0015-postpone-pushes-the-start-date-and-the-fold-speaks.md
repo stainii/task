@@ -8,7 +8,8 @@ Accepted. Resolves [#38](https://github.com/stainii/task/issues/38).
 
 Amends [ADR-0006](0006-one-overview-grouped-by-a-swappable-axis.md) in three places: the bands are
 **start-date** bands, the always-visible rule scopes to tasks that have **started**, and the grid is
-capped at three columns.
+capped at three columns — **two since
+[ADR-0021](0021-the-name-wraps-and-the-grid-caps-at-two-columns.md)**.
 
 Amends [ADR-0014](0014-two-destinations-and-you-capture-by-typing.md) in two: the omnibox's third
 option creates immediately, and the appbar gains an offline/queued indicator.
@@ -109,6 +110,13 @@ almost every task name — *"Vacuum the l…"*, *"Replace the kitch…"* — whi
 ADR-0006 rejected always-visible action buttons in order to avoid. One column phone, two tablet,
 three desktop.
 
+> **Superseded by [ADR-0021](0021-the-name-wraps-and-the-grid-caps-at-two-columns.md): the cap is
+> now two.** Everything below is still the reasoning that produced a cap — width goes into the
+> columns, not into more of them — but the number was measured against a row that **truncates**, and
+> #73's row wraps instead. Three columns at 1120px leave a panel around 330px, where a wrapping name
+> is regularly two lines; two leave about 520px, where it is rarely any. The empty-cell paragraph
+> below holds unchanged: a cap of five over two columns leaves one empty cell, and it stays empty.
+
 > **Note added by [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md).** The cap itself is
 > untouched — it was measured on **task names** at five columns, and has nothing to do with buttons.
 > Only the cross-reference moved: ADR-0006's button rejection now rests on swipe coverage rather
@@ -175,7 +183,9 @@ space saving; it is the thing that stops the screen showing more work than you c
 
 Proposed as the answer to ADR-0006's desktop-efficiency requirement and **rejected by the author**:
 pointer-only is fine, and desktop efficiency means **using the screen space better than portal did**,
-which is what the three-column grid delivers. A keyboard model is a second interaction model to
+which is what the three-column grid delivers — **two columns since
+[ADR-0021](0021-the-name-wraps-and-the-grid-caps-at-two-columns.md), which does not disturb this
+rejection: the reason survives the number.** A keyboard model is a second interaction model to
 maintain forever, for a single-user app that is primarily a phone in a hand.
 
 ## Consequences

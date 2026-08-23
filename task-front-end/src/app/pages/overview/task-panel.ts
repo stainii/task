@@ -74,6 +74,16 @@ export class TaskPanel {
   /** Passed in rather than read, so a whole screenful is banded and worded against one date. */
   readonly today = input.required<IsoDate>();
 
+  /**
+   * Whether to show the context chip.
+   *
+   * Off inside a context (`/in/:value`), where every row on screen carries the same chip: about
+   * 60px of constant that the name can have instead. The panel is told rather than reading the
+   * route, so it stays the axis-agnostic thing ADR-0006 asks for — it does not know that the
+   * grouping axis is context, only that its caller has already said this one.
+   */
+  readonly showContext = input(true);
+
   /** A patch this panel made, with the words the undo toast needs. */
   readonly acted = output<PanelAction>();
 
@@ -94,9 +104,29 @@ export class TaskPanel {
    * Said out loud when there is none, rather than left blank: an empty body reads as *this panel is
    * broken*, where the fact is *there is nothing more to say about this task*.
    */
-  protected readonly description = computed(() =>
-    linkify(this.task().description ?? 'No description.'),
-  );
+  protected readonly description = computed(() => linkify(this.written() ?? 'No description.'));
+
+  /**
+   * The description, or `null` where there is nothing written.
+   *
+   * **One predicate, read by both the row and the body**, because they are two views of the same
+   * fact and a description of `'   '` is exactly where they would otherwise disagree: the row would
+   * fall silent while the body rendered a blank paragraph instead of saying *No description.* —
+   * two answers to *is there anything here*, one screen apart.
+   */
+  private readonly written = computed(() => {
+    const description = this.task().description?.trim();
+    return description === undefined || description === '' ? null : description;
+  });
+
+  /**
+   * Whether there is anything behind the caret.
+   *
+   * A fact, so a word rather than a glyph (ADR-0019). The collapsed row cannot say this today:
+   * {@link description} falls back to *No description.*, so every panel looks equally worth
+   * opening and the only way to find the ones with anything in them is to open all of them.
+   */
+  protected readonly hasDescription = computed(() => this.written() !== null);
 
   protected readonly rightFill = computed(() => Math.max(0, this.travel()));
   protected readonly leftFill = computed(() => Math.max(0, -this.travel()));

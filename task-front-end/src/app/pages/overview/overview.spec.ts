@@ -113,7 +113,7 @@ describe('the bands', () => {
       aTask({ name: 'sleeping', startDate: addDays(TODAY, 10) }),
     ]);
 
-    expect(band('Due today').querySelectorAll('app-task-panel')).toHaveLength(5);
+    expect(band("Today's work").querySelectorAll('app-task-panel')).toHaveLength(5);
     // Folded means *not rendered*, not rendered dead. Portal greyed six tasks out behind a
     // `disabled` class, so the commonest act after clearing the top five was a click that revealed
     // what was already on screen.
@@ -125,6 +125,8 @@ describe('the bands', () => {
   it('retitles the band when the cap is exceeded, so it is visible why', async () => {
     await render(Array.from({ length: 8 }, () => aTask({ dueDate: TODAY })));
 
+    // `Due today` survives here and nowhere else: when the cap is exceeded every row in the band
+    // really is due, so the heading is the one place it can say so and be true.
     const title = band('Due today').querySelector('.band-title')?.textContent ?? '';
     expect(title).toContain('all 8');
     expect(title).toContain('the cap does not apply');
@@ -134,7 +136,7 @@ describe('the bands', () => {
   it('leaves the title alone when the cap is not exceeded', async () => {
     await render(Array.from({ length: 3 }, () => aTask({ dueDate: TODAY })));
 
-    expect(band('Due today').querySelector('.band-title')?.textContent).not.toContain('the cap');
+    expect(band("Today's work").querySelector('.band-title')?.textContent).not.toContain('the cap');
   });
 
   it('does not claim work is due today when none of it is', async () => {
@@ -143,6 +145,19 @@ describe('the bands', () => {
     await render(Array.from({ length: 3 }, () => aTask({ dueDate: addDays(TODAY, 20) })));
 
     expect(texts('.band-title')).toEqual(['Next up']);
+  });
+
+  it('does not claim work is due today over the rows topping the band up either', async () => {
+    // One task due, four borrowed from `Also…` to reach the cap. `Due today` is true of exactly
+    // one of the five rows beneath it, which is the same objection as the test above — it just
+    // survives having a due task on screen.
+    await render(
+      Array.from({ length: 6 }, (_, index) =>
+        aTask({ name: `soon ${index}`, dueDate: addDays(TODAY, index) }),
+      ),
+    );
+
+    expect(texts('.band-title')).toEqual(["Today's work", 'Also…']);
   });
 
   it('opens a folded band, and remembers that it is open', async () => {
@@ -159,10 +174,23 @@ describe('the bands', () => {
     expect(band('Also…').querySelector('.foldbar')).toBeNull();
   });
 
+  it('draws a chevron on a folded band, so the dashed border is not the only thing saying open me', async () => {
+    await render(
+      Array.from({ length: 8 }, (_, index) =>
+        aTask({ name: `soon ${index}`, dueDate: addDays(TODAY, index + 1) }),
+      ),
+    );
+
+    const chevron = band('Also…').querySelector('.foldbar .chevron');
+    expect(chevron?.textContent?.trim()).toBe('▾');
+    // Drawn, so the screen reader is not told about a shape (ADR-0019).
+    expect(chevron?.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('hides a band that has nothing behind the door', async () => {
     await render([aTask({ dueDate: TODAY })]);
 
-    expect(texts('.band-title')).toEqual(['Due today']);
+    expect(texts('.band-title')).toEqual(["Today's work"]);
   });
 
   it('says so when there is nothing at all, in FE-006’s own words', async () => {
@@ -273,6 +301,29 @@ describe('entering a context', () => {
     // meaning one line apart would be the card's own count contradicted on the screen it opened.
     expect(element().querySelector('.scope')?.textContent).toContain('house — 2 open');
     expect(element().querySelector('.scope a')?.getAttribute('href')).toBe('/');
+  });
+
+  it('drops the context chip from every row, since they would all carry the same one', async () => {
+    await render(
+      [
+        aTask({ name: 'house one', context: 'house', dueDate: TODAY }),
+        aTask({ name: 'house two', context: 'house', dueDate: TODAY }),
+      ],
+      'house',
+    );
+
+    // The chip on the rows only. The card row above is over everything the device holds, so its
+    // own contexts stay named.
+    expect(texts('app-task-panel .context')).toEqual([]);
+  });
+
+  it('keeps the context chip on the rows at `/`, where it is the one thing telling them apart', async () => {
+    await render([
+      aTask({ context: 'house', dueDate: TODAY }),
+      aTask({ context: 'health', dueDate: TODAY }),
+    ]);
+
+    expect(texts('app-task-panel .context').sort()).toEqual(['health', 'house']);
   });
 
   it('says nothing about scope at `/`, where there is none', async () => {

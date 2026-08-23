@@ -27,8 +27,14 @@
     <span class="meta">
       <!-- The axis the list is grouped by, shown on the row (ADR-0006). Context today, and the
            bands below know nothing about which axis that is. -->
-      <span class="context">{{ task().context }}</span>
+      @if (showContext()) {
+        <span class="context">{{ task().context }}</span>
+      }
       <span class="due" [class]="'tone-' + tone()">{{ due() }}</span>
+      <!-- A fact, so a word (ADR-0019) — and the one thing the collapsed row could never say. -->
+      @if (hasDescription()) {
+        <span class="notes">notes</span>
+      }
       <span class="caret" aria-hidden="true">{{ open() ? '▴' : '▾' }}</span>
     </span>
   </button>
