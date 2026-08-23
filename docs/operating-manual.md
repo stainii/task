@@ -419,6 +419,13 @@ is the script refusing correctly, but on cutover night it reads as a broken rest
 Then throw away the scratch container (`docker rm --force task-restore-scratch`), the portal
 throwaways, and `/tmp/dogfood`.
 
+**Expect a burst of catch-up tasks.** The `migration` profile switches the due check off, so the
+imported dump contains none — but the moment the stack comes up the check runs against 47 migrated
+templates and creates a task for every occurrence that fell due while nothing was running. The first
+refresh produced 26, dated across the preceding three months. That is the scheduler working, and it
+happens again on every refresh; it is not the import writing extra rows, so **compare the import
+report against the scratch cluster, not against the box.**
+
 **Expect every device to refetch**, twice over: the import moved the epoch and so did the restore.
 That is the mechanism working, and rehearsing it is half the reason this runs before cutover rather
 than during it.
