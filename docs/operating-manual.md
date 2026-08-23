@@ -124,11 +124,29 @@ followed by `403` on every screen is this, essentially every time.
 **The admin console is at http://192.168.0.116:8082**, and Keycloak is told that address explicitly
 (`KEYCLOAK_HOSTNAME_ADMIN`) so the console's own links do not point at the public host.
 
-**If the console says "Timeout when waiting for 3rd party check iframe message"**, it is not broken:
-that iframe is loaded from the *public* hostname (`KEYCLOAK_HOSTNAME`), so the error means
-`https://task.stijnhooft.be` is not reaching this stack — a tunnel or DNS problem, diagnosed from the
-admin console by accident. Check what answers it: `curl -sI https://task.stijnhooft.be | grep -i server`
-should name our nginx, not portal's.
+**The master realm has a `frontendUrl` of `http://192.168.0.116:8082`**, set by hand, and it is not
+cosmetic. Without it the console is *served* from the LAN address while being *told* its auth server
+is `https://task.stijnhooft.be`, so its cookie-check iframe is genuinely third-party — and every
+browser now blocks that by default. The symptom is `Timeout when waiting for 3rd party check iframe
+message` and a console you cannot use.
+
+Setting it makes the admin console wholly LAN: same origin, no third-party cookie, and — the part
+worth having — **it keeps working when the tunnel is down**, which is exactly when you are most
+likely to need it.
+
+```bash
+kcadm update realms/master -s 'attributes.frontendUrl=http://192.168.0.116:8082'
+```
+
+`stijnhooft-realm` is untouched by this and keeps issuing tokens under the public hostname; that is
+the whole point of doing it per realm. If you ever see that iframe error again, check both: the
+master realm's `frontendUrl`, and whether `https://task.stijnhooft.be` still reaches this stack
+(`curl -sI https://task.stijnhooft.be` should name our nginx, not portal's).
+
+**Two `kcadm` rendering traps**, both of which make a setting look absent when it is not:
+`--fields attributes` prints `{ }` for nested maps, and changing master's `frontendUrl` invalidates
+the session token you are holding, so the very next command answers `401`. Log in again and use the
+unfiltered `get`.
 
 **How the live realm was built** (2026-08-23, by [#24](https://github.com/stainii/task/issues/24)) —
 with `kcadm` inside the container, so the bootstrap password came from the container's own
