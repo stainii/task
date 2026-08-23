@@ -170,6 +170,15 @@ package() {
     say "package: zipping"
     ( cd "$staging" && zip --quiet --junk-paths "$archive" dump.sql.gz compose.yaml production.env )
     unzip -qq -t "$archive" || die "the archive does not test clean"
+
+    # An archive that tests clean can still be missing a member — `zip` skipping an unreadable file
+    # is exactly how the script this replaced produced 611 MB of backups containing no database at
+    # all (ADR-0008). rebuild.sh needs all three, so all three are asserted here, nightly.
+    local name
+    for name in dump.sql.gz compose.yaml production.env; do
+        unzip -l "$archive" "$name" 2>/dev/null | grep -q "$name" \
+            || die "$name did not make it into the archive"
+    done
 }
 
 # ADR-0008's second copy: the one that survives the box dying. rclone was already configured on this

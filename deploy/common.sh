@@ -148,3 +148,51 @@ wait_for_postgres() {
         sleep 1
     done
 }
+
+# THE PRECONDITIONS, checked on every deploy rather than discovered during a disaster.
+#
+# Each of these is something that would otherwise be found at the worst moment: a variable that went
+# missing is found when compose substitutes an empty string into a running stack; an absent rclone
+# configuration is found at 02:30 on the night after a rebuild; a timer that was never enabled is
+# found by noticing, weeks later, that nothing has deployed. They cost milliseconds and they run
+# nightly, which is the only reason any of them can be trusted.
+
+# production.example.env is the checklist — ProductionComposeTest already fails the build if the
+# compose file reads a variable the example does not document, so "documented" and "needed" are the
+# same set by construction.
+check_env_complete() {
+    local example="$DEPLOY_DIR/production.example.env"
+    [ -f "$example" ] || die "$example is missing; there is nothing to check production.env against"
+
+    local missing=()
+    local key
+    while read -r key; do
+        # TASK_VERSION is the pin, and being unset is its normal state (deploy.sh derives the tag).
+        [ "$key" = "TASK_VERSION" ] && continue
+        [ -n "$(env_value "$key")" ] || missing+=("$key")
+    done < <(grep -oE '^[A-Z0-9_]+=' "$example" | tr -d '=')
+
+    [ ${#missing[@]} -eq 0 ] || die "production.env is missing values for: ${missing[*]}
+     Compose substitutes an unset variable with an empty string rather than refusing, so this would
+     surface as a stack that comes up wrong rather than one that does not come up."
+}
+
+# The off-box copy is the one that survives the box dying, and after a rebuild it is the piece most
+# likely to be quietly absent — it is deliberately not in the archive (it unlocks the whole Drive,
+# including the archive itself), so it comes back only if someone puts it back.
+check_backup_destination() {
+    command -v rclone >/dev/null 2>&1 && return 0
+    [ -f "$RCLONE_CONFIG" ] && return 0
+    die "no rclone configuration at $RCLONE_CONFIG, so tonight's archive could not leave this box.
+     Restore it from the laptop's server_backup_<date>.zip (home/stijn/rclone/config/rclone.conf).
+     Refusing to deploy: an off-box copy is what ADR-0008's second row is for."
+}
+
+# Not fatal. If this is running at all, something triggered it — but a hand-run deploy on a box whose
+# timer was never enabled looks exactly like a healthy system, for weeks.
+check_timer_installed() {
+    systemctl is-enabled task-deploy.timer >/dev/null 2>&1 && return 0
+    say "WARNING: the deploy timer is not enabled, so nothing runs this at night. Fix with:"
+    say "           sudo systemctl link $DEPLOY_DIR/systemd/task-deploy.service"
+    say "           sudo systemctl enable --now $DEPLOY_DIR/systemd/task-deploy.timer"
+}

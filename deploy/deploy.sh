@@ -36,6 +36,15 @@ main() {
     require_env_file
     say "deploy: starting"
 
+    # Before anything is touched: the standing preconditions. Checking them here is what turns
+    # "found during a disaster" into "found the next morning" — and the first two are fatal on
+    # purpose, because a running stack that is about to be recreated with a blank variable, or a
+    # backup that cannot leave the box, is worse than a night with no deploy.
+    check_env_complete
+    check_backup_destination
+    check_timer_installed
+    compose config --quiet || die "deploy/compose.yaml does not parse with this production.env"
+
     # ADR-0007: better to skip a night than to migrate unbacked. A broken backup therefore blocks
     # deploys, which is the correct priority — and a silent stall unless someone reads the log, which
     # is what ADR-0008's recurring "check the backup" task is for.

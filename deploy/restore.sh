@@ -135,8 +135,16 @@ EOF
     compose stop back-end front-end keycloak postgres
     compose rm --force --stop postgres >/dev/null
 
-    say "restore: discarding the old cluster ($volume)"
-    docker volume rm "$volume" >/dev/null || die "could not remove $volume; something still has it open"
+    # Absence is not failure here: on a rebuilt machine there is no old cluster to discard, and that
+    # is the whole case rebuild.sh exists for. Only a volume that EXISTS and will not go is a problem
+    # — that means something still has it open, and loading a dump underneath it would half-work.
+    if docker volume inspect "$volume" >/dev/null 2>&1; then
+        say "restore: discarding the old cluster ($volume)"
+        docker volume rm "$volume" >/dev/null \
+            || die "could not remove $volume; something still has it open"
+    else
+        say "restore: no existing cluster to discard"
+    fi
     # Let compose create the empty volume, so it carries compose's own labels. Loading into a volume
     # that `docker run` created works, but compose then warns at every subsequent `up` that the
     # volume is not its own — a permanent piece of alarming noise from a restore that went fine.

@@ -323,24 +323,50 @@ back, and the epoch moved.
 
 ### Rebuilding the box from nothing
 
-Bare machine to running app. Budget an evening; nothing here is fast, and nothing is lost.
+```bash
+deploy/rebuild.sh <archive.zip>
+```
 
-1. **Install Docker** and `git`, `zip`, `unzip`.
-2. **Get the archive.** From Google Drive (the copy that survives the box dying), or from
-   `~/server_backup_<date>.zip` on the laptop. You need one `task-backup-<stamp>.zip`.
-3. **Clone this repo** to `/home/stijn/task`. It holds the *how*: the compose file, the scripts, the
-   systemd units. The archive holds the *what*: the dump and `production.env`.
-4. **Put `production.env` back** from inside the archive, at `deploy/production.env`, mode `600`. It
-   carries the database password, the VAPID pair — losing which invalidates every push subscription —
-   and the **tunnel credential**, which is the thing that actually puts the app back on the internet.
-   There is no certificate to reissue; Cloudflare terminates TLS.
-5. **Restore**: `deploy/restore.sh live <archive>`. This creates the cluster, both databases, the
-   Keycloak realm and its users, and bumps the epoch. Expect every device to refetch.
-6. **Install the timer** (see *Deploy and rollback*).
+That is the whole of it, once a machine has Docker and this repo. It checks what is present, restores
+`production.env` out of the archive, restores the data, the Keycloak realm and the epoch, links the
+timer, waits for the application, and then **tells you what it could not do**.
 
-The Keycloak realm comes back with the dump, because ADR-0008 put it in the same Postgres instance.
-How it was built in the first place is under *Keycloak in production* above — needed only if you are
-ever recreating it from nothing rather than restoring it.
+**What is automated, and what needs hands:**
+
+| | Automated? |
+|---|---|
+| Docker, `git`, `zip`, `unzip` on a bare machine | no — root, network, and a distribution's opinions. `rebuild.sh` refuses and names what is missing |
+| getting an archive | no, by nature: you have no box, so its rclone credential is gone with it. Download it from Drive in a browser, or take it from `~/server_backup_<date>.zip` on the laptop |
+| `git clone` of this repo | yes — public repo, no credential |
+| `production.env` — DB password, VAPID pair, **tunnel token** | **yes**, out of the archive, at mode 600. Nothing to reissue: there is no certificate, and the tunnel token is what puts the app back on the internet |
+| data, Keycloak realm, users, epoch bump | **yes** — one `pg_dumpall`, one restore |
+| the deploy timer | yes if `sudo` is passwordless, otherwise it prints the two commands |
+| **the rclone credential for future backups** | **no, deliberately** — see below |
+
+**The rclone configuration is not in the archive, on purpose.** It is an OAuth credential for the
+whole of Google Drive, and putting it inside the Drive it unlocks would mean anyone holding one
+backup holds the account. It comes back from the laptop's weekly zip
+(`home/stijn/rclone/config/rclone.conf`). Both `rebuild.sh` and the nightly deploy say so out loud
+when it is absent — because a rebuilt box otherwise runs perfectly and simply stops having backups,
+which is this system's favourite shape of failure.
+
+**Drilled 2026-08-23, on the laptop**: from an archive, with no `production.env` on the machine and no
+cluster to discard, to a healthy back-end answering `/api/config` — and the drill found the bug that
+only a bare machine can find, `restore.sh` treating a missing volume as an error.
+
+### What the deploy checks every night
+
+Preconditions are asserted on every run, so a gap is found the next morning rather than during a
+disaster. Two are fatal before anything is touched — a stack about to be recreated with a blank
+variable, or an archive that cannot leave the box, is worse than a night with no deploy:
+
+| Check | If it fails |
+|---|---|
+| every variable in `production.example.env` has a value | **refuses to deploy** |
+| an rclone binary or config exists | **refuses to deploy** |
+| `deploy/compose.yaml` parses with this `production.env` | **refuses to deploy** |
+| the deploy timer is enabled | warns, with the fix |
+| the archive contains all three of its members | **fails the backup**, which stops the deploy |
 
 ---
 
