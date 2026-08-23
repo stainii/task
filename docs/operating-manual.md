@@ -124,55 +124,26 @@ followed by `403` on every screen is this, essentially every time.
 **The admin console is at http://192.168.0.116:8082**, and Keycloak is told that address explicitly
 (`KEYCLOAK_HOSTNAME_ADMIN`) so the console's own links do not point at the public host.
 
-**The master realm has a `frontendUrl` of `http://192.168.0.116:8082`**, set by hand, and it is not
-cosmetic. Without it the console is *served* from the LAN address while being *told* its auth server
-is `https://task.stijnhooft.be`, so its cookie-check iframe is genuinely third-party — and every
-browser now blocks that by default. The symptom is `Timeout when waiting for 3rd party check iframe
-message` and a console you cannot use.
+**"Timeout when waiting for 3rd party check iframe message" is the console's normal complaint here,
+and it is survivable.** The console is *served* from the LAN address while being *told* its auth
+server is `https://task.stijnhooft.be` (`authServerUrl`), so its cookie-check iframe is genuinely
+third-party — which browsers now block by default. A **hard reload** (⇧⌘R) gets you in; the stale
+value is cached in the page's own JavaScript.
 
-Setting it makes the admin console wholly LAN: same origin, no third-party cookie, and — the part
-worth having — **it keeps working when the tunnel is down**, which is exactly when you are most
-likely to need it.
+> **Do not "fix" this by setting the master realm's `frontendUrl` to the LAN address.** It was tried
+> on 2026-08-23, on the reasoning that it would make the console single-origin and keep it working
+> while the tunnel is down. It made the console *worse* — usable before, unusable after — and was
+> reverted the same hour. The attribute is now unset, and that is the working state. Recorded here
+> because the reasoning is appealing and would otherwise be re-derived by the next person, who would
+> be me.
 
-```bash
-kcadm update realms/master -s 'attributes.frontendUrl=http://192.168.0.116:8082'
-```
+If the iframe error persists through a hard reload, the thing actually worth checking is whether
+`https://task.stijnhooft.be` still reaches this stack — `curl -sI https://task.stijnhooft.be` should
+name our nginx, not portal's. That is how a tunnel or DNS problem shows up first: in the admin
+console, by accident.
 
-`stijnhooft-realm` is untouched by this and keeps issuing tokens under the public hostname; that is
-the whole point of doing it per realm. If you ever see that iframe error again, check both: the
-master realm's `frontendUrl`, and whether `https://task.stijnhooft.be` still reaches this stack
-(`curl -sI https://task.stijnhooft.be` should name our nginx, not portal's).
-
-**Two `kcadm` rendering traps**, both of which make a setting look absent when it is not:
-`--fields attributes` prints `{ }` for nested maps, and changing master's `frontendUrl` invalidates
-the session token you are holding, so the very next command answers `401`. Log in again and use the
-unfiltered `get`.
-
-**How the live realm was built** (2026-08-23, by [#24](https://github.com/stainii/task/issues/24)) —
-with `kcadm` inside the container, so the bootstrap password came from the container's own
-environment and never appeared in a command line or a log:
-
-```bash
-docker exec -i task-keycloak-1 bash -s <<'INNER'
-kc=/opt/keycloak/bin/kcadm.sh
-$kc config credentials --server http://localhost:8080 --realm master \
-   --user "$KC_BOOTSTRAP_ADMIN_USERNAME" --password "$KC_BOOTSTRAP_ADMIN_PASSWORD"
-$kc create realms -s realm=stijnhooft-realm -s enabled=true -s bruteForceProtected=true \
-   -s ssoSessionIdleTimeout=2592000 -s ssoSessionMaxLifespan=2592000 \
-   -s accessTokenLifespan=300 -s revokeRefreshToken=false -s sslRequired=external
-$kc create roles -r stijnhooft-realm -s name=task-user
-$kc create clients -r stijnhooft-realm -s clientId=task -s publicClient=true \
-   -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
-   -s 'redirectUris=["https://task.stijnhooft.be/*"]' -s 'webOrigins=[]' \
-   -s rootUrl=https://task.stijnhooft.be
-id=$($kc get clients -r stijnhooft-realm -q clientId=task --fields id --format csv --noquotes)
-$kc update "clients/$id" -r stijnhooft-realm -s 'attributes."pkce.code.challenge.method"=S256'
-INNER
-```
-
-**The PKCE line is separate for a reason**: passing `attributes={...}` to `create clients` is accepted
-and silently dropped. Setting it afterwards works, and `kcadm get ... --fields attributes` renders it
-as `{ }` either way — check with the full `get`, not the filtered one.
+**One `kcadm` rendering trap** that makes a setting look absent when it is not: `--fields attributes`
+prints nested maps as `{ }`. Use the unfiltered `get` to check what a realm or client really carries.
 
 **Users are not created here.** A user, and its password, is made in the console. Whoever makes one
 must also grant it `task-user`, or it logs in perfectly and gets `403` on every screen.
