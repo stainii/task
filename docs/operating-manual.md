@@ -406,6 +406,11 @@ scp task-dogfood-<stamp>.zip stijn@192.168.0.116:/home/stijn/task-backups/
 ssh -t stijn@192.168.0.116 'cd /home/stijn/task && deploy/restore.sh live /home/stijn/task-backups/task-dogfood-<stamp>.zip'
 ```
 
+**It pulls before it stops anything**, and refuses if the images for the box's checked-out commit are
+not published yet — a restore run in the window between a push and its CI build would otherwise end
+with the data back and the application gone. If you hit that, wait for CI or name a commit that has
+images: `TASK_VERSION=<sha> deploy/restore.sh live <archive>`.
+
 **`-t`, or the confirmation is invisible.** `restore.sh live` asks you to type the archive's date
 stamp back; without a TTY, `read -p` prints no prompt, the run looks like it hung, and the Enter you
 eventually press is read as an empty answer — `not confirmed; nothing was touched`. Harmless, and it

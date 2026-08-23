@@ -135,9 +135,35 @@ EOF
     # restore after that fails with `role "restorer" already exists` — the stack down and the
     # cluster empty, on the second restore rather than the first. Found by #39 on the dogfood
     # round trip, which is the same operation cutover performs and would have hit on the night.
-    # A fresh name cannot collide, and the role is dropped below so nothing accumulates.
+    # A fresh name cannot collide, which is the whole fix. It cannot be CLEANED UP, though, and
+    # that was tried: the bootstrap superuser owns template0 and template1 and is referenced from
+    # pg_database, so Postgres answers "required by the database system" and always will. Every
+    # restore therefore leaves one dead role behind, captured by the next archive. That is fine
+    # precisely because the names are unique - they accumulate, they never collide - and a
+    # cleanup that failed on every single run would be worse than the residue it chased.
     local volume
     volume="$(project_name)_postgres-data"
+
+    # PRECONDITION, checked while the stack is still up and losing nothing.
+    #
+    # This script ends with `compose up -d`, and the tag it brings up is target_version() - the
+    # commit the box has CHECKED OUT, not the one it is currently running. Pull a commit whose
+    # images CI has not published yet, restore, and the last line is `manifest unknown` with the
+    # stack down: the data is fine and the application is gone. It happened on #39's first
+    # successful restore, one minute after a push.
+    #
+    # Pulling first turns that into a refusal that costs nothing - the same guard deploy.sh has
+    # carried since it was written, and the same mechanism, because `docker manifest inspect` takes
+    # minutes against GHCR and a precondition that hangs at 21:00 is worse than the bug it catches.
+    # Pulling before the stop also takes the download out of the downtime.
+    local version
+    version="${TASK_VERSION:-$(target_version)}"
+    say "restore: pulling the images the stack will come back on ($version)"
+    TASK_VERSION="$version" compose pull --quiet back-end front-end \
+        || die "no published images for $version (CI still running, or main is red). NOTHING HAS
+     BEEN TOUCHED - the stack is still up and still serving. Wait for CI, or name a commit that has
+     images:
+       TASK_VERSION=<sha> deploy/restore.sh live $source_file"
 
     say "restore: stopping the stack"
     compose stop back-end front-end keycloak postgres
@@ -185,16 +211,6 @@ EOF
     # up" for a second or two after the container exists, and the epoch bump is not a step to have
     # fail on a race.
     compose up -d --wait postgres
-
-    # Take the bootstrap role and its database back out, or this restore's scaffolding is in
-    # tomorrow's archive and every future one. Not fatal: the data is already back, and refusing
-    # here over leftover scaffolding would be the wrong trade at the point of a real recovery.
-    say "restore: removing the bootstrap role $bootstrap"
-    compose exec -T postgres psql --username "$user" --dbname "$database" --quiet \
-        --command "DROP DATABASE IF EXISTS \"$bootstrap\"" \
-        --command "DROP ROLE IF EXISTS \"$bootstrap\"" \
-        || say "WARNING: $bootstrap could not be dropped. Harmless today; drop it by hand so it
-     does not travel into the archives."
 
     # STEP FOUR. Everything above is visible; this is the one that is not.
     say "restore: bumping the epoch"
