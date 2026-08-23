@@ -314,6 +314,114 @@ is weak on purpose — there is no real data on the box until [#17](https://gith
 The data half was drilled on the laptop the same day, against a task written through the API: it came
 back, and the epoch moved.
 
+### Putting a fresh copy of portal's data on the box
+
+This is the **dogfood refresh** ([#39](https://github.com/stainii/task/issues/39)), and it is also
+the **first half of cutover** ([#17](https://github.com/stainii/task/issues/17)) — the same commands,
+run for real. Doing it several times before it matters once is the point: the procedure cutover
+depends on is a procedure that has already run.
+
+**The importer never runs on the box.** `MigrationRunner` is gated on the `migration` profile, which
+truncates tasks, patches and templates, and the one thing that must be impossible is it running there
+because a property defaulted somewhere. So the import happens on the laptop, against a **scratch
+cluster restored from the box's own archive** — seeded rather than empty, so Keycloak's realm, the
+users and the `task-user` role survive the round trip — and only the finished dump goes back.
+
+Everything below is on the laptop, from a clone of this repo, except the last step.
+
+**1. A fresh portal dump set.** The corpus at `~/portal-archive/2026-08-04/` is frozen evidence and
+predates the box's shutdown; portal has kept running, so take a new set beside it. Per database, and
+note the Mongo password is read *inside* the container rather than typed:
+
+```bash
+ssh stijn@192.168.0.116 'docker exec $(docker ps -q -f name=portal_portal-setlist-db | head -1) pg_dumpall -U portal-setlist > /tmp/portal-setlist-db.sql'
+ssh stijn@192.168.0.116 'docker exec $(docker ps -q -f name=portal_portal-todo-db | head -1) sh -c "mongodump -u \$MONGO_INITDB_ROOT_USERNAME -p \$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --db todo --archive=/tmp/todo.gz --gzip"'
+```
+
+Four Postgres databases (`portal-housagotchi`, `portal-setlist`, `portal-health`,
+`portal-social-recurring-tasks`, each user-named after its database) and the `todo` Mongo. `scp` them
+down into `~/portal-archive/<date>/`, `gzip` the SQL, `chmod 600`, and delete the copies left in
+`/tmp` on the box and in the Mongo container. **The dump set stays outside this repository** (#31):
+it is the data, and the data is the secret.
+
+**2. Throwaway portal containers**, at the ports `application-migration.yml` already defaults to:
+
+```bash
+docker run -d --name portal-pg -e POSTGRES_PASSWORD=portal -p 55432:5432 postgres:12
+docker run -d --name portal-mongo -p 57017:27017 mongo:4.2.1
+```
+
+Load each `*.sql.gz` with `psql -U postgres`, and the Mongo archive with
+`mongorestore --archive --gzip --drop`. One `ERROR: role "postgres" already exists` per SQL dump is
+expected and harmless.
+
+**3. A scratch task cluster from the box's newest archive.** `restore.sh scratch` reads
+`POSTGRES_DB` out of an env file, and the archive carries the right one:
+
+```bash
+scp stijn@192.168.0.116:/home/stijn/task-backups/task-backup-<stamp>.zip .
+unzip -j task-backup-<stamp>.zip production.env -d /tmp/dogfood && chmod 600 /tmp/dogfood/production.env
+TASK_ENV_FILE=/tmp/dogfood/production.env deploy/restore.sh scratch task-backup-<stamp>.zip
+```
+
+It prints the port it published and the throwaway superuser password. Keep both.
+
+**4. The import, pointed at that scratch cluster.** `spring-boot-docker-compose` would otherwise
+start the dev stack and import into *that*, which is the mistake this step is written to prevent:
+
+```bash
+SPRING_DOCKER_COMPOSE_ENABLED=false \
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:<scratch-port>/<POSTGRES_DB from production.env> \
+SPRING_DATASOURCE_USERNAME=<POSTGRES_USER> SPRING_DATASOURCE_PASSWORD=<POSTGRES_PASSWORD> \
+PORTAL_MONGO_URI=mongodb://localhost:57017 PORTAL_REPORT_DIR=$HOME/portal-archive/<date>/reports \
+task-back-end/mvnw -f task-back-end spring-boot:run -Dspring-boot.run.profiles=migration
+```
+
+`PORTAL_REPORT_DIR` matters more than it looks: it defaults to the **2026-08-04** directory, so
+without it every refresh drops its report into the frozen corpus that must outlive cutover. The
+run also does not end on its own — the importer is an `ApplicationRunner`, so Tomcat keeps serving
+after it finishes. `Report written to …` is the last line; Ctrl-C there.
+
+**Ignore Maven's verdict here.** With devtools on the classpath, `spring-boot:run` prints
+`BUILD SUCCESS` even when the application context failed to start and the importer never ran — a
+mistyped port gets you a stack trace followed by a green build. The proof that this step happened is
+the report file and the row counts, never the exit code.
+
+Read the report it writes to `~/portal-archive/<date>/reports/` before going any further — a
+stored-versus-folded diff is the only thing that says the copy is faithful. The run also bumps
+`sync_epoch` in the truncate's own transaction ([#72](https://github.com/stainii/task/issues/72)).
+
+**5. Rebuild the archive around the imported cluster**, keeping the three entries `restore.sh`
+expects and the date stamp in the name it makes you type back:
+
+```bash
+docker exec task-restore-scratch pg_dumpall -U postgres | gzip -c > dump.sql.gz
+zip -j task-dogfood-<stamp>.zip dump.sql.gz deploy/compose.yaml /tmp/dogfood/production.env
+```
+
+**6. Load it on the box.** This is the destructive one, and the only step that runs there:
+
+```bash
+scp task-dogfood-<stamp>.zip stijn@192.168.0.116:/home/stijn/task-backups/
+ssh -t stijn@192.168.0.116 'cd /home/stijn/task && deploy/restore.sh live /home/stijn/task-backups/task-dogfood-<stamp>.zip'
+```
+
+**`-t`, or the confirmation is invisible.** `restore.sh live` asks you to type the archive's date
+stamp back; without a TTY, `read -p` prints no prompt, the run looks like it hung, and the Enter you
+eventually press is read as an empty answer — `not confirmed; nothing was touched`. Harmless, and it
+is the script refusing correctly, but on cutover night it reads as a broken restore.
+
+Then throw away the scratch container (`docker rm --force task-restore-scratch`), the portal
+throwaways, and `/tmp/dogfood`.
+
+**Expect every device to refetch**, twice over: the import moved the epoch and so did the restore.
+That is the mechanism working, and rehearsing it is half the reason this runs before cutover rather
+than during it.
+
+**A dogfooded copy is write-throwaway.** Anything typed into the app between two refreshes is lost by
+the next one, and that is deliberate — promoting a dogfood database to the real system would invent a
+two-way sync problem neither ADR-0004 nor ADR-0005 solves.
+
 ### Rebuilding the box from nothing
 
 ```bash

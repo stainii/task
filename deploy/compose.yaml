@@ -148,7 +148,12 @@ services:
       - back-end
       - keycloak
     healthcheck:
-      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost/index.html']
+      # 127.0.0.1, not localhost. nginx listens on IPv4 only, busybox wget resolves localhost to
+      # ::1 first, and the check therefore failed forever while the site served perfectly - 133
+      # consecutive failures by the time #39 noticed. Nothing gates on this container's health
+      # (deploy.sh watches the back-end), so it lied for free, which is this system's favourite
+      # shape of failure.
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://127.0.0.1/index.html']
       interval: 15s
       timeout: 5s
       retries: 5

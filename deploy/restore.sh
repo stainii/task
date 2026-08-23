@@ -128,6 +128,14 @@ EOF
     # that appears nowhere in the dump, which then creates every role and both databases with no
     # conflict at all. It is also the same path a rebuilt box takes, which is the path ADR-0008's
     # drill actually tests.
+    #
+    # THE NAME IS GENERATED PER RUN, and that is not decoration. It used to be the literal
+    # `restorer`, which satisfied "appears nowhere in the dump" exactly once: initdb leaves the
+    # bootstrap role behind in the restored cluster, the next pg_dumpall captures it, and the
+    # restore after that fails with `role "restorer" already exists` — the stack down and the
+    # cluster empty, on the second restore rather than the first. Found by #39 on the dogfood
+    # round trip, which is the same operation cutover performs and would have hit on the night.
+    # A fresh name cannot collide, and the role is dropped below so nothing accumulates.
     local volume
     volume="$(project_name)_postgres-data"
 
@@ -152,17 +160,18 @@ EOF
 
     say "restore: loading the dump into a fresh cluster"
     local loader=task-restore-loader
+    local bootstrap="restorer_$RANDOM$RANDOM"
     docker rm --force "$loader" >/dev/null 2>&1 || true
     docker run --detach --name "$loader" \
-        --env POSTGRES_USER=restorer \
+        --env POSTGRES_USER="$bootstrap" \
         --env POSTGRES_PASSWORD="restore-$RANDOM$RANDOM" \
         --volume "$volume:/var/lib/postgresql" \
         "$(postgres_image)" >/dev/null
 
-    wait_for_postgres "$loader" restorer
+    wait_for_postgres "$loader" "$bootstrap"
 
     gunzip --stdout "$dump_file" \
-        | docker exec --interactive "$loader" psql --username restorer --quiet \
+        | docker exec --interactive "$loader" psql --username "$bootstrap" --quiet \
               --set ON_ERROR_STOP=1 --dbname postgres >/dev/null \
         || { docker rm --force "$loader" >/dev/null; die "the dump did not load. The stack is down and the
      cluster is empty — nothing has been lost that the archive does not still hold. Fix the cause
@@ -176,6 +185,16 @@ EOF
     # up" for a second or two after the container exists, and the epoch bump is not a step to have
     # fail on a race.
     compose up -d --wait postgres
+
+    # Take the bootstrap role and its database back out, or this restore's scaffolding is in
+    # tomorrow's archive and every future one. Not fatal: the data is already back, and refusing
+    # here over leftover scaffolding would be the wrong trade at the point of a real recovery.
+    say "restore: removing the bootstrap role $bootstrap"
+    compose exec -T postgres psql --username "$user" --dbname "$database" --quiet \
+        --command "DROP DATABASE IF EXISTS \"$bootstrap\"" \
+        --command "DROP ROLE IF EXISTS \"$bootstrap\"" \
+        || say "WARNING: $bootstrap could not be dropped. Harmless today; drop it by hand so it
+     does not travel into the archives."
 
     # STEP FOUR. Everything above is visible; this is the one that is not.
     say "restore: bumping the epoch"
