@@ -47,38 +47,48 @@
   </p>
 }
 
-<ul class="templates">
-  @for (row of rows(); track row.template.id) {
-    <li class="template" [class.inactive]="!row.template.active">
-      <!--
-        The name is a link to authoring, and the ✓ is a button beside it. Two targets rather than a
-        row that means one thing and hides the other: the ✓ is the daily job (ADR-0014) and editing
-        is the thing you do twice a year.
-      -->
-      <a class="name" [routerLink]="['/templates', row.template.id]">{{ row.template.name }}</a>
+<!-- Context grouping (#76, #80's Variant A): plain headers, always expanded, no count/icon. -->
+@if (groups().length === 0) {
+  <p class="nothing">No templates yet.</p>
+}
 
-      <!--
-        Two lines that answer two questions, and a row that is currently asking gets both. *62 days
-        overdue* is what this template wants from you now; *last 798 days ago · 7 Jun '24* is how
-        long it has wanted it — which on the rows that matter most is the more damning of the two.
-      -->
-      @if (row.openTask !== null) {
-        <p class="state">{{ due(row.openTask) }}</p>
+@for (group of groups(); track group.context) {
+  <section class="context-group">
+    <h3 class="context-header">{{ group.context || 'No context' }}</h3>
+
+    <ul class="templates">
+      @for (row of group.rows; track row.template.id) {
+        <li class="template" [class.inactive]="!row.template.active">
+          <!--
+            The name is a link to authoring, and the ✓ is a button beside it. Two targets rather
+            than a row that means one thing and hides the other: the ✓ is the daily job
+            (ADR-0014) and editing is the thing you do twice a year.
+          -->
+          <a class="name" [routerLink]="['/templates', row.template.id]">{{ row.template.name }}</a>
+
+          <!--
+            Two lines that answer two questions, and a row that is currently asking gets both. *62
+            days overdue* is what this template wants from you now; *last 798 days ago · 7 Jun '24*
+            is how long it has wanted it — which on the rows that matter most is the more damning
+            of the two.
+          -->
+          @if (row.openTask !== null) {
+            <p class="state">{{ due(row.openTask) }}</p>
+          }
+          <p class="last">{{ lastDone(row) }}</p>
+
+          <app-glyph-button
+            class="did-it"
+            verb="complete"
+            tone="good"
+            label="I already did this"
+            (click)="didIt(row)"
+          />
+        </li>
       }
-      <p class="last">{{ lastDone(row) }}</p>
-
-      <app-glyph-button
-        class="did-it"
-        verb="complete"
-        tone="good"
-        label="I already did this"
-        (click)="didIt(row)"
-      />
-    </li>
-  } @empty {
-    <li class="nothing">No templates yet.</li>
-  }
-</ul>
+    </ul>
+  </section>
+}
 
 <!--
   Which definition was done. ADR-0011: the affordance picks **a task, not a template** — conjuring

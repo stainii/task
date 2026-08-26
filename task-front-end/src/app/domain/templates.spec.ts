@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { aTask } from './task.mother';
 import { aDefinition, aTemplate } from './template.mother';
 import {
+  groupedTemplateRows,
   lastCompletionOf,
   openTaskOf,
   templateOffers,
@@ -285,5 +286,67 @@ describe('whether a template row matches a search', () => {
     };
 
     expect(templateRowMatches(row, 'garden')).toBe(true);
+  });
+});
+
+/**
+ * The templates list's own grouping (#76, settled by #80's prototype: Variant A). A **presentation
+ * layer over rows the caller already built** — it never re-derives `openTask`/`lastCompletedOn` and
+ * never re-filters, so it composes with search and "show deactivated" for free: group whatever rows
+ * you hand it.
+ *
+ * Context is the outer grouping and it drops ADR-0014's due/quiet split from ordering entirely —
+ * that is `templateRows`' own concern for the omnibox, not this page's.
+ */
+describe('the templates list grouped by context', () => {
+  function rowFor(context: string, name: string) {
+    return {
+      template: aTemplate({ context, name }),
+      openTask: null,
+      lastCompletedOn: null,
+    };
+  }
+
+  it('groups rows under their template’s context', () => {
+    const rows = [rowFor('garden', 'Grass'), rowFor('house', 'Windows'), rowFor('garden', 'Hedge')];
+
+    const groups = groupedTemplateRows(rows);
+
+    expect(groups.map((group) => group.context)).toEqual(['garden', 'house']);
+    expect(groups[0].rows.map((row) => row.template.name)).toEqual(['Grass', 'Hedge']);
+    expect(groups[1].rows.map((row) => row.template.name)).toEqual(['Windows']);
+  });
+
+  it('sorts groups alphabetically by context', () => {
+    const rows = [rowFor('zoo', 'Feed'), rowFor('attic', 'Declutter'), rowFor('house', 'Vacuum')];
+
+    expect(groupedTemplateRows(rows).map((group) => group.context)).toEqual([
+      'attic',
+      'house',
+      'zoo',
+    ]);
+  });
+
+  it('sorts each group alphabetically by template name, dropping the due/quiet split', () => {
+    const rows = [rowFor('house', 'Windows'), rowFor('house', 'Boiler'), rowFor('house', 'Attic')];
+
+    expect(groupedTemplateRows(rows)[0].rows.map((row) => row.template.name)).toEqual([
+      'Attic',
+      'Boiler',
+      'Windows',
+    ]);
+  });
+
+  it('groups an empty/uncategorized context on its own, under the empty string', () => {
+    const rows = [rowFor('', 'Mystery chore'), rowFor('house', 'Windows')];
+
+    const groups = groupedTemplateRows(rows);
+
+    expect(groups.map((group) => group.context)).toEqual(['', 'house']);
+    expect(groups[0].rows.map((row) => row.template.name)).toEqual(['Mystery chore']);
+  });
+
+  it('is empty when there are no rows to group', () => {
+    expect(groupedTemplateRows([])).toEqual([]);
   });
 });

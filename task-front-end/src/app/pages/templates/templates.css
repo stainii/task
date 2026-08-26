@@ -85,6 +85,21 @@ h2 {
   list-style: none;
 }
 
+/* Context grouping (#76, #80's Variant A) — plain headers, always expanded, no count/icon. */
+.context-group {
+  margin: 0 8px;
+}
+
+.context-header {
+  margin: 0;
+  padding: 10px 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /*
  * Name and ✓ on the first line, the two date facts under the name. The ✓ spans both rows so it is a
  * single 40px target however the words wrap — the row is tapped while holding something else.

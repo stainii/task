@@ -140,6 +140,47 @@ beforeEach(() => {
   });
 });
 
+/**
+ * Context grouping (#76, settled by #80's prototype: Variant A) — plain uppercase `<h3>` section
+ * headers, always expanded, no count/icon. Grouping composes with search and "show deactivated" for
+ * free since it is a presentation layer over `rows()`, which is already filtered.
+ */
+describe('grouping by context', () => {
+  it('groups templates under their context, alphabetical by context and by name within', async () => {
+    await render([
+      aTemplate({ name: 'Windows', context: 'house' }),
+      aTemplate({ name: 'Grass', context: 'garden' }),
+      aTemplate({ name: 'Hedge', context: 'garden' }),
+    ]);
+
+    expect(texts('h3.context-header')).toEqual(['garden', 'house']);
+    const groups = [...element().querySelectorAll('.context-group')];
+    expect(
+      groups.map((group) =>
+        [...group.querySelectorAll('.template .name')].map((n) => n.textContent?.trim()),
+      ),
+    ).toEqual([['Grass', 'Hedge'], ['Windows']]);
+  });
+
+  it('groups an empty/uncategorized context under "No context"', async () => {
+    await render([aTemplate({ name: 'Mystery chore', context: '' })]);
+
+    expect(texts('h3.context-header')).toEqual(['No context']);
+  });
+
+  it('drops a group entirely once search leaves it with no rows', async () => {
+    await render([
+      aTemplate({ name: 'Windows', context: 'house' }),
+      aTemplate({ name: 'Grass', context: 'garden' }),
+    ]);
+
+    type('.search', 'window');
+    await fixture.whenStable();
+
+    expect(texts('h3.context-header')).toEqual(['house']);
+  });
+});
+
 describe('the templates list', () => {
   it('says when each one was last done, as a count and a date', async () => {
     await render(

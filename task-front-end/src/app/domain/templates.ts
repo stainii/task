@@ -115,6 +115,46 @@ export function templateRows(
     });
 }
 
+/** One context's slice of the templates list, alphabetical within (#76). */
+export interface TemplateGroup {
+  readonly context: string;
+  readonly rows: readonly TemplateRow[];
+}
+
+/**
+ * Groups already-built rows by `template.context`, alphabetical by context and, within each group,
+ * alphabetical by template name — the settled ordering for the templates list page (#76, #80's
+ * Variant A). **Not-yet-due-first drops out entirely here**: `templateRows`' due/quiet split is a
+ * scheduling concern for the omnibox, and urgency is not what this page sorts by.
+ *
+ * A **presentation layer over rows the caller already built**, deliberately: it takes `TemplateRow[]`
+ * rather than templates/tasks, so it never re-derives `openTask`/`lastCompletedOn` and never
+ * re-filters. That is what makes it compose with the search bar and "show deactivated" for free — a
+ * group with no rows left after filtering simply is not in what it is handed, so it does not appear.
+ *
+ * An empty/uncategorized `context` (`''`) is its own group; the page renders it as *No context*, but
+ * that is a display label, not a value this function invents.
+ */
+export function groupedTemplateRows(rows: readonly TemplateRow[]): readonly TemplateGroup[] {
+  const byContext = new Map<string, TemplateRow[]>();
+  for (const row of rows) {
+    const group = byContext.get(row.template.context);
+    if (group === undefined) {
+      byContext.set(row.template.context, [row]);
+    } else {
+      group.push(row);
+    }
+  }
+  return [...byContext.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([context, groupRows]) => ({
+      context,
+      rows: [...groupRows].sort((left, right) =>
+        left.template.name.localeCompare(right.template.name),
+      ),
+    }));
+}
+
 /**
  * One thing the omnibox can offer against a template: **a definition, not a template.**
  *

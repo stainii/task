@@ -15,7 +15,12 @@ import { undoPatch } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
 import { TaskTemplate } from '../../domain/template';
 import { didItPatches } from '../../domain/template-completion';
-import { templateRowMatches, templateRows, TemplateRow } from '../../domain/templates';
+import {
+  groupedTemplateRows,
+  templateRowMatches,
+  templateRows,
+  TemplateRow,
+} from '../../domain/templates';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TemplateService } from '../../sync/templates';
@@ -104,6 +109,13 @@ export class Templates {
     });
     return rows.filter((row) => templateRowMatches(row, this.query()));
   });
+
+  /**
+   * `rows()` grouped by context (#76, #80's Variant A) — context outer, alphabetical inner, the
+   * due/quiet split dropped from ordering entirely. A presentation layer over the already-filtered
+   * `rows()`, so it composes with search and "show deactivated" for free.
+   */
+  protected readonly groups = computed(() => groupedTemplateRows(this.rows()));
 
   /**
    * A nudge, never a silent widening: how many deactivated templates the search matches while
