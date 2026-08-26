@@ -184,10 +184,18 @@ package() {
     # An archive that tests clean can still be missing a member — `zip` skipping an unreadable file
     # is exactly how the script this replaced produced 611 MB of backups containing no database at
     # all (ADR-0008). rebuild.sh needs all three, so all three are asserted here, nightly.
+    #
+    # The listing is captured before grepping it, not piped straight into `grep -q`: under
+    # pipefail, grep exiting the instant it finds a match can close the pipe while unzip is still
+    # writing, and unzip's next write() then dies of SIGPIPE — which pipefail reports as this
+    # command's failure even though the file was found. Intermittent (roughly 1 in 10 here), which
+    # is exactly why "$name did not make it into the archive" could fire on an archive that was
+    # fine.
+    local listing
+    listing="$(unzip -l "$archive" 2>/dev/null)"
     local name
     for name in dump.sql.gz compose.yaml production.env; do
-        unzip -l "$archive" "$name" 2>/dev/null | grep -q "$name" \
-            || die "$name did not make it into the archive"
+        grep -q -- "$name" <<< "$listing" || die "$name did not make it into the archive"
     done
 }
 
