@@ -85,6 +85,77 @@ h2 {
   list-style: none;
 }
 
+/* PROTOTYPE (issue #80) — context grouping, all three variants. */
+.context-group {
+  margin: 0 8px;
+}
+
+.context-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 8px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* PROTOTYPE, variant B — the header is a button, so it needs button resets and a badge. */
+button.context-header.interactive {
+  width: 100%;
+  font: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.context-header .chevron {
+  width: 1em;
+  color: var(--app-muted);
+}
+
+.context-header .count {
+  margin-left: auto;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--app-muted);
+  background: var(--app-chip);
+  border-radius: 999px;
+}
+
+.context-group.collapsed .context-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--app-line);
+}
+
+/* PROTOTYPE, variant C — the quick-jump chip bar. */
+.context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px 0;
+}
+
+.context-chip {
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--app-ink);
+  background: var(--app-chip);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
 /*
  * Name and ✓ on the first line, the two date facts under the name. The ✓ spans both rows so it is a
  * single 40px target however the words wrap — the row is tapped while holding something else.

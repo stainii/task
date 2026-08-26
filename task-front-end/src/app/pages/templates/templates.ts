@@ -7,7 +7,9 @@ import {
   PendingTasks,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 
 import { NOW } from '../../clock';
 import { IsoDate, today } from '../../domain/dates';
@@ -24,6 +26,36 @@ import { Confirms } from '../../ui/confirms';
 import { Overlays } from '../../ui/overlays';
 import { Toast, Toasts } from '../../ui/toasts';
 import { dueLabel, lastDoneLabel } from '../../ui/wording';
+import { ContextGroupingPrototypeSwitcher } from './context-grouping-prototype-switcher';
+
+/**
+ * PROTOTYPE (issue #80) — one context's slice of the list, sorted alphabetically within.
+ * Stands in for whatever `domain/templates.ts` grows once a variant is picked; the settled
+ * ordering decision (context outer, alphabetical inner, due/quiet dropped) is #76's, not #80's.
+ */
+interface ContextGroup {
+  readonly context: string;
+  readonly rows: readonly TemplateRow[];
+}
+
+/** PROTOTYPE (issue #80) — groups `rows` by `template.context`, each group alphabetical by name. */
+function groupByContext(rows: readonly TemplateRow[]): readonly ContextGroup[] {
+  const byContext = new Map<string, TemplateRow[]>();
+  for (const row of rows) {
+    const group = byContext.get(row.template.context);
+    if (group) {
+      group.push(row);
+    } else {
+      byContext.set(row.template.context, [row]);
+    }
+  }
+  return [...byContext.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([context, groupRows]) => ({
+      context,
+      rows: [...groupRows].sort((left, right) => left.template.name.localeCompare(right.template.name)),
+    }));
+}
 
 /** Which definition a ✓ is about, once one has been chosen. */
 interface Chosen {
@@ -51,7 +83,7 @@ interface Chosen {
 @Component({
   selector: 'app-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, GlyphButton],
+  imports: [RouterLink, GlyphButton, ContextGroupingPrototypeSwitcher],
   templateUrl: './templates.html',
   styleUrl: './templates.css',
 })
@@ -63,6 +95,16 @@ export class Templates {
   private readonly overlays = inject(Overlays);
   private readonly confirms = inject(Confirms);
   private readonly toasts = inject(Toasts);
+  private readonly route = inject(ActivatedRoute);
+
+  /** PROTOTYPE (issue #80) — which context-grouping variant `?variant=A|B|C` selects. */
+  protected readonly variant = toSignal(
+    this.route.queryParamMap.pipe(map((params) => params.get('variant') ?? 'A')),
+    { initialValue: this.route.snapshot.queryParamMap.get('variant') ?? 'A' },
+  );
+
+  /** PROTOTYPE (issue #80), variant B only — which context groups the user has collapsed. */
+  protected readonly collapsed = signal<ReadonlySet<string>>(new Set());
 
   /**
    * Angular's own register of work in flight.
@@ -104,6 +146,44 @@ export class Templates {
     });
     return rows.filter((row) => templateRowMatches(row, this.query()));
   });
+
+  /** PROTOTYPE (issue #80) — `rows()` grouped by context, for all three variants. */
+  protected readonly groups = computed(() => groupByContext(this.rows()));
+
+  /**
+   * PROTOTYPE (issue #80), variant B only — a group is expanded unless the user collapsed it, or
+   * the search has live text: a collapsed group would otherwise hide matches inside it, which is
+   * the same "never a silent widening/narrowing" rule #78/#79 already settled for the checkbox.
+   */
+  protected expanded(context: string): boolean {
+    if (this.query().trim() !== '') {
+      return true;
+    }
+    return !this.collapsed().has(context);
+  }
+
+  /** PROTOTYPE (issue #80), variant B only. */
+  protected toggleGroup(context: string): void {
+    const next = new Set(this.collapsed());
+    if (next.has(context)) {
+      next.delete(context);
+    } else {
+      next.add(context);
+    }
+    this.collapsed.set(next);
+  }
+
+  /** PROTOTYPE (issue #80), variant C only — jump to a context's section without a page reload. */
+  protected jumpTo(context: string): void {
+    document
+      .getElementById(`context-${this.slug(context)}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** PROTOTYPE (issue #80), variant C only — a stable id for the jump target / anchor. */
+  protected slug(context: string): string {
+    return context.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
 
   /**
    * A nudge, never a silent widening: how many deactivated templates the search matches while
