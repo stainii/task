@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { aTask } from './task.mother';
 import { aDefinition, aTemplate } from './template.mother';
-import { lastCompletionOf, openTaskOf, templateOffers, templateRows } from './templates';
+import {
+  lastCompletionOf,
+  openTaskOf,
+  templateOffers,
+  templateRowMatches,
+  templateRows,
+} from './templates';
 
 const TODAY = '2026-08-14';
 
@@ -218,5 +224,66 @@ describe('the templates the omnibox offers', () => {
     const templates = [aTemplate({ name: 'Vuilbakken buitenzetten' })];
 
     expect(templateOffers(templates, [], '   ', TODAY)).toEqual([]);
+  });
+});
+
+/**
+ * The templates list's own search bar (#78/#79) — composable with the "show deactivated" checkbox
+ * rather than a replacement for it, so this only decides *does the row's text match*, the same
+ * substring rule `templateOffers` uses on name and definitions, extended to `context` since context
+ * is a visible grouping axis on this page.
+ */
+describe('whether a template row matches a search', () => {
+  it('matches on the template’s own name', () => {
+    const row = {
+      template: aTemplate({ name: 'Vuilbakken buitenzetten' }),
+      openTask: null,
+      lastCompletedOn: null,
+    };
+
+    expect(templateRowMatches(row, 'vuilbak')).toBe(true);
+    expect(templateRowMatches(row, 'nope')).toBe(false);
+  });
+
+  /** The search bar is empty by default, and an empty query should narrow nothing. */
+  it('matches everything when the query is blank', () => {
+    const row = {
+      template: aTemplate({ name: 'Vuilbakken buitenzetten' }),
+      openTask: null,
+      lastCompletedOn: null,
+    };
+
+    expect(templateRowMatches(row, '')).toBe(true);
+    expect(templateRowMatches(row, '   ')).toBe(true);
+  });
+
+  it('matches on a task definition’s own name, not just the template’s', () => {
+    const row = {
+      template: aTemplate({
+        name: 'Beddengoed',
+        taskDefinitions: [
+          aDefinition({ name: 'Beddengoed wassen' }),
+          aDefinition({ name: 'Bed stofzuigen' }),
+        ],
+      }),
+      openTask: null,
+      lastCompletedOn: null,
+    };
+
+    expect(templateRowMatches(row, 'stofzuig')).toBe(true);
+  });
+
+  /**
+   * The one rule the omnibox's `templateOffers` doesn't have: `context` is a visible grouping axis
+   * on this page (#76), so a search here should be able to find *everything in the garden*.
+   */
+  it('matches on the template’s context, unlike the omnibox’s own matching', () => {
+    const row = {
+      template: aTemplate({ name: 'Vuilbakken buitenzetten', context: 'garden' }),
+      openTask: null,
+      lastCompletedOn: null,
+    };
+
+    expect(templateRowMatches(row, 'garden')).toBe(true);
   });
 });

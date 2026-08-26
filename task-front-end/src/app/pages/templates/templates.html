@@ -12,6 +12,17 @@
   }
 </header>
 
+<!-- The search bar (#78/#79) — narrows within whatever "show deactivated" already shows. -->
+<div class="search-row">
+  <input
+    type="search"
+    class="search"
+    placeholder="Search templates…"
+    [value]="query()"
+    (input)="query.set($any($event.target).value)"
+  />
+</div>
+
 <!--
   ADR-0013's escape hatch. Nothing is ever deleted once it has fired, so the list would otherwise
   grow to the ~115 templates #35 measured; deactivation is what keeps it at the 44 the author keeps.
@@ -25,6 +36,16 @@
   />
   Show deactivated
 </label>
+
+<!-- The nudge, not a silent scope-widening: a hidden match surfaces as an offer, never on its own. -->
+@if (hiddenMatches() > 0) {
+  <p class="hidden-matches">
+    {{ hiddenMatches() }} more match{{ hiddenMatches() === 1 ? '' : 'es' }} among deactivated
+    templates —
+    <button type="button" (click)="showInactive.set(true)">show deactivated</button>
+    to see them.
+  </p>
+}
 
 <ul class="templates">
   @for (row of rows(); track row.template.id) {

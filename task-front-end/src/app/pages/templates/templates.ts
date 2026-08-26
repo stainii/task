@@ -15,7 +15,7 @@ import { undoPatch } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
 import { TaskTemplate } from '../../domain/template';
 import { didItPatches } from '../../domain/template-completion';
-import { templateRows, TemplateRow } from '../../domain/templates';
+import { templateRowMatches, templateRows, TemplateRow } from '../../domain/templates';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TemplateService } from '../../sync/templates';
@@ -95,11 +95,32 @@ export class Templates {
   /** ADR-0013's escape hatch. Deactivated templates are hidden, never deleted. */
   protected readonly showInactive = signal(false);
 
-  protected readonly rows = computed(() =>
-    templateRows(this.heldTemplates(), this.held(), this.today(), {
+  /** The search bar's live text (#78/#79). */
+  protected readonly query = signal('');
+
+  protected readonly rows = computed(() => {
+    const rows = templateRows(this.heldTemplates(), this.held(), this.today(), {
       includeInactive: this.showInactive(),
-    }),
-  );
+    });
+    return rows.filter((row) => templateRowMatches(row, this.query()));
+  });
+
+  /**
+   * A nudge, never a silent widening: how many deactivated templates the search matches while
+   * "show deactivated" is off and hiding them (#78's Variant A). Zero once the checkbox is on —
+   * matches are visible directly then, and the nudge would be pointing at what is already shown.
+   */
+  protected readonly hiddenMatches = computed(() => {
+    const needle = this.query().trim();
+    if (needle === '' || this.showInactive()) {
+      return 0;
+    }
+    const allRows = templateRows(this.heldTemplates(), this.held(), this.today(), {
+      includeInactive: true,
+    });
+    return allRows.filter((row) => !row.template.active && templateRowMatches(row, this.query()))
+      .length;
+  });
 
   /**
    * The template whose ✓ was pressed and whose definition is not yet settled, or null.

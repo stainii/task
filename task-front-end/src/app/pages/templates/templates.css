@@ -44,6 +44,41 @@ h2 {
   color: var(--app-muted);
 }
 
+.search-row {
+  padding: 10px 16px 0;
+}
+
+.search-row .search {
+  width: 100%;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--app-ink);
+  background: var(--app-chip);
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+/* The nudge (#78's Variant A): an offer, not a silent widening of what search already narrowed. */
+.hidden-matches {
+  margin: 4px 16px 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--app-muted);
+  background: var(--app-chip);
+  border-radius: 8px;
+}
+
+.hidden-matches button {
+  padding: 0;
+  color: var(--app-accent);
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .templates {
   margin: 0;
   padding: 0 8px 24px;

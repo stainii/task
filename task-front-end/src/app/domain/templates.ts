@@ -149,6 +149,7 @@ export interface TemplateOffer {
  * 44 of the 47 real templates and deliberately different for the rest — `Beddengoed wassen` lives
  * under a template whose name a person might type either way.
  */
+
 export function templateOffers(
   templates: readonly TaskTemplate[],
   tasks: readonly Task[],
@@ -183,4 +184,29 @@ export function templateOffers(
         offer.row.template.name.toLowerCase().includes(needle),
     )
     .slice(0, limit);
+}
+
+/**
+ * Whether the templates list's own search bar (#78/#79) should keep this row.
+ *
+ * The same substring rule as `templateOffers` — case-insensitive, on the template's name and each
+ * definition's — plus one the omnibox doesn't have: `context`, because on this page context is a
+ * visible grouping axis (#76) rather than an internal field, so a search for *garden* should find
+ * everything in it.
+ *
+ * Deliberately **not** composed with `showInactive` here — the list page decides how the two
+ * combine (composably: search only narrows whatever the checkbox already shows), and this only
+ * answers the one question of whether the row's own text matches.
+ */
+export function templateRowMatches(row: TemplateRow, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (row.template.name.toLowerCase().includes(needle)) {
+    return true;
+  }
+  if (row.template.context.toLowerCase().includes(needle)) {
+    return true;
+  }
+  return row.template.taskDefinitions.some((definition) =>
+    definition.name.toLowerCase().includes(needle),
+  );
 }

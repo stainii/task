@@ -54,6 +54,15 @@ function click(selector: string, within: ParentNode = element()): void {
   button.click();
 }
 
+function type(selector: string, text: string): void {
+  const input = element().querySelector<HTMLInputElement>(selector);
+  if (input === null) {
+    throw new Error(`No ${selector} on screen.`);
+  }
+  input.value = text;
+  input.dispatchEvent(new Event('input'));
+}
+
 async function render(templates: TaskTemplate[], tasks: Task[] = []): Promise<void> {
   heldTemplates = templates;
   heldTasks = tasks;
@@ -170,6 +179,104 @@ describe('the templates list', () => {
     await fixture.whenStable();
 
     expect(texts('li.template .name')).toEqual(['Alive', 'Retired']);
+  });
+});
+
+/**
+ * The search bar (#78/#79). **Composable with "show deactivated"**, never a replacement for it:
+ * search only ever narrows within whatever the checkbox is already showing (Variant A of #78).
+ */
+describe('the search bar', () => {
+  it('narrows the list to templates whose name matches what was typed', async () => {
+    await render([
+      aTemplate({ name: 'Vuilbakken buitenzetten' }),
+      aTemplate({ name: 'Ramen lappen' }),
+    ]);
+
+    type('.search', 'vuilbak');
+    await fixture.whenStable();
+
+    expect(texts('li.template .name')).toEqual(['Vuilbakken buitenzetten']);
+  });
+
+  /**
+   * **Composable, not overriding** (Variant A of #78): search only narrows what the checkbox is
+   * already showing. It never surfaces a deactivated match on its own — that stays the nudge's job.
+   */
+  it('does not surface a matching deactivated template while "show deactivated" is off', async () => {
+    await render([aTemplate({ name: 'Vuilbakken buitenzetten', active: false })]);
+
+    type('.search', 'vuilbak');
+    await fixture.whenStable();
+
+    expect(texts('li.template .name')).toEqual([]);
+  });
+
+  it('does search among deactivated templates once "show deactivated" is on', async () => {
+    await render([
+      aTemplate({ name: 'Vuilbakken buitenzetten', active: false }),
+      aTemplate({ name: 'Ramen lappen' }),
+    ]);
+
+    click('.show-inactive');
+    await fixture.whenStable();
+    type('.search', 'vuilbak');
+    await fixture.whenStable();
+
+    expect(texts('li.template .name')).toEqual(['Vuilbakken buitenzetten']);
+  });
+
+  /**
+   * **Never a silent override** (Variant A of #78): a match hidden behind the checkbox surfaces as
+   * a nudge, not by widening the search's own scope on its own.
+   */
+  it('nudges toward "show deactivated" when a search matches nothing visible but something hidden', async () => {
+    await render([aTemplate({ name: 'Vuilbakken buitenzetten', active: false })]);
+
+    type('.search', 'vuilbak');
+    await fixture.whenStable();
+
+    expect(texts('.hidden-matches')).toEqual([
+      '1 more match among deactivated templates — show deactivated to see them.',
+    ]);
+  });
+
+  it('reveals the hidden matches when the nudge’s own button is pressed', async () => {
+    await render([aTemplate({ name: 'Vuilbakken buitenzetten', active: false })]);
+
+    type('.search', 'vuilbak');
+    await fixture.whenStable();
+
+    click('.hidden-matches button');
+    await fixture.whenStable();
+
+    expect(texts('li.template .name')).toEqual(['Vuilbakken buitenzetten']);
+    expect(element().querySelector('.hidden-matches')).toBeNull();
+  });
+
+  /** Once the checkbox is on, matches are visible directly — the nudge would repeat what's shown. */
+  it('says nothing once "show deactivated" is already on', async () => {
+    await render([aTemplate({ name: 'Vuilbakken buitenzetten', active: false })]);
+
+    click('.show-inactive');
+    await fixture.whenStable();
+    type('.search', 'vuilbak');
+    await fixture.whenStable();
+
+    expect(element().querySelector('.hidden-matches')).toBeNull();
+  });
+
+  /** Context is a visible grouping axis on this page (#76), so search should find it too. */
+  it('matches on a template’s context, not just its name', async () => {
+    await render([
+      aTemplate({ name: 'Vuilbakken buitenzetten', context: 'garden' }),
+      aTemplate({ name: 'Ramen lappen', context: 'house' }),
+    ]);
+
+    type('.search', 'garden');
+    await fixture.whenStable();
+
+    expect(texts('li.template .name')).toEqual(['Vuilbakken buitenzetten']);
   });
 });
 
