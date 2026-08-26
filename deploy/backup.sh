@@ -94,31 +94,41 @@ verify() {
     image="$(postgres_image)"
     database="$(env_value POSTGRES_DB)"
 
+    # The bootstrap superuser is per-run and appears nowhere in the dump, for the same reason
+    # restore.sh's live path generates one: pg_dumpall --clean --if-exists drops every role it
+    # captures, including whatever this container's own superuser is named. A fixed name like
+    # "postgres" collides the moment production's cluster ever contains a role by that name — which
+    # it will, permanently, after any live restore leaves one behind. Found when exactly that
+    # happened: every nightly verify failed with "current user cannot be dropped" because the dump
+    # carried a DROP ROLE for the literal name this step connected as.
+    local bootstrap="verify_$RANDOM$RANDOM"
+
     say "verify: restoring into a throwaway $image"
     docker rm --force "$VERIFY_CONTAINER" >/dev/null 2>&1 || true
     docker run --detach --name "$VERIFY_CONTAINER" \
+        --env POSTGRES_USER="$bootstrap" \
         --env POSTGRES_PASSWORD="verify-$RANDOM$RANDOM" \
         "$image" >/dev/null
 
-    wait_for_postgres "$VERIFY_CONTAINER" postgres
+    wait_for_postgres "$VERIFY_CONTAINER" "$bootstrap"
 
     gunzip --stdout "$dump_file" \
-        | docker exec --interactive "$VERIFY_CONTAINER" psql --username postgres --quiet \
+        | docker exec --interactive "$VERIFY_CONTAINER" psql --username "$bootstrap" --quiet \
               --set ON_ERROR_STOP=1 --dbname postgres >/dev/null \
         || die "the dump did not restore. This backup is being thrown away, which is the point."
 
     local tasks patches
-    tasks="$(count "$database" task)"
-    patches="$(count "$database" task_patch)"
+    tasks="$(count "$bootstrap" "$database" task)"
+    patches="$(count "$bootstrap" "$database" task_patch)"
     say "verify: restored $tasks tasks and $patches patches"
 
     compare_with_yesterday "$tasks" "$patches"
 }
 
 count() {
-    docker exec "$VERIFY_CONTAINER" psql --username postgres --dbname "$1" --tuples-only \
-        --no-align --command "SELECT count(*) FROM $2" \
-        || die "table '$2' is missing from the restored database"
+    docker exec "$VERIFY_CONTAINER" psql --username "$1" --dbname "$2" --tuples-only \
+        --no-align --command "SELECT count(*) FROM $3" \
+        || die "table '$3' is missing from the restored database"
 }
 
 # ADR-0008 asks for "non-zero and within sight of yesterday's". The non-zero half cannot be asserted
