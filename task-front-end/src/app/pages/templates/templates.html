@@ -12,6 +12,27 @@
   }
 </header>
 
+<!-- PROTOTYPE (issue #78): search bar, plus a variant-specific "search everywhere" chip. -->
+<div class="search-row">
+  <input
+    type="search"
+    class="search"
+    placeholder="Search templates…"
+    [value]="query()"
+    (input)="query.set($any($event.target).value)"
+  />
+  @if (variant() === 'C') {
+    <label class="everywhere">
+      <input
+        type="checkbox"
+        [checked]="searchEverywhere()"
+        (change)="searchEverywhere.set(!searchEverywhere())"
+      />
+      Search everywhere
+    </label>
+  }
+</div>
+
 <!--
   ADR-0013's escape hatch. Nothing is ever deleted once it has fired, so the list would otherwise
   grow to the ~115 templates #35 measured; deactivation is what keeps it at the 44 the author keeps.
@@ -26,6 +47,16 @@
   Show deactivated
 </label>
 
+<!-- PROTOTYPE, variant A only: a nudge rather than a silent search-scope change. -->
+@if (hiddenMatches() > 0) {
+  <p class="hidden-matches">
+    {{ hiddenMatches() }} more match{{ hiddenMatches() === 1 ? '' : 'es' }} among deactivated
+    templates —
+    <button type="button" (click)="showInactive.set(true)">show deactivated</button>
+    to see them.
+  </p>
+}
+
 <ul class="templates">
   @for (row of rows(); track row.template.id) {
     <li class="template" [class.inactive]="!row.template.active">
@@ -35,6 +66,12 @@
         is the thing you do twice a year.
       -->
       <a class="name" [routerLink]="['/templates', row.template.id]">{{ row.template.name }}</a>
+      @if (variant() !== 'B' && query().trim() !== '') {
+        <span class="context-chip">{{ row.template.context }}</span>
+      }
+      @if (!row.template.active) {
+        <span class="deactivated-chip">deactivated</span>
+      }
 
       <!--
         Two lines that answer two questions, and a row that is currently asking gets both. *62 days
@@ -75,3 +112,6 @@
     <button type="button" class="dismiss" (click)="cancelConfirm()">Cancel</button>
   </div>
 }
+
+<!-- PROTOTYPE (issue #78) — throwaway, gone once a variant is chosen. -->
+<app-search-prototype-switcher [current]="variant()" />

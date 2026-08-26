@@ -7,7 +7,9 @@ import {
   PendingTasks,
   signal,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { map } from 'rxjs';
 
 import { NOW } from '../../clock';
 import { IsoDate, today } from '../../domain/dates';
@@ -24,6 +26,23 @@ import { Confirms } from '../../ui/confirms';
 import { Overlays } from '../../ui/overlays';
 import { Toast, Toasts } from '../../ui/toasts';
 import { dueLabel, lastDoneLabel } from '../../ui/wording';
+import { SearchPrototypeSwitcher } from './search-prototype-switcher';
+
+/**
+ * PROTOTYPE (issue #78) — throwaway matching, standing in for whatever `domain/templates.ts`
+ * grows once a variant is picked. Same case-insensitive substring rule as `templateOffers()`.
+ */
+function prototypeMatches(row: TemplateRow, needle: string, options: { context: boolean }): boolean {
+  if (row.template.name.toLowerCase().includes(needle)) {
+    return true;
+  }
+  if (options.context && row.template.context.toLowerCase().includes(needle)) {
+    return true;
+  }
+  return row.template.taskDefinitions.some((definition) =>
+    definition.name.toLowerCase().includes(needle),
+  );
+}
 
 /** Which definition a ✓ is about, once one has been chosen. */
 interface Chosen {
@@ -51,7 +70,7 @@ interface Chosen {
 @Component({
   selector: 'app-templates',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, GlyphButton],
+  imports: [RouterLink, GlyphButton, SearchPrototypeSwitcher],
   templateUrl: './templates.html',
   styleUrl: './templates.css',
 })
@@ -63,6 +82,19 @@ export class Templates {
   private readonly overlays = inject(Overlays);
   private readonly confirms = inject(Confirms);
   private readonly toasts = inject(Toasts);
+  private readonly route = inject(ActivatedRoute);
+
+  /** PROTOTYPE (issue #78) — which search/checkbox variant `?variant=A|B|C` selects. */
+  protected readonly variant = toSignal(
+    this.route.queryParamMap.pipe(map((params) => params.get('variant') ?? 'A')),
+    { initialValue: this.route.snapshot.queryParamMap.get('variant') ?? 'A' },
+  );
+
+  /** PROTOTYPE (issue #78) — the search bar's live text. */
+  protected readonly query = signal('');
+
+  /** PROTOTYPE, variant C only — the "search everywhere" chip. */
+  protected readonly searchEverywhere = signal(false);
 
   /**
    * Angular's own register of work in flight.
@@ -95,11 +127,55 @@ export class Templates {
   /** ADR-0013's escape hatch. Deactivated templates are hidden, never deleted. */
   protected readonly showInactive = signal(false);
 
-  protected readonly rows = computed(() =>
-    templateRows(this.heldTemplates(), this.held(), this.today(), {
-      includeInactive: this.showInactive(),
-    }),
+  /** PROTOTYPE (issue #78) — every row, active or not; each variant narrows this down. */
+  private readonly everyRow = computed(() =>
+    templateRows(this.heldTemplates(), this.held(), this.today(), { includeInactive: true }),
   );
+
+  private readonly checkboxView = computed(() =>
+    this.everyRow().filter((row) => row.template.active || this.showInactive()),
+  );
+
+  /** PROTOTYPE (issue #78) — the row list, shaped by whichever variant `?variant=` selects. */
+  protected readonly rows = computed(() => {
+    const needle = this.query().trim().toLowerCase();
+    const v = this.variant();
+
+    if (v === 'B') {
+      // Search overrides the checkbox: typing searches everything, matching name/definitions
+      // only (not context) — deactivated matches surface even with the checkbox off.
+      if (needle === '') {
+        return this.checkboxView();
+      }
+      return this.everyRow().filter((row) => prototypeMatches(row, needle, { context: false }));
+    }
+
+    if (v === 'C') {
+      // Checkbox still governs; the "search everywhere" chip explicitly widens scope.
+      const base = this.searchEverywhere() ? this.everyRow() : this.checkboxView();
+      if (needle === '') {
+        return base;
+      }
+      return base.filter((row) => prototypeMatches(row, needle, { context: true }));
+    }
+
+    // Variant A (default) — composable: search only ever narrows within the checkbox's view.
+    if (needle === '') {
+      return this.checkboxView();
+    }
+    return this.checkboxView().filter((row) => prototypeMatches(row, needle, { context: true }));
+  });
+
+  /** PROTOTYPE, variant A only — a nudge: matches hidden behind the checkbox, not shown. */
+  protected readonly hiddenMatches = computed(() => {
+    const needle = this.query().trim().toLowerCase();
+    if (this.variant() !== 'A' || needle === '' || this.showInactive()) {
+      return 0;
+    }
+    return this.everyRow().filter(
+      (row) => !row.template.active && prototypeMatches(row, needle, { context: true }),
+    ).length;
+  });
 
   /**
    * The template whose ✓ was pressed and whose definition is not yet settled, or null.
