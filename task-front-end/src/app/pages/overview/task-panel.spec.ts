@@ -8,6 +8,7 @@ import { addDays } from '../../domain/dates';
 import { PanelAction } from '../../domain/patches';
 import { Task } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
+import { Confirms } from '../../ui/confirms';
 import { TaskPanel } from './task-panel';
 
 /**
@@ -62,6 +63,10 @@ function verb(name: string): HTMLElement {
   return button;
 }
 
+/** What the stubbed *when did you do it?* confirm answers with on its next call. */
+let askAnswer: string | null = '2026-08-09';
+const asks: string[] = [];
+
 /** A pointer gesture. jsdom has no `PointerEvent`, and a `MouseEvent` carries the same `clientX`. */
 async function swipe(by: number): Promise<void> {
   const panel = element().querySelector('.panel')!;
@@ -73,8 +78,22 @@ async function swipe(by: number): Promise<void> {
 }
 
 beforeEach(async () => {
+  askAnswer = '2026-08-09';
+  asks.length = 0;
   TestBed.configureTestingModule({
-    providers: [provideRouter([]), { provide: NOW, useValue: () => NOW_AT }],
+    providers: [
+      provideRouter([]),
+      { provide: NOW, useValue: () => NOW_AT },
+      {
+        provide: Confirms,
+        useValue: {
+          ask: (what: string) => {
+            asks.push(what);
+            return Promise.resolve(askAnswer);
+          },
+        },
+      },
+    ],
   });
   fixture = TestBed.createComponent(Host);
   await fixture.whenStable();
@@ -178,6 +197,9 @@ describe('the expanded panel', () => {
       status: 'COMPLETED',
       completedOn: TODAY,
     });
+    // The completed task rides along, so the toast's *change day* row can mint the recomplete a
+    // correction is (ADR-0018). Cancel and postpone do not carry it.
+    expect(fixture.componentInstance.acted?.completed?.task.id).toBe('a');
   });
 
   it('cancels the task, which portal could never do at all', async () => {
@@ -187,6 +209,7 @@ describe('the expanded panel', () => {
     await fixture.whenStable();
 
     expect(fixture.componentInstance.acted?.patch.changes).toEqual({ status: 'CANCELLED' });
+    expect(fixture.componentInstance.acted?.completed).toBeUndefined();
   });
 
   it('postpones by a preset, pushing only the start date', async () => {
@@ -206,6 +229,85 @@ describe('the expanded panel', () => {
     await fixture.whenStable();
 
     expect(fixture.componentInstance.acted?.patch.changes).toEqual({ startDate: '2026-08-17' });
+  });
+});
+
+describe('completing on another day (issue #83)', () => {
+  function doneWhen(): HTMLElement {
+    return verb('Complete on another day');
+  }
+
+  async function openDoneWhen(): Promise<void> {
+    await expand();
+    doneWhen().click();
+    await fixture.whenStable();
+  }
+
+  it('keeps the plain Complete tap silent and dated today', async () => {
+    // ADR-0014's line: acted on in place does not ask. The split only adds a *deliberate* surface;
+    // the tap that produced it is untouched.
+    await show(aTask({ id: 'a' }));
+    await expand();
+    verb('Complete').click();
+    await fixture.whenStable();
+
+    expect(asks).toEqual([]);
+    expect(fixture.componentInstance.acted?.patch.changes).toEqual({
+      status: 'COMPLETED',
+      completedOn: TODAY,
+    });
+  });
+
+  it('offers today and the two days before it, then the shared confirm', async () => {
+    await show(aTask());
+    await openDoneWhen();
+
+    const options = [...document.querySelectorAll<HTMLElement>('.done-when-preset')].map((option) =>
+      option.textContent?.trim(),
+    );
+    expect(options).toEqual(['Today', 'Yesterday', '2 days ago']);
+    expect(document.querySelector('.done-when-past')?.textContent?.trim()).toBe('In the past…');
+  });
+
+  it('backdates the completion by a preset', async () => {
+    await show(aTask({ id: 'a' }));
+    await openDoneWhen();
+
+    document.querySelectorAll<HTMLElement>('.done-when-preset')[1].click();
+    await fixture.whenStable();
+
+    expect(asks).toEqual([]);
+    expect(fixture.componentInstance.acted?.patch.changes).toEqual({
+      status: 'COMPLETED',
+      completedOn: addDays(TODAY, -1),
+    });
+    expect(fixture.componentInstance.acted?.completed?.task.id).toBe('a');
+  });
+
+  it('routes "In the past…" through the shared "When did you do it?" confirm', async () => {
+    askAnswer = '2026-08-09';
+    await show(aTask({ name: 'Descale the coffee machine' }));
+    await openDoneWhen();
+
+    document.querySelector<HTMLElement>('.done-when-past')!.click();
+    await fixture.whenStable();
+
+    expect(asks).toEqual(['Descale the coffee machine']);
+    expect(fixture.componentInstance.acted?.patch.changes).toEqual({
+      status: 'COMPLETED',
+      completedOn: '2026-08-09',
+    });
+  });
+
+  it('writes nothing when the confirm is dismissed', async () => {
+    askAnswer = null;
+    await show(aTask());
+    await openDoneWhen();
+
+    document.querySelector<HTMLElement>('.done-when-past')!.click();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.acted).toBeNull();
   });
 });
 

@@ -23,7 +23,7 @@ shell unstaffed: `app.html` is a bare `<router-outlet/>` after
 `<header><h1>Tasks</h1></header>`.
 
 [ADR-0006](0006-one-overview-grouped-by-a-swappable-axis.md) had already answered more of the
-ticket than its body assumed — clicking a context card *enters* that context, so context is neither
+ticket than its body assumed — clicking a context card _enters_ that context, so context is neither
 a filter nor a screen switch. What it did not say is whether entering is a route or in-page state.
 
 The author named the destinations directly: the tasks; the task templates **plus "what did I do
@@ -48,24 +48,24 @@ the premise it was built on.**
 
 The third is not a destination you visit on purpose. [ADR-0009](0009-the-app-is-its-own-monitor.md)
 already ruled that health must **come to you** as banners on the overview, on the argument that a
-passive readout *"reports but can never alarm."* A status screen you must remember to open is the
+passive readout _"reports but can never alarm."_ A status screen you must remember to open is the
 failure mode that ADR was written against — so what is left behind `⋯` is what remains **after** a
 banner has already spoken: two build dates, the 07:30 push toggle for this device, and log out.
 
-**No profile surface.** FE-030 shrinks to a single *log out*: [ADR-0010](0010-a-tunnel-an-allowlist-and-a-role.md)
+**No profile surface.** FE-030 shrinks to a single _log out_: [ADR-0010](0010-a-tunnel-an-allowlist-and-a-role.md)
 makes this single-user with nothing to edit, and [#14](https://github.com/stainii/task/issues/14)'s
-*authenticate to sync, not to see* makes login a prompt the outbox raises, not a page.
+_authenticate to sync, not to see_ makes login a prompt the outbox raises, not a page.
 
 ### You capture by typing
 
-The appbar carries an **omnibox**, not a menu: *Add, find, or say what you did…*. Typing offers,
+The appbar carries an **omnibox**, not a menu: _Add, find, or say what you did…_. Typing offers,
 in order — complete a matching open task, **I already did this** for a matching template, and create
 a task with what you typed.
 
 This was chosen over a FAB-and-sheet (3 taps) and over a chores destination (2 taps) because it
 puts capture **one keystroke from wherever you are**, and because it is what portal actually did:
 `housagotchi-add-execution` was never a list you browsed and ticked, it was
-`<mat-select>` + a datepicker + *Done!*. The browse-and-edit list was a separate route behind its
+`<mat-select>` + a datepicker + _Done!_. The browse-and-edit list was a separate route behind its
 own menu bar. Portal had already split daily capture from administration; the memory of "two
 screens" was the creature plus a dropdown.
 
@@ -74,18 +74,18 @@ Escape returns you to where you were.
 
 ### The templates list is the reminding surface
 
-Typing assumes you know what you did. The author does not always: *"I like that you can go to the
-templates, see when it's last done and hit a button."* So the same list serves both moods —
+Typing assumes you know what you did. The author does not always: _"I like that you can go to the
+templates, see when it's last done and hit a button."_ So the same list serves both moods —
 every row carries **when it was last done, as an elapsed count and a date**, and a **✓**.
 
-The date is not decoration. On real data the top row reads *Onderhoud ketels — 62 days overdue ·
-last 792 days ago · 7 Jun '24*. "792 days ago" is arithmetic; "7 Jun '24" is a memory.
+The date is not decoration. On real data the top row reads _Onderhoud ketels — 62 days overdue ·
+last 792 days ago · 7 Jun '24_. "792 days ago" is arithmetic; "7 Jun '24" is a memory.
 
 ### "I already did this" is only ever a chore that is **not yet due**
 
 Building the shells forced a distinction that shrinks the feature. If a template is due, ADR-0013
 has already fired a task and it is on the overview — you complete it there. ADR-0011's second shape
-(*mint a task created and completed in one breath*) applies **only** when no task exists yet.
+(_mint a task created and completed in one breath_) applies **only** when no task exists yet.
 
 Portal blurred this because its dropdown listed all 44 templates undifferentiated. On the author's
 real data that is **16 due** against **28 not due**, so more than half of portal's dropdown was
@@ -94,31 +94,31 @@ rank not-yet-due templates first for the ✓, and prefer the open task when ther
 
 ### Both capture paths ask when, defaulting to today
 
-*Amended by the author after the first draft, which let the ✓ fire silently.*
+_Amended by the author after the first draft, which let the ✓ fire silently._
 
-Neither the templates list's ✓ nor the omnibox's *I already did this* completes on the spot. Both
+Neither the templates list's ✓ nor the omnibox's _I already did this_ completes on the spot. Both
 open the same one-field confirm — **a date, defaulting to today** — and both write ADR-0011's
 `completedOn`.
 
 The first draft treated the ✓ as a single tap and counted that as its advantage. That was the wrong
 saving to chase: **the whole reason this action exists is that you did something away from the app**,
 and the gap between doing it and recording it is exactly what makes it out-of-band. A capture path
-that can only mean *today* would force the same lie ADR-0011 was written to prevent — and would
+that can only mean _today_ would force the same lie ADR-0011 was written to prevent — and would
 throw away the min/max anchor's accuracy in the process, since `lastCompletionOf` reads that date.
 
 The evidence was already on the table and this ADR walked past it: ADR-0011 records that portal's
-form carried a **required** `mat-datepicker` labelled *"When did you do it?"* — required, not
+form carried a **required** `mat-datepicker` labelled _"When did you do it?"_ — required, not
 optional, in the one screen that had lived with this for years.
 
 **This includes completing an existing task from the omnibox dropdown** — and that corrects the
-boundary this ADR first drew. The line is not *out-of-band versus on the overview*. It is:
+boundary this ADR first drew. The line is not _out-of-band versus on the overview_. It is:
 
 - **You chose it by name** — typed it into the omnibox, or found it in the templates list. You are
   recording something that already happened, so the app asks **when**.
-- **You acted on it in place** — swipe right, or *Complete* in the expanded panel, on a task row in
-  front of you. The gesture is the point, and it means *now*.
+- **You acted on it in place** — swipe right, or _Complete_ in the expanded panel, on a task row in
+  front of you. The gesture is the point, and it means _now_.
 
-Splitting on where the row was clicked would have broken ADR-0011's *one button, two shapes* in
+Splitting on where the row was clicked would have broken ADR-0011's _one button, two shapes_ in
 half: typing a chore's name means the same thing whether or not a task happens to exist for it, and
 the two shapes (complete the open task, or mint one created-and-completed) are an implementation
 detail chosen by the data, not by the user.
@@ -126,18 +126,18 @@ detail chosen by the data, not by the user.
 **So the dropdown's two groups collapse into one list.** Once every row opens the same confirm, the
 `Complete an open task` / `I already did this` split is invisible and misleading — it was also
 listing a due template **twice**, once in each group, against this ADR's own not-yet-due rule. One
-list of things you can mark done, each row's sub-line saying which state it is in (*7 days overdue*
-versus *last done 10 days ago*), plus *create a task* underneath.
+list of things you can mark done, each row's sub-line saying which state it is in (_7 days overdue_
+versus _last done 10 days ago_), plus _create a task_ underneath.
 
 Backdating a task completed in place stays where ADR-0011 put it, in the task's own edit surface.
 Extending the prompt to the swipe is a later call if that default proves wrong; nothing here
 forecloses it.
 
-### Rejected changes are a band on the overview, above *Due today*
+### Rejected changes are a band on the overview, above _Due today_
 
 [ADR-0004](0004-one-write-verb-two-clocks-offline-sync.md) said `4xx` patches drop into "a visible
-failed-to-sync list" and never said where. It goes **on the overview**, above *Due today*, with
-*Fix and retry* / *Discard* per row, and vanishes entirely when there is nothing rejected.
+failed-to-sync list" and never said where. It goes **on the overview**, above _Due today_, with
+_Fix and retry_ / _Discard_ per row, and vanishes entirely when there is nothing rejected.
 
 Above the work, not below it, because a rejected change is not diagnostics — **it is something you
 believe you did that did not happen**, and it outranks today's work.
@@ -150,18 +150,18 @@ premise.** The file was built expecting the hard case to be a task the server ne
 turns out not to be hard at all, because ADR-0004's client renders from local storage, so a
 locally-created task always has a row. The hard case is the opposite, and it is the **common** one:
 
-> A rejected **completion** has no row to attach to, because the completion succeeded *locally* —
+> A rejected **completion** has no row to attach to, because the completion succeeded _locally_ —
 > the fold closed the task and ADR-0006's overview does not show closed tasks. The thing the
 > rejection belongs to has already left the screen.
 
 Completions are the most common patch in the system, so "mark it on the task" fails precisely where
-it matters. The variant needed an inline mark *and* a band, degenerating into this decision plus
+it matters. The variant needed an inline mark _and_ a band, degenerating into this decision plus
 extra machinery.
 
 > **Read this sentence carefully — [#58](https://github.com/stainii/task/issues/58)'s body did not.**
-> *"needed an inline mark and a band"* is the **reason the variant lost**, not a specification. The
-> band alone is the decision; no inline mark is built. See *A rejected-change row names the act and
-> the reason* below, which also fixes the band's contents.
+> _"needed an inline mark and a band"_ is the **reason the variant lost**, not a specification. The
+> band alone is the decision; no inline mark is built. See _A rejected-change row names the act and
+> the reason_ below, which also fixes the band's contents.
 
 ### Everything is a route, and the route does not name the axis
 
@@ -175,7 +175,7 @@ extra machinery.
 
 Routes rather than screen state, because three decided things depend on it: ADR-0012's 07:30 push
 must land somewhere when tapped; FE-014's last-used context restore becomes a stored URL rather than
-bespoke state; and this is an installed PWA on Android, so hardware back must leave the *context*,
+bespoke state; and this is an installed PWA on Android, so hardware back must leave the _context_,
 not the app.
 
 `/in/:value` rather than `/c/:context` **keeps [#4](https://github.com/stainii/task/issues/4)'s
@@ -183,7 +183,7 @@ promise in the one place it would otherwise leak.** ADR-0006 made the grouping a
 the card row alone; a route naming `context` would hard-code it into every stored URL and
 notification deep link, so swapping to goals later would invalidate them all.
 
-*Recorded as decided-by-recommendation:* the author accepted "everything is a route" without ruling
+_Recorded as decided-by-recommendation:_ the author accepted "everything is a route" without ruling
 on the axis-neutral form. Reverting to `/c/:context` is a one-line change while nothing is built.
 
 **Lazy module loading stays dropped** (FE-031) — it existed because there were seven apps behind a
@@ -196,7 +196,7 @@ menu, and there are now two destinations.
   one-continuum rule holding at the navigation layer too.
 - **Templates stop being setup furniture.** ADR-0013's named risk was "a screen you open when you
   set something up and then do not touch for months"; the ✓ makes it a screen touched weekly. Its
-  authoring form is unaffected, but its *list* now has a daily job.
+  authoring form is unaffected, but its _list_ now has a daily job.
 - The overview gains one conditional band. It needs no endpoint — rejected patches are already in
   the client's outbox.
 - **The list size ADR-0013 handed over is survivable, because of its own deactivation rule.**
@@ -213,8 +213,8 @@ menu, and there are now two destinations.
 ## Found on the way
 
 - **Housagotchi's "due tasks" half needs nothing built.** `HousagotchiReportService` scored
-  templates past `min` as *late* and past `max` as *very late*, and that is what drove the
-  creature's mood. Under ADR-0013 *late* means a task exists and *very late* means it is overdue —
+  templates past `min` as _late_ and past `max` as _very late_, and that is what drove the
+  creature's mood. Under ADR-0013 _late_ means a task exists and _very late_ means it is overdue —
   both already on ADR-0006's overview. The report is fully derivable from the tasks screen, which is
   why [#13](https://github.com/stainii/task/issues/13) could drop the gamification layer without
   losing information. Only the capture half needed a home.
@@ -230,8 +230,8 @@ Amended by [Templates: the reminding list and the one authoring screen](https://
 2026-08-15.
 
 This ADR collapsed the dropdown's two groups into one list and stated the order of what typing offers
-— *"complete a matching open task, **I already did this** for a matching template, and create a
-task"*. Building the merge needed two things that sentence does not say, and got one of them wrong on
+— _"complete a matching open task, **I already did this** for a matching template, and create a
+task"_. Building the merge needed two things that sentence does not say, and got one of them wrong on
 the first attempt.
 
 **The stated order holds, and it was briefly inverted.** The first implementation put template rows
@@ -246,19 +246,19 @@ every row: five matching chores pushed every open task off the list. `templateOf
 the room the tasks left rather than a cap of its own.
 
 **A template row is one task definition, not one template.** ADR-0011 makes the affordance pick a
-task, and portal's *"What did you do?"* dropdown listed one name each; with several definitions the
+task, and portal's _"What did you do?"_ dropdown listed one name each; with several definitions the
 equivalent is naming which one. Expanding in the list rather than asking after the row is picked is
-what keeps the box one keystroke deep — you type *stofzuigen* and the thing you meant is there,
-instead of a row called *Beddengoed* that then asks a question.
+what keeps the box one keystroke deep — you type _stofzuigen_ and the thing you meant is there,
+instead of a row called _Beddengoed_ that then asks a question.
 
 ### The templates list's own order, inside each half
 
 Amended by the same ticket.
 
 This ADR says the list ranks **not-yet-due templates first** and says nothing about the order within
-either half. *Decided by recommendation:* the quiet half leads with the one longest since it was
+either half. _Decided by recommendation:_ the quiet half leads with the one longest since it was
 done, and a template never done leads them all — which is the reminding question in order. The firing
-half keeps the overview's own `byRank`, because a second answer to *what matters most today* one tab
+half keeps the overview's own `byRank`, because a second answer to _what matters most today_ one tab
 away from the first is how portal's comparator and its buckets came to disagree for years.
 
 ### A rejected-change row names the act and the reason, in words, with no status code
@@ -266,40 +266,40 @@ away from the first is how portal's comparator and its buckets came to disagree 
 Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
 2026-08-16.
 
-*Rejected changes are a band on the overview* fixed the band's **position** and left its **contents**
+_Rejected changes are a band on the overview_ fixed the band's **position** and left its **contents**
 unspecified; `PROTOTYPE-failed-to-sync.html` had four placements to compare and never asked what a
 row says. A row is:
 
 > **Boeken tandarts voor Elise — marked complete**
 > Tuesday, offline. You completed it on this device, so it has already left your list.
-> `Fix and retry`  `Discard`
+> `Fix and retry` `Discard`
 
 **No HTTP status code.** Drawn rather than argued
 (`task-front-end/prototypes/PROTOTYPE-rejected-band-contents.html`), and the drawing produced a
-better reason than the one this ADR would have given. *Rejected (400)* is not merely diagnostics in
+better reason than the one this ADR would have given. _Rejected (400)_ is not merely diagnostics in
 a band defined as not-diagnostics — it is **constant**: a validation refusal is a 400 essentially
 always, so the code is a fixed phrase repeated on every row of a band whose entire job is to say
-what went wrong *this time*. It occupies the position the eye reaches first and carries no per-row
+what went wrong _this time_. It occupies the position the eye reaches first and carries no per-row
 information. The technical detail remains recoverable on `/status`
 ([#63](https://github.com/stainii/task/issues/63)).
 
-**Accepted cost:** nothing on the overview now distinguishes *the server refused this* from *the
-server never received it*. That distinction lives on `/status` and in the queued indicator. Put to
+**Accepted cost:** nothing on the overview now distinguishes _the server refused this_ from _the
+server never received it_. That distinction lives on `/status` and in the queued indicator. Put to
 the author as the reason to keep the code, and declined.
 
 **The two verbs are words, not glyphs**, which is [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md)
 applied rather than excepted: a glyph is spent on a verb, and anything a glyph would have to
-*explain* is a fact that gets a word. Drawing the glyph variant found a collision the rule predicts
-but nobody had named — **the bin for *discard this change* sits one band above the glyph for
-*cancel this task*, two destructive icons of similar weight meaning entirely different things one
+_explain_ is a fact that gets a word. Drawing the glyph variant found a collision the rule predicts
+but nobody had named — **the bin for _discard this change_ sits one band above the glyph for
+_cancel this task_, two destructive icons of similar weight meaning entirely different things one
 band apart.** `Discard` also throws away something you believe you did, which is the maximum
 consequence in the app carried by the minimum affordance. This spends no new glyphs, leaving
 ADR-0019's roughly-a-dozen tripwire untouched at four.
 
 **The inline mark is not built, and [#58](https://github.com/stainii/task/issues/58)'s body was
-wrong about it.** That ticket reads *"It needs an inline mark **and** the band"*, which inverts this
-ADR: the sentence it summarises — *"The variant needed an inline mark and a band, degenerating into
-this decision plus extra machinery"* — is the **reason marking-on-the-task lost**, not a
+wrong about it.** That ticket reads _"It needs an inline mark **and** the band"_, which inverts this
+ADR: the sentence it summarises — _"The variant needed an inline mark and a band, degenerating into
+this decision plus extra machinery"_ — is the **reason marking-on-the-task lost**, not a
 requirement. The prototype is the evidence: its variant 3 renders orphaned rejections in a band
 anyway, so it is this decision with a partial duplicate bolted on for the minority of rejections
 that still have a row. The band alone covers every case. #58's body is corrected.
@@ -315,8 +315,8 @@ gave sleeping tasks a home while correctly giving closed ones none.
 Amended by [The overview, part 2: context cards, the folds and the indicators](https://github.com/stainii/task/issues/58),
 2026-08-16.
 
-*A rejected-change row names the act and the reason* settled the words and left the mechanics open.
-Building them found that the obvious reading of *Fix and retry* — open the task, correct it, save —
+_A rejected-change row names the act and the reason_ settled the words and left the mechanics open.
+Building them found that the obvious reading of _Fix and retry_ — open the task, correct it, save —
 **cannot work for the case the band exists for**: the commonest rejection is a completion, whose task
 is closed, and [ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-postpone.md) redirects
 `/task/:id` away from a closed task. The one verb the band can offer every row is therefore:
@@ -330,8 +330,40 @@ is closed, and [ADR-0018](0018-a-flat-dialog-on-a-route-and-today-is-the-un-post
 
 **The notice comes down because it was acted on, not because the send succeeded.** If the server
 refuses the patch a second time it returns through the ordinary drop path, which is the only shape in
-which this cannot quietly lose the fact. *Fix* is then what you did elsewhere — in the dialog, on the
+which this cannot quietly lose the fact. _Fix_ is then what you did elsewhere — in the dialog, on the
 server, in the next deploy — and this is the button that tries again.
 
-*Decided by recommendation while building #58; no prototype drove the verbs' mechanics, only their
-words.*
+_Decided by recommendation while building #58; no prototype drove the verbs' mechanics, only their
+words._
+
+### The expanded panel's _Complete_ gains an "another day" surface; the swipe does not
+
+Amended by [Complete a one-off task on another day](https://github.com/stainii/task/issues/83),
+2026-08-27.
+
+_Both capture paths ask when_ put swipe-right and the expanded panel's _Complete_ in one bucket —
+_acted on it in place … it means now_ — and closed with _"Extending the prompt to the swipe is a
+later call … nothing here forecloses it."_ Issue #83 is that call, and it **splits the bucket
+rather than moving the line**: the task panel was the only completion surface with no _"when did you
+do it?"_ step, where a template and complete-by-name both have one.
+
+- **The swipe stays silent-and-today.** A gesture on a row in front of you is the fast path on
+  purpose ([#9](https://github.com/stainii/task/issues/9)'s single uninterrupted swipe), and a
+  prompt inside it is the thing this ADR and ADR-0011 both rejected.
+- **The panel's `Complete` becomes a split control `[ complete ][▾]`.** A plain tap still means
+  today, silently. The `▾` is a disclosure — a caret, like the row's own — opening a _Done when?_
+  menu (`Today · Yesterday · 2 days ago · In the past…`). Opening the card and picking a date is a
+  deliberate act, not the in-place gesture, so it asks without crossing the line. _In the past…_ is
+  this ADR's one confirm (`DateConfirm`), reached the same way from the toast below.
+- **A silent completion is correctable in its toast.** The undo toast carries a _change day_ row
+  for the horizon — variant A of the prototype — which is where ADR-0011's amendment already put
+  the only correction a wrong `completedOn` gets.
+
+Two consequences are taken knowingly. `DateConfirm` now caps at **today** on every path, because it
+only ever collects a completion date and you cannot have done a thing tomorrow. And the toast
+correction is **undo-then-recomplete** (ADR-0011's amendment names it): a patch id is an idempotency
+key, so _change day_ records a void plus a fresh `completePatch` rather than rewriting the original,
+and re-arms the horizon around the new completion each time it is used.
+
+_Driven by `PROTOTYPE-complete-on-another-day.html`; the A+B verdict and its three open
+sub-decisions are recorded on #83._

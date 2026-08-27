@@ -75,6 +75,21 @@ describe('DateConfirm', () => {
     expect(confirmed).toEqual(['2026-08-11']);
   });
 
+  it('will not let the work have happened in the future', async () => {
+    // The field only ever collects a `completedOn` (issue #83), and you cannot have done it
+    // tomorrow. The `max` caps the picker UI; a typed value that slips past it lands on today.
+    const page = await open('Beddengoed wassen', '2026-08-14');
+    const confirmed: string[] = [];
+    fixture.componentInstance.confirmed.subscribe((on: string) => confirmed.push(on));
+
+    expect(date(page).getAttribute('max')).toBe('2026-08-14');
+
+    type(date(page), '2026-08-20');
+    page.querySelector<HTMLElement>('.confirm')?.click();
+
+    expect(confirmed).toEqual(['2026-08-14']);
+  });
+
   it('cancels without saying anything happened', async () => {
     const page = await open('Beddengoed wassen');
     const confirmed: string[] = [];

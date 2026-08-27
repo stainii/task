@@ -25,6 +25,17 @@ export interface PanelAction {
   readonly patch: TaskPatch;
   /** What happened, in the past tense: *Completed*, *Cancelled*, *Postponed to tomorrow*. */
   readonly done: string;
+  /**
+   * The task that was completed and the day it was filed under — present only on a completion, and
+   * both together (issue #83).
+   *
+   * The toast's *change day* row corrects `completedOn` within the horizon, and ADR-0018 makes that
+   * *undo-then-recomplete*: it needs the task, to mint a fresh {@link completePatch}, and the date,
+   * to say which day the toast is currently claiming without digging it back out of the patch.
+   * Cancel and postpone leave this undefined — neither writes a `completedOn` there is anything to
+   * correct.
+   */
+  readonly completed?: { readonly task: Task; readonly on: IsoDate };
 }
 
 /**
@@ -81,6 +92,31 @@ export const POSTPONE_PRESETS: readonly DatePreset[] = ASK_FROM_PRESETS.filter(
  */
 export const DUE_PRESETS: readonly DatePreset[] = ASK_FROM_PRESETS.filter(
   (preset) => preset.days < 7,
+);
+
+/**
+ * The panel's *done when?* offsets (issue #83): **today, and the two days before it**.
+ *
+ * The one preset set whose days go **backward** — a completion in the future is not a thing — so it
+ * is written out rather than derived from {@link ASK_FROM_PRESETS}, which share only `0` with it and
+ * mean a *start* date. Anything older than *2 days ago* is the shared `DateConfirm`, reached through
+ * the picker's *In the past…*, so this list stays short on purpose: it is the glanceable tail of a
+ * completion history, not a date field.
+ */
+export const COMPLETED_ON_PRESETS: readonly DatePreset[] = [
+  { label: 'Today', days: 0 },
+  { label: 'Yesterday', days: -1 },
+  { label: '2 days ago', days: -2 },
+];
+
+/**
+ * The undo toast's *change day* offsets: **the same set minus `Today`**, derived rather than
+ * written out a second time for the reason the postpone list is (a second literal is a second
+ * chance for the two to drift). A completion the toast is offering to move is already filed under
+ * today, so *Today* there would be a no-op — the mirror of why {@link POSTPONE_PRESETS} drops it.
+ */
+export const PAST_DAY_PRESETS: readonly DatePreset[] = COMPLETED_ON_PRESETS.filter(
+  (preset) => preset.days < 0,
 );
 
 /** Giving a captured task a due date, from the toast that followed it. */

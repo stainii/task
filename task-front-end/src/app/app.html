@@ -129,7 +129,11 @@
   }
 
   @if (undoable(); as completion) {
-    <app-undo-toast [what]="completion.what" (undo)="completion.undo()" />
+    <app-undo-toast
+      [what]="completion.what"
+      [correction]="completion.correction ?? null"
+      (undo)="completion.undo()"
+    />
   }
 </div>
 

@@ -60,7 +60,24 @@
         <span class="constructive">
           <app-glyph-button verb="edit" (click)="edit()" />
           <app-glyph-button verb="postpone" [matMenuTriggerFor]="postponeMenu" />
-          <app-glyph-button verb="complete" tone="good" (click)="complete()" />
+          <!--
+            The split Complete (issue #83, variant B). The left half is the fast path — one tap,
+            today, silent, the same thing a swipe-right does. The ▾ is the deliberate "…that was
+            Saturday" surface, a disclosure caret like the row's own, next to where Postpone's menu
+            already lives (ADR-0018).
+          -->
+          <span class="complete-split">
+            <app-glyph-button verb="complete" tone="good" (click)="complete()" />
+            <button
+              type="button"
+              class="done-when"
+              aria-label="Complete on another day"
+              matTooltip="Complete on another day"
+              [matMenuTriggerFor]="doneWhenMenu"
+            >
+              ▾
+            </button>
+          </span>
         </span>
         <!-- Pushed to the far edge: colour already says *category*, but never *which*. -->
         <span class="destructive">
@@ -74,6 +91,18 @@
             {{ preset.label }}
           </button>
         }
+      </mat-menu>
+
+      <mat-menu #doneWhenMenu>
+        @for (preset of doneWhenPresets; track preset.days) {
+          <button mat-menu-item type="button" class="done-when-preset" (click)="completeOn(preset)">
+            {{ preset.label }}
+          </button>
+        }
+        <!-- Older than two days is a real date, and it goes through the shell's one confirm. -->
+        <button mat-menu-item type="button" class="done-when-past" (click)="completeInThePast()">
+          In the past…
+        </button>
       </mat-menu>
     </div>
   }

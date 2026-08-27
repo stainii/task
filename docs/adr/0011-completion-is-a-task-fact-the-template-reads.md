@@ -12,7 +12,7 @@ Amends [ADR-0001](0001-one-task-aggregate-with-triggered-templates.md) and
 
 ## Context
 
-Portal closed the loop *recurring task → todo task → done → execution recorded* over RabbitMQ, with a
+Portal closed the loop _recurring task → todo task → done → execution recorded_ over RabbitMQ, with a
 `flowId` correlating the two services. [#12](https://github.com/stainii/task/issues/12) dropped
 `flowId`, [ADR-0001](0001-one-task-aggregate-with-triggered-templates.md) deleted `Execution` and
 `activeTask` and made an occurrence derived rather than stored, and
@@ -23,7 +23,7 @@ That left three things genuinely open, all of which this ADR answers:
 
 1. **What happens to a scheduled template's clock when its task is cancelled rather than completed.**
    ADR-0001's amendment from [#14](https://github.com/stainii/task/issues/14) anchored the min/max
-   clock to the last *completed* patch, which is right about history and, as it turns out, wrong
+   clock to the last _completed_ patch, which is right about history and, as it turns out, wrong
    about scheduling.
 2. **How you say "I already did this"** for a template that is showing nothing — portal's
    housagotchi form, kept as REC-005 by [#13](https://github.com/stainii/task/issues/13), whose
@@ -32,8 +32,8 @@ That left three things genuinely open, all of which this ADR answers:
    ADR-0001 raised and deferred here.
 
 `housagotchi-add-execution.component.html` settles that the third is a real feature and not a
-theoretical one: a **required** `mat-datepicker` labelled *"When did you do it?"*, defaulting to
-today, next to a dropdown asking *"What did you do?"*.
+theoretical one: a **required** `mat-datepicker` labelled _"When did you do it?"_, defaulting to
+today, next to a dropdown asking _"What did you do?"_.
 
 ## Decision
 
@@ -56,14 +56,14 @@ neither evaluated. `Calendar` is immune (an absolute clock; the next date is the
 
 **The fix is that two different questions were sharing one answer:**
 
-- ***When did I last actually do this?*** — history and reporting. **Completions only.**
+- _**When did I last actually do this?**_ — history and reporting. **Completions only.**
   `TaskOccurrences.lastCompletionOf` keeps ADR-0001's amended meaning exactly.
-- ***When should I next be asked?*** — scheduling. **Any closure ends the round.** A cancelled task
+- _**When should I next be asked?**_ — scheduling. **Any closure ends the round.** A cancelled task
   buys the template a full `min` interval of quiet.
 
 Cancelling is not forgetting. **Forgetting is the task sitting open**, which already suppresses
 refiring, so the deliberate drift ADR-0001 wants is fully preserved by the suppression rule and
-needs no help from the anchor. Cancelling is an explicit *"not this round"*, and the honest response
+needs no help from the anchor. Cancelling is an explicit _"not this round"_, and the honest response
 to it is a full interval of silence with the history still recording plainly that it was not done.
 
 The accepted cost: a template can be cancelled indefinitely with no signal beyond its own history.
@@ -75,7 +75,7 @@ which firing a task came from — it is not a unit that gets completed and it ha
 of its own.
 
 So the anchor reads tasks directly: **`lastCompletionOf(template)` is the latest `completedOn`
-among that template's completed tasks.** There is no *"did the round count as done"* rule, because
+among that template's completed tasks.** There is no _"did the round count as done"_ rule, because
 there is no round to judge.
 
 This is not only simpler, it is more truthful, and it removes a decision rather than making one. A
@@ -89,7 +89,7 @@ an **open task**. That is ADR-0003's `hasOpenOccurrence` query as written.
 
 ### `completedOn` is a domain clock on the task
 
-Reproducing *"I ticked it off today but I actually did it last Tuesday"* gets **a `completedOn` date
+Reproducing _"I ticked it off today but I actually did it last Tuesday"_ gets **a `completedOn` date
 on `Task`** — a normal patchable field, **set on every completion and defaulting to today**.
 
 It is deliberately **not** the patch's `dateTime`. ADR-0004's thesis is that a patch carries two
@@ -107,7 +107,7 @@ subject to the ordinary fold. It resolves by last-writer-wins like any other fie
 what correcting a mis-entered date should do.
 
 Setting it on **every** completion rather than only when backdated means the anchor reads one field
-unconditionally, with no *"the field if present, else the patch timestamp"* fallback. A fallback that
+unconditionally, with no _"the field if present, else the patch timestamp"_ fallback. A fallback that
 only old or ordinary data exercises is a branch nobody tests.
 
 ### "I did it" is a task the client mints
@@ -129,15 +129,15 @@ holds, so it works offline in both:
   patch and the completing patch both carrying the chosen date.
 
 The second is ADR-0005's migrated-execution shape exactly, so a migrated execution and a live
-out-of-band completion are the same rows, and *"when did I last do this"* stays one query over one
+out-of-band completion are the same rows, and _"when did I last do this"_ stays one query over one
 history.
 
-The affordance **picks a task, not a template** — portal's *"What did you do?"* dropdown listed
+The affordance **picks a task, not a template** — portal's _"What did you do?"_ dropdown listed
 recurring tasks, one name each, and with several definitions the equivalent is choosing which
 definition was done. Conjuring every definition as completed is rejected: it would complete tasks
 the user never named, which is template-level completion in a different hat.
 
-Queueing an *intent* — "fire template X, completed on date D" — and letting the server render on
+Queueing an _intent_ — "fire template X, completed on date D" — and letting the server render on
 drain was considered as a way to keep one renderer while staying offline-tolerant. Rejected: ADR-0004
 renders from local state before any network and ADR-0009 acknowledges a write only once it is durably
 in the outbox, so the task must appear named and dated the instant it is tapped. The client has to
@@ -152,7 +152,7 @@ It is small — `fillInVariables` is a `String.replace` loop and `calculateDateW
 
 This map already has a settled answer for a rule that exists twice. ADR-0004 pinned the fold with
 **shared golden fixtures**, `/fold-fixtures/` enumerated by both suites and asserted non-empty, and
-[#10](https://github.com/stainii/task/issues/10) made it a rule: *no fold rule without a fixture*.
+[#10](https://github.com/stainii/task/issues/10) made it a rule: _no fold rule without a fixture_.
 
 Template rendering gets the same treatment: a sibling fixture directory holding template + inputs →
 expected tasks, enumerated by both suites, with the same non-empty assertion — because a path that
@@ -167,8 +167,8 @@ fixture.**
   application event**, the event types stay in `task` as an inbound port, and `task` keeps zero
   outbound module dependencies. No shared kernel module is forced.
 - **REC-005 loses its endpoint but keeps its shape.** ADR-0005 reasoned that once `Execution` was
-  deleted the register-an-execution endpoint *"can only mean create a task for this template and
-  complete it in the same breath"*. The meaning is confirmed and the endpoint is not: there is no
+  deleted the register-an-execution endpoint _"can only mean create a task for this template and
+  complete it in the same breath"_. The meaning is confirmed and the endpoint is not: there is no
   endpoint, the client mints the patches. ADR-0005's guarantee — migrated and live completions
   produce identical rows — is preserved by the shape, not by the route.
 - **`Task` gains `completedOn`**, so ADR-0004's patch payloads and the golden fold fixtures both
@@ -188,8 +188,8 @@ fixture.**
 
 ## Alternatives considered
 
-- **Cancel moves the one clock** (revert ADR-0001's amendment). Rejected: *"when did I last do
-  this"* would then answer with a day you explicitly did not do it, which is the false-completion
+- **Cancel moves the one clock** (revert ADR-0001's amendment). Rejected: _"when did I last do
+  this"_ would then answer with a day you explicitly did not do it, which is the false-completion
   problem [#14](https://github.com/stainii/task/issues/14) introduced cancelling to end.
 - **Cancel asks for a snooze duration.** Rejected as disproportionate: it puts a prompt inside the
   single uninterrupted swipe [#9](https://github.com/stainii/task/issues/9) designed, and adds state
@@ -198,10 +198,10 @@ fixture.**
   indistinguishable from ignoring, so the action [#14](https://github.com/stainii/task/issues/14)
   added would buy nothing.
 - **An occurrence-level completion rule**, either partial credit or clean sweep. Rejected as a
-  question that should not exist — see *Completion is a fact about a task*.
-- **Backdating the completing patch's `dateTime`.** Rejected; see *`completedOn` is a domain clock*.
+  question that should not exist — see _Completion is a fact about a task_.
+- **Backdating the completing patch's `dateTime`.** Rejected; see _`completedOn` is a domain clock_.
 - **A server-side firing endpoint** for out-of-band completions. Rejected on the offline
-  requirement; see *"I did it" is a task the client mints*.
+  requirement; see _"I did it" is a task the client mints_.
 - **Leaving the duplicated renderer untested** because it is forty lines. Rejected: the failure mode
   is a task rendered with a different name or due date on one device than another, visible only in
   history, which is the class of defect this map has now found seven times.
@@ -223,9 +223,28 @@ a task is completed the screen that would own the field becomes unreachable. Rea
 through the omnibox was offered and refused as functionality the author does not want, and the
 nearest thing that would restore it — reporting / task history — is out of scope for this map.
 
-**A stated limit follows.** This ADR sold `completedOn` partly on *"correcting it later is just
-another patch"*. That promise is withdrawn: the correction path is undo-then-recomplete inside the
+**A stated limit follows.** This ADR sold `completedOn` partly on _"correcting it later is just
+another patch"_. That promise is withdrawn: the correction path is undo-then-recomplete inside the
 toast's ~8 seconds, and after that a wrong completion date is permanent.
+
+### The overview panel gains an up-front "another day" surface, so fewer dates are wrong to begin with
+
+Amended by [Complete a one-off task on another day](https://github.com/stainii/task/issues/83),
+2026-08-27.
+
+The limit above still holds — `completedOn` is not editable once the toast expires — but issue #83
+adds an **earlier** path that keeps more dates from being wrong in the first place. The expanded
+panel's `Complete` splits into `[ complete ][▾]`, and the `▾` picks the completion date **before**
+the write (`Today · Yesterday · 2 days ago · In the past…`), the same deliberate _"when did you do
+it?"_ a template and complete-by-name already carry. The task panel had been the one completion
+surface without it.
+
+The horizon correction is unchanged in intent and now named precisely: the toast's _change day_ is
+**undo-then-recomplete**, because `local-store.ts` treats a patch id as an idempotency key and will
+not rewrite a stored patch. It records `undoPatch` plus a fresh `completePatch` on the chosen day,
+which the fold resolves by last-writer-wins exactly as this ADR says a corrected date should. See
+[ADR-0014](0014-two-destinations-and-you-capture-by-typing.md)'s amendment for the swipe-versus-panel
+split and the `DateConfirm` today-cap that rides with it.
 
 ### The sibling fixture directory is `/render-fixtures/`, and rendering moved onto the aggregate
 

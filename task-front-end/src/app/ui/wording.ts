@@ -144,6 +144,27 @@ export function lastDoneLabel(lastCompletedOn: IsoDate | null, today: IsoDate): 
 }
 
 /**
+ * *When a task the overview panel just completed got marked done* — issue #83's toast row.
+ *
+ * The near end mirrors {@link lastDoneLabel}: `today` / `yesterday` / `2 days ago` are the picker's
+ * own three words, so the toast reads back exactly what the swipe or the tap recorded. Past that the
+ * offset has stopped being something you hold in your head, so it falls to a calendar date.
+ */
+export function doneOnLabel(on: IsoDate, today: IsoDate): string {
+  const days = -daysUntil(today, on);
+  if (days === 0) {
+    return 'today';
+  }
+  if (days === 1) {
+    return 'yesterday';
+  }
+  if (days === 2) {
+    return '2 days ago';
+  }
+  return dateLabel(on, today);
+}
+
+/**
  * The four importance grades, in words a person would say.
  *
  * Facts are words (ADR-0019), and these are the labels portal used. The enum names are the wire

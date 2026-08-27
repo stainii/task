@@ -12,6 +12,7 @@ import { aTask } from '../../domain/task.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { flush } from '../../testing';
+import { Confirms } from '../../ui/confirms';
 import { Toasts } from '../../ui/toasts';
 import { Overview } from './overview';
 
@@ -374,6 +375,79 @@ describe('acting on a task', () => {
     expect(recorded).toHaveLength(2);
     expect(recorded[1].voids).toBe(recorded[0].id);
     expect(recorded[1].changes).toEqual({});
+  });
+
+  async function completeFromPanel(): Promise<void> {
+    element().querySelector<HTMLElement>('.row')?.click();
+    await fixture.whenStable();
+    element().querySelector<HTMLElement>('button[aria-label="Complete"]')?.click();
+    await fixture.whenStable();
+  }
+
+  function undoable() {
+    const offer = TestBed.inject(Toasts).showing();
+    if (offer?.kind !== 'undoable') {
+      throw new Error('Nothing is offering to be undone.');
+    }
+    return offer;
+  }
+
+  it('lets a silent panel completion move to another day, as undo-then-recomplete (issue #83)', async () => {
+    // A swipe and a plain Complete tap both file the task under today with nothing in the way
+    // (ADR-0014). This row is the *"oh wait, that was yesterday"* path, inside the horizon — and
+    // ADR-0018 makes the correction undo-then-recomplete, because the patch id is an idempotency key.
+    await render([aTask({ id: 'a', name: 'Call mum', dueDate: TODAY })]);
+    await completeFromPanel();
+
+    const offer = undoable();
+    expect(offer.correction?.on).toBe(TODAY);
+    expect(offer.correction?.today).toBe(TODAY);
+
+    offer.correction?.changeDay(addDays(TODAY, -1));
+    await flush();
+    await fixture.whenStable();
+
+    expect(recorded).toHaveLength(3);
+    expect(recorded[0].changes).toEqual({ status: 'COMPLETED', completedOn: TODAY });
+    expect(recorded[1].voids).toBe(recorded[0].id);
+    expect(recorded[2].changes).toEqual({ status: 'COMPLETED', completedOn: addDays(TODAY, -1) });
+    // The toast now names the recompletion, so a further nudge or an Undo acts on the right patch.
+    expect(undoable().correction?.on).toBe(addDays(TODAY, -1));
+  });
+
+  it('sends "In the past…" through the shared confirm before the recomplete', async () => {
+    vi.spyOn(TestBed.inject(Confirms), 'ask').mockResolvedValue('2026-08-01');
+    await render([aTask({ id: 'a', name: 'Call mum', dueDate: TODAY })]);
+    await completeFromPanel();
+
+    undoable().correction?.pickDay();
+    await flush();
+    await fixture.whenStable();
+
+    expect(recorded[2].changes).toEqual({ status: 'COMPLETED', completedOn: '2026-08-01' });
+  });
+
+  it('keeps "In the past…" a no-op when the confirm is dismissed', async () => {
+    vi.spyOn(TestBed.inject(Confirms), 'ask').mockResolvedValue(null);
+    await render([aTask({ id: 'a', dueDate: TODAY })]);
+    await completeFromPanel();
+
+    undoable().correction?.pickDay();
+    await flush();
+    await fixture.whenStable();
+
+    expect(recorded).toHaveLength(1);
+  });
+
+  it('offers no day change behind a cancel — there is no completedOn to move', async () => {
+    await render([aTask({ id: 'a', dueDate: TODAY })]);
+    element().querySelector<HTMLElement>('.row')?.click();
+    await fixture.whenStable();
+    element().querySelector<HTMLElement>('button[aria-label="Cancel"]')?.click();
+    await fixture.whenStable();
+
+    const offer = undoable();
+    expect(offer.correction).toBeUndefined();
   });
 
   it('re-reads the store when sync says something changed', async () => {

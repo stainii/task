@@ -153,6 +153,38 @@
 }
 
 /*
+ * The split Complete (issue #83). The ▾ is a disclosure caret — the same character the row uses —
+ * so it is a word's worth of affordance rather than a verb glyph, and it sits flush against the
+ * complete button so the two read as one control.
+ */
+.complete-split {
+  display: inline-flex;
+  align-items: center;
+}
+
+.done-when {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 40px;
+  margin-left: -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--app-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .done-when:hover {
+    background: var(--app-chip);
+  }
+}
+
+/*
  * The swipe fills. They grow from their own edge, sit under the row, and are painted in the same
  * two colours the verbs use — but the word is what says which, not the colour.
  */

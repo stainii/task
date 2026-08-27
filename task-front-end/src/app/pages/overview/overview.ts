@@ -13,11 +13,12 @@ import { RouterLink } from '@angular/router';
 
 import { NOW } from '../../clock';
 import { visibleWork } from '../../domain/bands';
-import { today } from '../../domain/dates';
-import { PanelAction, undoPatch } from '../../domain/patches';
+import { IsoDate, today } from '../../domain/dates';
+import { completePatch, PanelAction, undoPatch } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
+import { Confirms } from '../../ui/confirms';
 import { rejectedChanges } from '../../ui/rejections';
 import { Toast, Toasts } from '../../ui/toasts';
 import { foldSummary } from '../../ui/wording';
@@ -75,6 +76,7 @@ export class Overview {
   private readonly sync = inject(SyncService);
   private readonly now = inject(NOW);
   private readonly toasts = inject(Toasts);
+  private readonly confirms = inject(Confirms);
 
   /** Bound from the route parameter; absent at `/`, which is every context at once. */
   readonly value = input<string>();
@@ -277,17 +279,66 @@ export class Overview {
     // works from wherever you are standing, and the corner is the app's — so tidying up on the way
     // out would have meant clearing whatever the corner happened to hold, including an offer the
     // omnibox had just raised from the appbar that outlives every screen.
+    if (action.completed !== undefined) {
+      this.offerCompletion(action.completed.task, action.patch, action.completed.on, action.done);
+      return;
+    }
     const toast: Toast = {
       kind: 'undoable',
       what: action.done,
-      undo: () => void this.undo(action, toast),
+      undo: () => void this.takeBack(action.patch, toast),
     };
     this.toasts.show(toast);
   }
 
-  private async undo(action: PanelAction, toast: Toast): Promise<void> {
+  /**
+   * The toast behind a panel completion (issue #83, variant A): Undo, plus a *change day* row that
+   * moves `completedOn` within the horizon — the *"oh wait, that was yesterday"* path a silent
+   * swipe or a plain Complete tap would otherwise leave no way back from.
+   *
+   * `completion` is the patch Undo currently names, and `on` the day it filed. A correction replaces
+   * both, so each re-show closes over the new pair.
+   */
+  private offerCompletion(task: Task, completion: TaskPatch, on: IsoDate, what: string): void {
+    const toast: Toast = {
+      kind: 'undoable',
+      what,
+      undo: () => void this.takeBack(completion, toast),
+      correction: {
+        on,
+        today: this.today(),
+        changeDay: (to) => void this.changeDay(task, completion, to),
+        pickDay: () => void this.pickDay(task, completion),
+      },
+    };
+    this.toasts.show(toast);
+  }
+
+  /**
+   * Moves a just-made completion's date. ADR-0018 makes the correction **undo-then-recomplete**: a
+   * patch id is an idempotency key (`local-store.ts`), so the original cannot be rewritten in place,
+   * and ADR-0011 folds the fresh `completedOn` by last-writer-wins. The new toast re-arms the
+   * horizon around the recompletion, which a further correction or an Undo then names — a knowing
+   * consequence of the idempotency constraint, recorded in ADR-0014's amendment.
+   */
+  private async changeDay(task: Task, completion: TaskPatch, on: IsoDate): Promise<void> {
+    await this.record(undoPatch(completion, this.now()));
+    const recompleted = completePatch(task, this.now(), on);
+    await this.record(recompleted);
+    this.offerCompletion(task, recompleted, on, `Completed — ${task.name}`);
+  }
+
+  /** *In the past…* — the shell's one confirm collects the date, then the same recomplete. */
+  private async pickDay(task: Task, completion: TaskPatch): Promise<void> {
+    const on = await this.confirms.ask(task.name, this.today());
+    if (on !== null) {
+      await this.changeDay(task, completion, on);
+    }
+  }
+
+  private async takeBack(completion: TaskPatch, toast: Toast): Promise<void> {
     this.toasts.dismiss(toast);
-    await this.record(undoPatch(action.patch, this.now()));
+    await this.record(undoPatch(completion, this.now()));
   }
 
   private async record(patch: TaskPatch): Promise<void> {

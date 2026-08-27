@@ -50,7 +50,9 @@ import { IsoDate } from '../domain/dates';
 
       <label>
         <span class="visually-hidden">Date</span>
-        <input type="date" [value]="on()" (input)="pick($event)" />
+        <!-- You cannot have done it tomorrow: the picker only ever collects a completion date, so
+             the ceiling is today on every path that reaches it (issue #83). -->
+        <input type="date" [value]="on()" [max]="today()" (input)="pick($event)" />
       </label>
 
       <div class="actions">
@@ -86,7 +88,9 @@ export class DateConfirm {
   protected pick(event: Event): void {
     const picked = (event.target as HTMLInputElement).value;
     // An emptied date field is not a date. Falling back to today keeps *Done* always meaningful
-    // rather than writing an empty `completedOn` the fold would carry as "no idea when".
-    this.on.set(picked === '' ? this.today() : picked);
+    // rather than writing an empty `completedOn` the fold would carry as "no idea when". A typed
+    // value slips past the field's `max`, so today is also the ceiling here — ISO dates compare
+    // lexically.
+    this.on.set(picked === '' || picked > this.today() ? this.today() : picked);
   }
 }

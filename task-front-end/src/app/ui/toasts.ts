@@ -1,5 +1,27 @@
 import { Injectable, signal } from '@angular/core';
 
+import { IsoDate } from '../domain/dates';
+
+/**
+ * A just-made completion's date, and the two ways to move it within the horizon — issue #83's
+ * variant A, all four fields or none.
+ *
+ * Present only behind a completion the overview panel made (a swipe, or a plain Complete tap): the
+ * omnibox and the templates list already asked *when*, so their toasts carry no correction and the
+ * *change day* row does not render. Bundled into one object so *both, or neither* is the type rather
+ * than a comment — `on` alone would label the toast against a `today` it does not have.
+ */
+export interface CompletionCorrection {
+  /** The day the completion is currently filed under. */
+  readonly on: IsoDate;
+  /** The day it is measured against, for the *done yesterday* / *done 9 Aug* label. */
+  readonly today: IsoDate;
+  /** *Yesterday* / *2 days ago* — a preset day, already resolved to a date. */
+  readonly changeDay: (on: IsoDate) => void;
+  /** *In the past…* — opens the shell's one confirm for anything older. */
+  readonly pickDay: () => void;
+}
+
 /**
  * What the corner can be about.
  *
@@ -17,7 +39,13 @@ export type Toast =
       readonly details: () => void;
     }
   /** Anything that removed a row from a screen that does not show closed tasks (ADR-0015). */
-  | { readonly kind: 'undoable'; readonly what: string; readonly undo: () => void };
+  | {
+      readonly kind: 'undoable';
+      readonly what: string;
+      readonly undo: () => void;
+      /** Issue #83, variant A — set only behind a completion the overview panel made. */
+      readonly correction?: CompletionCorrection;
+    };
 
 /**
  * The app's **one** bottom corner ([#67](https://github.com/stainii/task/issues/67)).

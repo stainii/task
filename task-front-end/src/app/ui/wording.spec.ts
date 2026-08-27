@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { addDays } from '../domain/dates';
 import { Importance } from '../domain/task';
 import { aTask } from '../domain/task.mother';
-import { builtLabel, dateLabel, foldSummary, lastDoneLabel, syncedLabel } from './wording';
+import {
+  builtLabel,
+  dateLabel,
+  doneOnLabel,
+  foldSummary,
+  lastDoneLabel,
+  syncedLabel,
+} from './wording';
 
 /**
  * Facts are words (ADR-0019). This is the calendar date said out loud, which the dialog needs
@@ -64,6 +71,23 @@ describe('lastDoneLabel', () => {
     ['the day before that', '2026-08-12', 'last 2 days ago · 12 Aug'],
   ])('says %s plainly, where a count and a date would repeat themselves', (_case, on, expected) => {
     expect(lastDoneLabel(on, TODAY)).toBe(expected);
+  });
+});
+
+/**
+ * Issue #83's toast row. It reads back the picker's own three words at the near end — so *2 days
+ * ago* chosen from the ▾ comes back as *2 days ago*, not a date — and falls to a calendar date once
+ * the offset has stopped being something held in the head.
+ */
+describe('doneOnLabel', () => {
+  it.each([
+    ['today', TODAY, 'today'],
+    ['yesterday', '2026-08-13', 'yesterday'],
+    ['2 days ago', '2026-08-12', '2 days ago'],
+    ['older than that', '2026-08-09', '9 Aug'],
+    ['a past year', '2024-06-07', "7 Jun '24"],
+  ])('says %s', (_case, on, expected) => {
+    expect(doneOnLabel(on, TODAY)).toBe(expected);
   });
 });
 

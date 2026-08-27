@@ -8,20 +8,23 @@ import {
   signal,
 } from '@angular/core';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
+import { MatTooltip } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 
 import { NOW } from '../../clock';
 import { bucketOf } from '../../domain/buckets';
-import { IsoDate } from '../../domain/dates';
+import { addDays, IsoDate } from '../../domain/dates';
 import {
   cancelPatch,
   completePatch,
+  COMPLETED_ON_PRESETS,
   PanelAction,
   POSTPONE_PRESETS,
   DatePreset,
   postponePatch,
 } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
+import { Confirms } from '../../ui/confirms';
 import { GlyphButton } from '../../ui/glyph-button';
 import { linkify } from '../../ui/linkify';
 import { dueLabel, dueTone } from '../../ui/wording';
@@ -49,7 +52,7 @@ import { dueLabel, dueTone } from '../../ui/wording';
 @Component({
   selector: 'app-task-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [GlyphButton, MatMenu, MatMenuItem, MatMenuTrigger],
+  imports: [GlyphButton, MatMenu, MatMenuItem, MatMenuTrigger, MatTooltip],
   templateUrl: './task-panel.html',
   styleUrl: './task-panel.css',
 })
@@ -68,6 +71,7 @@ export class TaskPanel {
 
   private readonly router = inject(Router);
   private readonly now = inject(NOW);
+  private readonly confirms = inject(Confirms);
 
   readonly task = input.required<Task>();
 
@@ -88,6 +92,9 @@ export class TaskPanel {
   readonly acted = output<PanelAction>();
 
   protected readonly presets = POSTPONE_PRESETS;
+
+  /** The split Complete button's *done when?* offsets (issue #83): today, yesterday, 2 days ago. */
+  protected readonly doneWhenPresets = COMPLETED_ON_PRESETS;
 
   protected readonly open = signal(false);
 
@@ -147,8 +154,38 @@ export class TaskPanel {
     void this.router.navigate(['/task', this.task().id]);
   }
 
+  /**
+   * The plain tap on the split button's left half, and where a swipe-right lands: *now*, silently.
+   *
+   * ADR-0014's line — *acted on in place does not ask*. The ▾ beside it is the only deliberate
+   * surface; this path stays a single tap that means today.
+   */
   protected complete(): void {
-    this.act(completePatch(this.task(), this.now()), 'Completed');
+    this.completeAt(this.today());
+  }
+
+  /** A preset day from the ▾ menu — today, yesterday or two days ago (issue #83). */
+  protected completeOn(preset: DatePreset): void {
+    this.completeAt(addDays(this.today(), preset.days));
+  }
+
+  /**
+   * *In the past…* — anything older than the presets goes through the shell's one confirm, the same
+   * *When did you do it?* the omnibox and the templates list use. Nothing is written if it is
+   * dismissed.
+   */
+  protected async completeInThePast(): Promise<void> {
+    const on = await this.confirms.ask(this.task().name, this.today());
+    if (on !== null) {
+      this.completeAt(on);
+    }
+  }
+
+  /** One completion, whichever surface picked the date. The date rides on the action so the toast
+   *  can say which day it filed without reading it back off the patch. */
+  private completeAt(on: IsoDate): void {
+    const task = this.task();
+    this.act(completePatch(task, this.now(), on), 'Completed', { task, on });
   }
 
   protected cancel(): void {
@@ -166,8 +203,8 @@ export class TaskPanel {
    * The toast names the task as well as the verb, because the row it is about has just left the
    * screen — *Completed* alone would be an offer to undo something you can no longer see.
    */
-  private act(patch: TaskPatch, verb: string): void {
-    this.acted.emit({ patch, done: `${verb} — ${this.task().name}` });
+  private act(patch: TaskPatch, verb: string, completed?: { task: Task; on: IsoDate }): void {
+    this.acted.emit({ patch, done: `${verb} — ${this.task().name}`, completed });
   }
 
   protected began(event: PointerEvent): void {
