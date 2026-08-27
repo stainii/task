@@ -1,0 +1,524 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #82.
+
+  ANSWERED — 2026-08-27. The author chose variant C (one pill per context), with two refinements:
+    * Chips EVERYWHERE, not just the phone. The reflowing card grid goes away at all widths;
+      desktop gets the denser row too. One rendering of the row, not two.
+    * The detail a chip drops — the six-segment bar and the `next:` line — is NOT lost. It
+      MOVES INTO THE ENTERED SCOPE: tapping a chip enters the context (`/in/:value`) and the
+      bar + next-work summary appear on the scope line there. One tap away, never on the row.
+
+  Declined on the way, recorded so they are not re-proposed:
+    A — collapsible summary bar. Cheapest, but a tap to reach ANY context detail, and the
+        bar's aggregate (`2 overdue`) cannot say which context is on fire.
+    B — horizontal card scroller. Keeps every fact, but "where am I" becomes a sideways
+        scroll rather than a glance — the row's whole job is moving between contexts.
+    D — bottom sheet. Best use of vertical space, worst discoverability: the contexts sit
+        behind an unlabelled affordance with no preview until you have learned it.
+
+  Open decisions, carried to the implementation pass (see issue #82):
+    * Is the dominant-bucket dot enough colour signal on its own, or does ADR-0006 §82's
+      "six-segment colour bar … its whole width" need amending rather than relocating?
+    * The `next:` line was "the first thing a card can tell you the bands have not" — does it
+      survive being demoted to the scope line, or is it cut entirely?
+    * Chip order: alphabetical, matching contextCards()? Entered chip pinned first?
+    * Wrap vs. horizontal-scroll when the chips overflow two rows.
+
+  ----------------------------------------------------------------------------------------------
+  "On a phone the context cards at the top of the overview dominate the screen: five contexts
+   stack to five full-width cards, each carrying a header, a six-segment bar and up to two lines
+   of `next: …`, so the day's work starts a scroll below the fold. Can the row be more concise,
+   or fold into a menu — without going silent about where you are and what is on fire?"
+
+  The row's job (ADR-0006 §82, context-cards.ts): it is how you MOVE between contexts, it must
+  not be scoped to the entered context, and nothing below it may know it groups by context.
+  A variant is only allowed to change how the row LOOKS and where it SITS — not what it means.
+
+  Variants on the floating bar (or ← / →):
+    A — Collapsible summary bar. One line by default: `Contexts (5) · 2 overdue ▾`. Tap to
+        expand the real cards in place. The literal "uitklapbaar menu".
+    B — Horizontal card scroller. Cards keep everything, but the row is always exactly one
+        card tall — you swipe sideways through them instead of scrolling past a stack.
+    C — One pill per context. Radical shrink: `● house 4 ⚠2`. No bar, no `next:` line on the
+        phone; the rich detail lives inside the entered scope only.
+    D — Contexts in a bottom sheet. The page opens straight on the day's work; a thumb-height
+        `▲ Contexts (5 · ⚠2)` button pulls up a sheet with the full cards.
+
+  Rig: switch the scenario (how many contexts, whether anything is overdue) and the viewport
+  (phone / desktop) — the row only misbehaves under "many contexts" on a phone.
+
+  Light theme only: the question is structure and placement, not colour.
+  DELETE ME once the question is answered and this is captured on its prototype/ branch.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — mobile context row</title>
+<style>
+  /* tokens lifted from src/styles.css (light half of each light-dark pair) */
+  :root {
+    --app-ink: #1c1b1f; --app-muted: #5f6368; --app-line: #e3e3e6;
+    --app-surface: #fff; --app-bg: #f6f6f8; --app-chip: #eceef7; --app-accent: #3f51b5;
+    --app-overdue: #c62828;
+    --app-focus: #e53935; --app-long-game: #7cb342; --app-fit-in: #fb8c00; --app-back-burner: #9e9e9e;
+    --app-hover: #fafafb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--app-bg); color: var(--app-ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 96px;
+  }
+
+  /* ---- prototype scaffolding — deliberately plain, not part of the design ---- */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--app-line);
+    padding: 8px 16px; font-size: 12px; color: var(--app-muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 40;
+  }
+  #rig b { color: var(--app-ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--app-muted);
+  }
+  #rig button.on { background: var(--app-ink); color: #fff; border-color: var(--app-ink); }
+  #rigreport { font-size: 12px; }
+
+  /* ---- the phone / desktop frame ---- */
+  #frame {
+    margin: 18px auto; background: var(--app-bg);
+    border: 1px solid var(--app-line); border-radius: 22px; overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,.12);
+    transition: max-width .2s ease;
+  }
+  #frame.phone { max-width: 390px; }
+  #frame.desktop { max-width: 1100px; border-radius: 12px; }
+
+  header.app {
+    background: var(--app-surface); border-bottom: 1px solid var(--app-line);
+    padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  header.app .omni {
+    flex: 1; border: 1px solid var(--app-line); border-radius: 999px;
+    padding: 6px 12px; color: var(--app-muted); font-size: 13px; background: var(--app-bg);
+  }
+  header.app .more { color: var(--app-muted); font-size: 18px; }
+  nav.tabs { display: flex; gap: 4px; padding: 6px 12px; background: var(--app-surface); border-bottom: 1px solid var(--app-line); }
+  nav.tabs a { padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--app-muted); text-decoration: none; }
+  nav.tabs a.active { background: var(--app-chip); color: var(--app-ink); font-weight: 600; }
+
+  main { padding: 16px; }
+  #frame.desktop main { padding: 22px; }
+
+  /* ================= the row: shared card look (A, B, D) ================= */
+  .card {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px 14px; border: 1px solid var(--app-line); border-radius: 12px;
+    background: var(--app-surface); color: inherit; text-decoration: none; cursor: pointer;
+    text-align: left; font: inherit;
+  }
+  .card:hover { border-color: var(--app-accent); }
+  .card.entered { border-color: var(--app-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 18%, transparent); }
+  .card .head { display: flex; align-items: baseline; gap: 8px; }
+  .card .context { font-size: 16px; font-weight: 600; }
+  .card .badge { font-size: 12px; font-weight: 600; }
+  .card .badge.overdue { color: var(--app-overdue); }
+  .card .badge.today { color: var(--app-ink); }
+  .card .count { margin-left: auto; font-size: 12px; color: var(--app-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .card .bar { display: flex; gap: 3px; height: 6px; }
+  .card .bar i { flex: 1; border-radius: 2px; }
+  .card .next { font-size: 12px; color: var(--app-muted); text-wrap: pretty; }
+  .bucket-focus { background: var(--app-focus); }
+  .bucket-long-game { background: var(--app-long-game); }
+  .bucket-fit-in { background: var(--app-fit-in); }
+  .bucket-back-burner { background: var(--app-back-burner); }
+
+  /* the current production row: a reflowing grid. shown on desktop for A/B/C/D as the baseline. */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-bottom: 22px; }
+
+  /* ---------------- A — collapsible summary bar ---------------- */
+  .a-bar {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 11px 14px; border: 1px solid var(--app-line); border-radius: 12px;
+    background: var(--app-surface); font: inherit; cursor: pointer; text-align: left;
+    margin-bottom: 22px;
+  }
+  .a-bar .lbl { font-weight: 600; }
+  .a-bar .agg { font-size: 12px; color: var(--app-muted); }
+  .a-bar .agg .over { color: var(--app-overdue); font-weight: 600; }
+  .a-bar .chev { margin-left: auto; font-size: 11px; color: var(--app-muted); }
+  .a-open .a-bar { margin-bottom: 12px; border-radius: 12px 12px 0 0; border-bottom-color: transparent; }
+  .a-panel { display: none; }
+  .a-open .a-panel {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px;
+    padding: 12px; border: 1px solid var(--app-line); border-top: 0;
+    border-radius: 0 0 12px 12px; background: var(--app-bg); margin-bottom: 22px;
+  }
+
+  /* ---------------- B — horizontal card scroller ---------------- */
+  .b-scroller {
+    display: flex; gap: 12px; overflow-x: auto; margin-bottom: 22px;
+    padding-bottom: 6px; scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .b-scroller .card { scroll-snap-align: start; flex: 0 0 78%; max-width: 260px; }
+  .b-scroller::-webkit-scrollbar { height: 5px; }
+  .b-scroller::-webkit-scrollbar-thumb { background: var(--app-line); border-radius: 999px; }
+  .b-hint { font-size: 11px; color: var(--app-muted); margin: -14px 0 18px; }
+
+  /* ---------------- C — one pill per context ---------------- */
+  .c-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+  .c-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 12px; border: 1px solid var(--app-line); border-radius: 999px;
+    background: var(--app-surface); font: inherit; font-size: 13px; cursor: pointer; color: inherit;
+  }
+  .c-chip:hover { border-color: var(--app-accent); }
+  .c-chip.entered { border-color: var(--app-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 18%, transparent); }
+  .c-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .c-chip .nm { font-weight: 600; }
+  .c-chip .ct { color: var(--app-muted); font-variant-numeric: tabular-nums; }
+  .c-chip .wn { color: var(--app-overdue); font-weight: 600; }
+
+  /* ---------------- D — contexts in a bottom sheet ---------------- */
+  .d-fab {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 14px; z-index: 12;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 999px; border: 0;
+    background: var(--app-ink); color: #fff; font: inherit; font-size: 13px; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,.28);
+  }
+  .d-fab .over { color: #ff9c94; font-weight: 700; }
+  #frame { position: relative; }
+  .d-scrim {
+    position: absolute; inset: 0; background: rgba(0,0,0,.32); z-index: 13; display: none;
+  }
+  .d-open .d-scrim { display: block; }
+  .d-sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 14;
+    background: var(--app-surface); border-radius: 18px 18px 0 0;
+    padding: 8px 16px 20px; transform: translateY(100%); transition: transform .22s ease;
+    max-height: 76%; overflow-y: auto;
+  }
+  .d-open .d-sheet { transform: translateY(0); }
+  .d-sheet .grabber { width: 36px; height: 4px; border-radius: 999px; background: var(--app-line); margin: 6px auto 12px; }
+  .d-sheet h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--app-muted); margin: 0 0 10px; }
+  .d-sheet .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+
+  /* ================= the bands below, so the row is judged over real work ================= */
+  .scope { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; font-size: 14px; }
+  .scope a { padding: 3px 11px; border: 1px solid var(--app-line); border-radius: 999px; background: var(--app-surface); color: var(--app-muted); font-size: 12px; text-decoration: none; cursor: pointer; }
+  h2.band {
+    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--app-muted); margin: 0 0 10px;
+  }
+  .grid { display: grid; gap: 10px; grid-template-columns: minmax(0,1fr); align-items: start; }
+  #frame.desktop .grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .task {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--app-surface); border: 1px solid var(--app-line); border-radius: 10px;
+    padding: 10px 12px; padding-left: 0; overflow: hidden;
+  }
+  .task .stripe { width: 10px; align-self: stretch; }
+  .task .nm { flex: 1; font-size: 14px; min-width: 0; }
+  .task .ctx { font-size: 11px; color: var(--app-muted); }
+  .task .when { font-size: 12px; color: var(--app-muted); white-space: nowrap; }
+  .task .when.over { color: var(--app-overdue); font-weight: 600; }
+  .task .when.today { color: var(--app-ink); font-weight: 600; }
+  .foldbar {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 11px 14px; background: var(--app-surface);
+    border: 1px dashed var(--app-line); border-radius: 10px;
+    color: var(--app-muted); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+    margin-top: 10px;
+  }
+  .foldbar .chev { margin-left: auto; font-size: 11px; }
+
+  /* ---- variant switcher ---- */
+  #switcher {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: #1c1b1f; color: #fff; border-radius: 999px;
+    display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.28); z-index: 50; font-size: 13px;
+  }
+  #switcher button { background: transparent; border: 0; color: #fff; cursor: pointer; font-size: 16px; padding: 4px 10px; border-radius: 999px; }
+  #switcher button:hover { background: rgba(255,255,255,.15); }
+  #label { padding: 0 8px; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+  #label b { font-weight: 700; }
+  #hint { font-size: 11px; opacity: .55; padding-right: 6px; }
+
+  .note { max-width: 1100px; margin: 0 auto 6px; padding: 0 18px; font-size: 13px; color: var(--app-muted); }
+</style>
+</head>
+<body>
+
+<div id="rig">
+  <span class="grp"><b>scenario:</b>
+    <button data-sc="few">3 contexts, calm</button>
+    <button data-sc="many">7 contexts, 2 overdue</button>
+    <button data-sc="one">1 context</button>
+  </span>
+  <span class="grp"><b>viewport:</b>
+    <button data-vp="phone">phone</button>
+    <button data-vp="desktop">desktop</button>
+  </span>
+  <span id="rigreport"></span>
+</div>
+
+<p class="note" id="note"></p>
+
+<div id="frame" class="phone">
+  <header class="app">
+    <span class="omni">Capture a task…</span>
+    <span class="more">⋯</span>
+  </header>
+  <nav class="tabs">
+    <a class="active">Tasks</a>
+    <a>Templates</a>
+  </nav>
+  <main id="app"></main>
+  <div class="d-scrim"></div>
+  <div class="d-sheet"><div class="grabber"></div><h2>Contexts</h2><div class="grid" id="d-sheet-grid"></div></div>
+</div>
+
+<div id="switcher">
+  <button id="prev" title="Previous (←)">←</button>
+  <span id="label"></span>
+  <button id="next" title="Next (→)">→</button>
+  <span id="hint">← → to switch</span>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+// dueIn: days from today. negative = overdue, 0 = today, null = no due date.
+const SC = {
+  few: [
+    { c:"house",  n:"Vacuum the living room",      b:"fit-in",      dueIn:0 },
+    { c:"house",  n:"Descale the coffee machine",  b:"back-burner", dueIn:7 },
+    { c:"house",  n:"Renew bike insurance",        b:"long-game",   dueIn:9 },
+    { c:"health", n:"Book dentist appointment",    b:"focus",       dueIn:0 },
+    { c:"health", n:"Order new insoles",           b:"fit-in",      dueIn:12 },
+    { c:"social", n:"Ring Oma",                    b:"focus",       dueIn:2 },
+    { c:"social", n:"Coffee with Tom",             b:"long-game",   dueIn:7 },
+  ],
+  many: [
+    { c:"house",   n:"Bleed the radiators",          b:"focus",       dueIn:-3 },
+    { c:"house",   n:"Vacuum the living room",       b:"fit-in",      dueIn:0 },
+    { c:"house",   n:"Descale the coffee machine",   b:"back-burner", dueIn:7 },
+    { c:"work",    n:"Write the quarter's review",   b:"focus",       dueIn:-1 },
+    { c:"work",    n:"Book the team offsite",        b:"long-game",   dueIn:5 },
+    { c:"health",  n:"Book dentist appointment",     b:"focus",       dueIn:0 },
+    { c:"health",  n:"Order new insoles",            b:"fit-in",      dueIn:12 },
+    { c:"setlist", n:"Learn the bridge of Waltz #2", b:"long-game",   dueIn:null },
+    { c:"setlist", n:"Restring the acoustic",        b:"back-burner", dueIn:21 },
+    { c:"social",  n:"Ring Oma",                     b:"focus",       dueIn:2 },
+    { c:"garden",  n:"Cut back the wisteria",        b:"fit-in",      dueIn:9 },
+    { c:"garden",  n:"Order spring bulbs",           b:"back-burner", dueIn:30 },
+    { c:"admin",   n:"File the mileage claim",       b:"fit-in",      dueIn:4 },
+    { c:"admin",   n:"Cancel the old domain",        b:"back-burner", dueIn:14 },
+  ],
+  one: [
+    { c:"house", n:"Vacuum the living room",     b:"fit-in",      dueIn:0 },
+    { c:"house", n:"Descale the coffee machine", b:"back-burner", dueIn:7 },
+    { c:"house", n:"Clean the gutters",          b:"back-burner", dueIn:14 },
+    { c:"house", n:"Winter tyres on",            b:"fit-in",      dueIn:42 },
+  ],
+};
+
+let scenario = "many";
+let viewport = "phone";
+let entered = null;
+let aOpen = false;   // A: is the summary bar expanded
+let dOpen = false;   // D: is the sheet up
+
+const contextsOf = all => [...new Set(all.map(t => t.c))].sort();
+const label = d =>
+  d === null ? "no due date" :
+  d < 0 ? `${-d}d overdue` :
+  d === 0 ? "today" :
+  d === 1 ? "tomorrow" :
+  d < 14 ? `in ${d} days` :
+  d < 60 ? `in ${Math.round(d/7)} weeks` : `in ${Math.round(d/30)} months`;
+const whenClass = d => d !== null && d < 0 ? "over" : d === 0 ? "today" : "";
+
+function cardModel(ctx, all) {
+  const mine = all.filter(t => t.c === ctx);
+  const over = mine.filter(t => t.dueIn !== null && t.dueIn < 0).length;
+  const today = mine.filter(t => t.dueIn === 0).length;
+  const soonest = mine.slice().sort((a,b) => (a.dueIn ?? 999) - (b.dueIn ?? 999));
+  const next = soonest.find(t => (t.dueIn ?? 999) > 0) || null;
+  return {
+    ctx, count: mine.length, over, today,
+    segments: soonest.slice(0,6).map(t => t.b),
+    dominant: soonest[0]?.b ?? "back-burner",
+    next,
+  };
+}
+
+// ---------------------------------------------------------------- card / task html
+function cardHTML(m) {
+  const badge = m.over ? `<span class="badge overdue">${m.over} overdue</span>`
+              : m.today ? `<span class="badge today">${m.today} today</span>` : ``;
+  const bars = m.segments.map(s => `<i class="bucket-${s}"></i>`).join("") || `<i class="bucket-back-burner"></i>`;
+  const next = m.next ? `next: ${m.next.n} · ${label(m.next.dueIn)}` : `nothing pending`;
+  return `<button class="card ${entered === m.ctx ? "entered" : ""}" data-ctx="${m.ctx}">
+    <span class="head"><span class="context">${m.ctx}</span>${badge}<span class="count">${m.count}</span></span>
+    <span class="bar" aria-hidden="true">${bars}</span>
+    <span class="next">${next}</span>
+  </button>`;
+}
+function taskHTML(t, showCtx) {
+  return `<div class="task">
+    <span class="stripe bucket-${t.b}"></span>
+    <span class="nm">${t.n}${showCtx ? ` <span class="ctx">${t.c}</span>` : ``}</span>
+    <span class="when ${whenClass(t.dueIn)}">${label(t.dueIn)}</span>
+  </div>`;
+}
+
+// ---------------------------------------------------------------- bands (shared)
+function bandsHTML(all) {
+  const shown = entered ? all.filter(t => t.c === entered) : all;
+  const ranked = shown.slice().sort((a,b) => (a.dueIn ?? 999) - (b.dueIn ?? 999));
+  const visible = ranked.slice(0, 5);
+  const also = ranked.slice(5);
+  const scope = entered
+    ? `<p class="scope"><strong>${entered}</strong> — ${shown.length} open <a data-clear>← everything</a></p>`
+    : ``;
+  return `${scope}
+    <h2 class="band">Due today &amp; next up</h2>
+    <div class="grid">${visible.map(t => taskHTML(t, !entered)).join("")}</div>
+    ${also.length ? `<button class="foldbar">Also… (${also.length})<span class="chev">▾</span></button>` : ``}`;
+}
+
+// ---------------------------------------------------------------- variants
+function rowFull(models) {           // the current production row — desktop baseline
+  return `<div class="cards-grid">${models.map(cardHTML).join("")}</div>`;
+}
+
+function variantA(models, all) {
+  if (viewport === "desktop") return rowFull(models);
+  const over = models.reduce((s,m) => s + m.over, 0);
+  const today = models.reduce((s,m) => s + m.today, 0);
+  const agg = over ? `<span class="over">${over} overdue</span>`
+            : today ? `${today} due today` : `nothing overdue`;
+  return `<div class="${aOpen ? "a-open" : ""}">
+    <button class="a-bar" data-a-toggle>
+      <span class="lbl">Contexts (${models.length})</span>
+      <span class="agg">· ${agg}</span>
+      <span class="chev">${aOpen ? "▲" : "▾"}</span>
+    </button>
+    <div class="a-panel">${models.map(cardHTML).join("")}</div>
+  </div>`;
+}
+
+function variantB(models) {
+  if (viewport === "desktop") return rowFull(models);
+  return `<div class="b-scroller">${models.map(cardHTML).join("")}</div>
+    <p class="b-hint">swipe sideways · ${models.length} contexts</p>`;
+}
+
+function variantC(models) {
+  return `<div class="c-chips">${models.map(m => `
+    <button class="c-chip ${entered === m.ctx ? "entered" : ""}" data-ctx="${m.ctx}">
+      <span class="dot bucket-${m.dominant}"></span>
+      <span class="nm">${m.ctx}</span>
+      <span class="ct">${m.count}</span>
+      ${m.over ? `<span class="wn">⚠${m.over}</span>` : ``}
+    </button>`).join("")}</div>`;
+}
+
+function variantD(models) {
+  if (viewport === "desktop") return rowFull(models);
+  document.getElementById("d-sheet-grid").innerHTML = models.map(cardHTML).join("");
+  const over = models.reduce((s,m) => s + m.over, 0);
+  const enteredLine = entered
+    ? `<p class="scope"><strong>${entered}</strong> — ${SC[scenario].filter(t=>t.c===entered).length} open <a data-clear>← everything</a></p>`
+    : ``;
+  return enteredLine + `<button class="d-fab" data-d-open>▲ Contexts (${models.length}${over ? ` · <span class="over">⚠${over}</span>` : ``})</button>`;
+}
+
+// ---------------------------------------------------------------- paint
+const VARIANTS = {
+  A: "Collapsible summary bar",
+  B: "Horizontal card scroller",
+  C: "One pill per context",
+  D: "Contexts in a bottom sheet",
+};
+const NOTES = {
+  A: "One line by default — name count, worst-case badge, chevron. Tap expands the real cards in place, nothing else moves. Cheapest change; still one tap from the full row. On desktop it stays the plain grid.",
+  B: "Cards keep every fact, but the row is always exactly one card tall — you swipe through contexts instead of scrolling past a stack. Cost: contexts past the first are off-screen, so \"where am I\" is a scroll, not a glance.",
+  C: "Each context is a pill: dominant-bucket dot, name, count, an ⚠ only if something is overdue. The six-segment bar and the next: line are dropped on the phone and live inside the entered scope instead. Densest — a 7-context row is two short rows of chips.",
+  D: "The page opens on the day's work. A thumb-height button pulls up a sheet with the full cards. Best use of vertical space; worst discoverability — the contexts are behind a tap with no preview until you learn the button.",
+};
+const keys = Object.keys(VARIANTS);
+const current = () => {
+  const v = new URLSearchParams(location.search).get("variant");
+  return keys.includes(v) ? v : keys[0];
+};
+
+function paint() {
+  const v = current();
+  const all = SC[scenario];
+  const models = contextsOf(all).map(c => cardModel(c, all));
+
+  document.getElementById("frame").className = viewport;
+  document.getElementById("label").innerHTML = `<b>${v}</b> — ${VARIANTS[v]}`;
+  document.getElementById("note").textContent = NOTES[v];
+  document.querySelectorAll("#rig [data-sc]").forEach(b => b.classList.toggle("on", b.dataset.sc === scenario));
+  document.querySelectorAll("#rig [data-vp]").forEach(b => b.classList.toggle("on", b.dataset.vp === viewport));
+  document.getElementById("rigreport").innerHTML =
+    `<b>${models.length}</b> contexts · <b>${all.length}</b> open tasks`;
+
+  const row = v === "A" ? variantA(models, all)
+            : v === "B" ? variantB(models)
+            : v === "C" ? variantC(models)
+            : variantD(models);
+
+  document.getElementById("app").innerHTML = row + bandsHTML(all);
+  document.getElementById("frame").classList.toggle("d-open", v === "D" && dOpen);
+  wire();
+}
+
+function wire() {
+  document.querySelectorAll("[data-ctx]").forEach(el => el.addEventListener("click", e => {
+    e.preventDefault();
+    entered = entered === el.dataset.ctx ? null : el.dataset.ctx;
+    dOpen = false;
+    paint();
+  }));
+  document.querySelectorAll("[data-clear]").forEach(el => el.addEventListener("click", e => {
+    e.preventDefault(); entered = null; paint();
+  }));
+  const aToggle = document.querySelector("[data-a-toggle]");
+  if (aToggle) aToggle.addEventListener("click", () => { aOpen = !aOpen; paint(); });
+  const dFab = document.querySelector("[data-d-open]");
+  if (dFab) dFab.addEventListener("click", () => { dOpen = true; paint(); });
+  const scrim = document.querySelector(".d-scrim");
+  if (scrim) scrim.addEventListener("click", () => { dOpen = false; paint(); });
+}
+
+// ---------------------------------------------------------------- switcher / rig
+function go(v) {
+  const u = new URL(location); u.searchParams.set("variant", v);
+  history.replaceState({}, "", u);
+  entered = null; aOpen = false; dOpen = false;
+  paint();
+}
+document.getElementById("prev").onclick = () => go(keys[(keys.indexOf(current()) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => go(keys[(keys.indexOf(current()) + 1) % keys.length]);
+document.querySelectorAll("#rig [data-sc]").forEach(b => b.onclick = () => { scenario = b.dataset.sc; entered = null; paint(); });
+document.querySelectorAll("#rig [data-vp]").forEach(b => b.onclick = () => { viewport = b.dataset.vp; aOpen = false; dOpen = false; paint(); });
+document.addEventListener("keydown", e => {
+  if (["INPUT","TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+paint();
+</script>
+</body>
+</html>
