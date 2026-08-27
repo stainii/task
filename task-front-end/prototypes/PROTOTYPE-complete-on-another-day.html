@@ -1,8 +1,13 @@
 <!doctype html>
 <!--
-  THROWAWAY PROTOTYPE — no issue yet, a design spike from a chat request:
+  THROWAWAY PROTOTYPE — issue #83, a design spike from a chat request:
   "ik zou op een taak ook willen kunnen aangeven dat ik de taak op een andere dag heb
    uitgevoerd, net zoals ik dat kan aangeven op een template."
+
+  VERDICT (see #83): variants A + B ship together, C is dropped. B gives the deliberate
+  "I already know it was another day" case a home (split Complete button + date picker
+  in the expanded panel); A lets a completion you just made be corrected in the toast,
+  within the 8s horizon. No modal on an in-place completion; swipe stays silent-today.
 
   "What does 'I did this on another day' look like when you complete a one-off TASK
    from the overview — the way it already looks when you complete a TEMPLATE or a
