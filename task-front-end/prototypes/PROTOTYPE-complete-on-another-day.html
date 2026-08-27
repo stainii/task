@@ -1,0 +1,618 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — no issue yet, a design spike from a chat request:
+  "ik zou op een taak ook willen kunnen aangeven dat ik de taak op een andere dag heb
+   uitgevoerd, net zoals ik dat kan aangeven op een template."
+
+  "What does 'I did this on another day' look like when you complete a one-off TASK
+   from the overview — the way it already looks when you complete a TEMPLATE or a
+   task by name?"
+
+  WHAT ALREADY EXISTS, AND WHY THE TASK PANEL IS THE ONLY GAP
+    - The domain is already ready. `completePatch(task, now, completedOn = today(now))`
+      (domain/patches.ts:103) takes the date as its third argument. Nothing new has to
+      be written or migrated — the panel just always passes the default.
+    - The "When did you do it?" confirm already exists, once (ui/date-confirm.ts). The
+      omnibox's complete-by-name (ui/omnibox.ts:301) and the templates list
+      (pages/templates/templates.ts:222) both route through it via `Confirms.ask`.
+    - The task panel does NOT. `TaskPanel.complete()` (pages/overview/task-panel.ts:150)
+      and swipe-right both call `completePatch(task, now())` with no date — always today,
+      always silent.
+
+  THE LINE THIS SPIKE MUST NOT CROSS (ADR-0014, restated in date-confirm.ts)
+    "Chosen by name asks; acted on in place does not." A swipe on a row in front of you
+    is the fast, silent gesture on purpose. Putting the full modal in front of every
+    panel completion would break that line and nag on the 95% case where you did do it
+    just now. So every variant here keeps SWIPE silent-and-today. They differ only in
+    how the deliberate "…actually, that was Saturday" gets a surface.
+
+  WHY THE DATE IS NOT COSMETIC (ADR-0011, ADR-0022)
+    `completedOn` is what a min/max template's anchor reads, and ADR-0022 says the next
+    round starts from the day you closed it. Backdating the completion of a generated
+    task pulls its whole next fire-window earlier. The right-hand panel shows that move
+    live for "Vacuum the living room" — eyeball whether the shift ever surprises you.
+
+  THREE VARIANTS, SWITCHED FROM THE RIG
+    A — the toast remembers.   Complete stays instant + silent (completedOn = today).
+        The undo toast you are already looking at grows one row: "today ▾" ->
+        Yesterday / 2 days ago / pick. Choosing rewrites completedOn on the same patch,
+        inside the 8s horizon. No modal, ever. The correction path that already exists
+        (the toast — "the only correction path a wrong completedOn has", ADR-0011) just
+        does one more thing.
+    B — a dated complete in the open panel.  Swipe = silent today. In the EXPANDED
+        panel the Complete button splits: [ Complete ][▾]. Plain tap = today, silent.
+        The ▾ opens a small inline picker next to where Postpone's menu already lives
+        (ADR-0018: "the expanded panel, not a third swipe"). Deliberate backdating has
+        a home; the fast path is untouched.
+    C — the tapped verb asks.  Swipe = silent today. A deliberate tap on the Complete
+        verb routes through the SAME `DateConfirm` modal templates and by-name use. The
+        rule becomes: swipe is in-place and silent; a tapped verb asks. Most consistent
+        with "one confirm" — costs a modal on every deliberate panel complete.
+
+  DELETE ME once this is decided — along with the rest of prototypes/.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — complete a task on another day</title>
+<style>
+  :root {
+    --focus: #e53935; --long-game: #7cb342; --fit-in: #fb8c00; --back-burner: #9e9e9e;
+    --ink: #1c1b1f; --muted: #5f6368; --line: #e3e3e6; --surface: #fff; --bg: #f6f6f8;
+    --accent: #3f51b5; --overdue: #c62828; --good: #2e7d32;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header.app { background: var(--surface); border-bottom: 1px solid var(--line);
+               padding: 12px 20px; display: flex; align-items: baseline; gap: 14px;
+               position: sticky; top: 0; z-index: 9; }
+  header.app h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header.app .sub { color: #9aa0a6; font-size: 14px; }
+
+  #rig { background: #ecebf1; border-bottom: 1px solid var(--line); padding: 8px 20px;
+         font-size: 12px; color: var(--muted); display: flex; gap: 18px; align-items: center;
+         flex-wrap: wrap; position: sticky; top: 49px; z-index: 8; }
+  #rig b { color: var(--ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button { border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+                padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--muted); }
+  #rig button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  #rig .desc { flex-basis: 100%; color: #6a6d72; font-style: italic; }
+  #rigreport { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .wrap { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 24px;
+          max-width: 1240px; margin: 0 auto; padding: 20px; align-items: start; }
+  @media (max-width: 960px) { .wrap { grid-template-columns: 1fr; } }
+
+  h2.band { font-size: 13px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+            margin: 0 0 10px; font-weight: 600; }
+  .hint { font-size: 12px; color: #8a8d91; margin: -4px 0 12px; }
+
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+           border-left: 10px solid var(--back-burner); position: relative; overflow: hidden;
+           touch-action: pan-y; user-select: none; }
+  .panel[data-bucket="focus"]     { border-left-color: var(--focus); }
+  .panel[data-bucket="long-game"] { border-left-color: var(--long-game); }
+  .panel[data-bucket="fit-in"]    { border-left-color: var(--fit-in); }
+  .panel .swipehint { position: absolute; inset: 0; display: flex; align-items: center;
+                      padding: 0 16px; font-size: 12px; font-weight: 600; color: #fff;
+                      background: var(--good); opacity: 0; }
+  .panel .fg { position: relative; background: var(--surface); transition: transform .04s linear; }
+  .panel .row { padding: 11px 13px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .panel .name { flex: 1; min-width: 0; }
+  .panel .meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ctxlabel { font-size: 11px; color: var(--muted); background: #f1f1f4; border-radius: 999px; padding: 1px 8px; }
+  .time { font-size: 12px; color: var(--muted); }
+  .time.today { color: var(--accent); font-weight: 600; }
+  .time.overdue { color: var(--overdue); font-weight: 600; }
+  .fromtmpl { font-size: 11px; color: #33489a; background: #eef1fb; border: 1px solid #dde3f6;
+              border-radius: 999px; padding: 1px 8px; }
+  .caret { color: #b9bcc0; font-size: 11px; }
+
+  .panel .body { padding: 0 13px 12px; border-top: 1px solid var(--line); }
+  .panel .body p { margin: 10px 0; color: var(--muted); font-size: 14px; }
+
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .acts button { border: 1px solid var(--line); background: #fff; border-radius: 8px;
+                 padding: 5px 11px; font-size: 13px; cursor: pointer; color: var(--ink); }
+  .acts button.postpone { border-color: #cfd8e8; color: #33489a; }
+  .acts .split { display: inline-flex; }
+  .acts .split button:first-child { border-radius: 8px 0 0 8px; }
+  .acts .split button.caretbtn { border-radius: 0 8px 8px 0; border-left: 0; padding: 5px 8px; color: var(--muted); }
+  .menu { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;
+          background: #f7f8fc; border: 1px solid #e2e6f3; border-radius: 8px; padding: 8px; }
+  .menu .lbl { font-size: 12px; color: var(--muted); align-self: center; margin-right: 2px; }
+  .menu button { border: 1px solid #d5dcee; background: #fff; border-radius: 999px;
+                 padding: 4px 12px; font-size: 13px; cursor: pointer; }
+
+  /* variant C — the shared "When did you do it?" modal */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.32); z-index: 30; border: 0; }
+  .modal { position: fixed; z-index: 31; left: 50%; top: 40%; transform: translate(-50%,-50%);
+           width: min(360px, 92vw); background: #fff; border-radius: 14px; padding: 18px;
+           box-shadow: 0 18px 50px rgba(0,0,0,.28); }
+  .modal h3 { margin: 0 0 4px; font-size: 16px; }
+  .modal .what { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+  .modal input[type=date] { width: 100%; padding: 8px; font: inherit; border: 1px solid var(--line);
+                            border-radius: 8px; }
+  .modal .mact { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .modal .mact button { font: inherit; padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+  .modal .mact .cancel { border: 1px solid var(--line); background: #fff; }
+  .modal .mact .ok { border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+
+  aside .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+                padding: 14px; margin-bottom: 14px; font-size: 13px; }
+  aside h3 { margin: 0 0 8px; font-size: 13px; }
+  aside h3 .q { font-weight: 400; color: #8a8d91; }
+  .kv { font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+  .kv b { color: var(--ink); }
+  .kv .hot { color: var(--overdue); }
+  .kv .cool { color: var(--good); }
+  .tally { display: flex; gap: 14px; font-variant-numeric: tabular-nums; }
+  .tally .n { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .tally .n.warn { color: var(--overdue); }
+  .tally span small { display: block; color: #8a8d91; font-size: 11px; font-weight: 400; }
+  .log { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted);
+         max-height: 220px; overflow: auto; }
+  .log div { padding: 4px 0; border-bottom: 1px solid #f1f1f4; }
+  .log .k { color: var(--accent); }
+  .log .asked { color: #8a6d1f; }
+  .log .empty { color: #b9bcc0; border: 0; }
+
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 20;
+           background: #26252b; color: #fff; border-radius: 12px; padding: 12px 16px;
+           font-size: 14px; width: 380px; max-width: 92vw; opacity: 0; pointer-events: none; transition: opacity .15s; }
+  .toast.on { opacity: 1; pointer-events: auto; }
+  .toast .line1 { display: flex; gap: 16px; align-items: center; justify-content: space-between; }
+  .toast button { background: none; border: 0; color: #9db4ff; font: inherit; font-weight: 600; cursor: pointer; padding: 0; }
+  .toast .whenrow { margin-top: 8px; padding-top: 8px; border-top: 1px solid #3a3941;
+                    display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+  .toast .whenrow .cur { color: #cfd2f7; white-space: nowrap; }
+  .toast .whenrow .opts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .toast .whenrow .opts button { border: 1px solid #46454d; border-radius: 999px; padding: 3px 12px;
+                                 color: #fff; white-space: nowrap; }
+  .toast .whenrow .opts button.pick { color: #9db4ff; }
+
+  .obs { max-width: 900px; margin: 26px auto 60px; padding: 0 20px; color: var(--muted); font-size: 13px; }
+  .obs h3 { color: var(--ink); font-size: 14px; margin: 0 0 8px; }
+  .obs li { margin-bottom: 8px; }
+  kbd { background: #f1f1f4; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px;
+        padding: 0 5px; font: 12px/1.6 ui-monospace, Menlo, monospace; }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Tasks</h1>
+  <span class="sub">complete a one-off task on another day — three surfaces</span>
+</header>
+
+<div id="rig">
+  <span class="grp"><b>variant:</b>
+    <button data-v="A">A — the toast remembers</button>
+    <button data-v="B">B — dated complete in the panel</button>
+    <button data-v="C">C — the tapped verb asks</button>
+  </span>
+  <span class="grp"><button data-reset="1">reset</button></span>
+  <span id="rigreport"></span>
+  <span class="desc" id="rigdesc"></span>
+</div>
+
+<div class="wrap">
+  <div>
+    <h2 class="band">Due today</h2>
+    <p class="hint">
+      Swipe a card right to complete (drag with the mouse — same gesture the real panel uses).
+      Or open a card with a tap and use the verbs. Watch the right-hand panel each time.
+    </p>
+    <div class="grid" id="app"></div>
+  </div>
+
+  <aside>
+    <div class="card">
+      <h3>Patch written <span class="q">— what actually lands</span></h3>
+      <div class="kv" id="patch"><span class="empty" style="color:#b9bcc0">nothing yet</span></div>
+    </div>
+    <div class="card">
+      <h3>Template clock <span class="q">— "Vacuum the living room"</span></h3>
+      <div class="kv" id="clock"></div>
+    </div>
+    <div class="card">
+      <h3>Interruptions <span class="q">— how often it stopped you</span></h3>
+      <div class="tally" id="tally"></div>
+    </div>
+    <div class="card">
+      <h3>Completions recorded</h3>
+      <div class="log" id="log"><div class="empty">nothing yet</div></div>
+    </div>
+  </aside>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="obs">
+  <h3>What to look for</h3>
+  <ul>
+    <li><b>Does swipe stay honest?</b> In every variant a swipe-right writes
+      <span class="kv">completedOn = today</span> with nothing in your way. That is ADR-0014's line —
+      the question is only whether the deliberate case has somewhere to go.</li>
+    <li><b>A — is the toast row enough, or does it get missed?</b> The backdate lives inside the 8s
+      horizon. After that the completion is fixed and undo-then-redo is the only way back (ADR-0011).
+      Is "I did it Saturday" a thing you realise within 8 seconds of the swipe?</li>
+    <li><b>B — is a split button one affordance too many?</b> The panel already carries Edit,
+      Postpone&nbsp;▾, Complete, Cancel. Complete&nbsp;▾ makes five. Compare against how rarely you
+      actually backdate a one-off (vs a template, where every completion is "when?").</li>
+    <li><b>C — is one modal on every deliberate complete worth the consistency?</b> Swipe is still
+      free; only the tapped verb asks. This is the smallest diff from today's "one confirm" design.
+      Flip A→C a few times and feel the friction difference.</li>
+    <li><b>The template clock.</b> Backdate a completion of <i>Vacuum the living room</i> and the next
+      fire-window jumps earlier with it (ADR-0022). Is that ever a surprise, or always what you meant?</li>
+    <li><b>Only "Vacuum…" is from a template.</b> The other four are hand-made — their
+      <span class="kv">completedOn</span> is read by nothing but history. Maybe backdating only ever
+      matters for generated tasks, and that narrows the surface.</li>
+  </ul>
+</div>
+
+<script>
+// ---------------------------------------------------------------- clock
+// Today is Mon 10 Aug 2026, to match the other prototypes in this folder.
+const TODAY = new Date(2026, 7, 10);
+const fmt = d => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+// Local date parts — never toISOString(), which shifts to UTC and dates a Brussels
+// midnight as "yesterday". The real app carries the same care (ADR-0011: completedOn is
+// the date the person was standing on, not a UTC one).
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const parseIso = s => { const [y, m, day] = s.split("-").map(Number); return new Date(y, m - 1, day); };
+const sameDay = (a, b) => iso(a) === iso(b);
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
+// ---------------------------------------------------------------- data
+const SEED = [
+  { n: "Reply to the landlord about the boiler", b: "focus", c: "house", dueIn: -1, tmpl: null,
+    d: "He needs an answer before Friday." },
+  { n: "Vacuum the living room", b: "focus", c: "house", dueIn: 0,
+    tmpl: { min: 7, max: 10, lastCompletedOn: addDays(TODAY, -8) },   // last done 2 Aug
+    d: "Including under the couch." },
+  { n: "Book the dentist", b: "fit-in", c: "health", dueIn: 0, tmpl: null,
+    d: "Six-month check-up is overdue." },
+  { n: "Send Tom the setlist", b: "long-game", c: "social", dueIn: 1, tmpl: null,
+    d: "For Saturday's rehearsal." },
+  { n: "Water the balcony pots", b: "back-burner", c: "house", dueIn: 0, tmpl: null, d: "" },
+];
+
+let variant = "A";
+let tasks, open, menuFor, log, tally, lastPatch, modal;
+let toastState = null;               // { name, i, gone, completedOn, whenOpen } for variant A
+
+function fresh() {
+  tasks = SEED.map(t => ({ ...t }));
+  open = null; menuFor = null; log = []; lastPatch = null; modal = null; toastState = null;
+  tally = { silent: 0, asked: 0 };
+  hideToast();
+}
+
+const DESC = {
+  A: "Swipe or Complete both fire instantly. The toast carries a “today ▾” row — backdate there, within 8s.",
+  B: "Swipe fires instantly. In the open panel, Complete is a split button: tap = today, ▾ = pick a day.",
+  C: "Swipe fires instantly. Tapping the Complete verb opens the shared “When did you do it?” modal.",
+};
+
+// ---------------------------------------------------------------- completion
+// The one place a completion is recorded, whatever surface asked for it. Takes the task
+// itself, not an index — the row has usually just been spliced out of the list.
+function record(task, completedOn, asked, corrected) {
+  const backdated = !sameDay(completedOn, TODAY);
+  lastPatch = { name: task.n, completedOn: iso(completedOn), asked, backdated,
+                tmpl: task.tmpl ? { ...task.tmpl } : null };
+  if (!corrected) { if (asked) tally.asked++; else tally.silent++; }
+  const tag = asked ? `<span class="asked">asked</span>` : `silent`;
+  const note = corrected ? ` <span style="color:#8a8d91">(corrected in toast)</span>` : "";
+  log.unshift(`<span class="k">COMPLETED</span> ${task.n}<br>&nbsp;&nbsp;completedOn = <b>${iso(completedOn)}</b>` +
+              ` ${backdated ? "(backdated)" : "(today)"} · ${tag}${note}`);
+}
+
+// Variant A: complete now as today, then let the toast rewrite completedOn in place.
+function completeNowSilently(i) {
+  const gone = { ...tasks[i] };
+  tasks.splice(i, 1);
+  record(gone, TODAY, false);
+  toastState = { name: gone.n, i, gone, completedOn: TODAY, whenOpen: false };
+  render();
+  showToast();
+}
+
+// Variants B / C: we already know the date (today, or picked).
+function completeWith(i, completedOn, asked) {
+  const gone = { ...tasks[i] };
+  const at = i;
+  tasks.splice(i, 1);
+  record(gone, completedOn, asked);
+  open = null; menuFor = null;
+  render();
+  simpleToast(`Completed — ${gone.n}`, () => { tasks.splice(at, 0, gone); log.shift();
+    if (asked) tally.asked--; else tally.silent--; lastPatch = null; render(); });
+}
+
+// ---------------------------------------------------------------- render
+function panelHTML(t, idx) {
+  const isOpen = open === t.n;
+  const showMenu = menuFor === t.n;
+  const time = t.dueIn < 0 ? `${-t.dueIn}d overdue` : t.dueIn === 0 ? "today" : "tomorrow";
+  const timeCls = t.dueIn < 0 ? "overdue" : t.dueIn === 0 ? "today" : "";
+
+  let completeControl;
+  if (variant === "B") {
+    completeControl = `<span class="split">
+        <button data-act="complete-today">Complete</button>
+        <button class="caretbtn" data-act="complete-menu">▾</button>
+      </span>`;
+  } else {
+    completeControl = `<button data-act="complete-verb">Complete</button>`;
+  }
+
+  return `
+  <div class="panel" data-bucket="${t.b}" data-n="${t.n}" data-idx="${idx}">
+    <div class="swipehint">✓ Completed — today</div>
+    <div class="fg">
+      <div class="row" data-act="toggle">
+        <span class="name">${t.n}</span>
+        <span class="meta">
+          ${t.tmpl ? `<span class="fromtmpl">from a template</span>` : ``}
+          <span class="ctxlabel">${t.c}</span>
+          <span class="time ${timeCls}">${time}</span>
+          <span class="caret">${isOpen ? "▴" : "▾"}</span>
+        </span>
+      </div>
+      ${isOpen ? `<div class="body">
+        <p>${t.d || "<i>No description.</i>"}</p>
+        ${t.tmpl ? `<p style="font-size:12px;color:#33489a">Generated every ${t.tmpl.min}–${t.tmpl.max} days ·
+                    last completed ${fmt(t.tmpl.lastCompletedOn)}. Its next round starts from whatever
+                    date you close this one on (ADR-0022).</p>` : ``}
+        <div class="acts">
+          <button data-act="edit">Edit</button>
+          <button class="postpone" data-act="noop">Postpone ▾</button>
+          ${completeControl}
+          <button data-act="noop">Cancel</button>
+        </div>
+        ${showMenu ? `<div class="menu">
+          <span class="lbl">Done when?</span>
+          <button data-pick="0">Today</button>
+          <button data-pick="-1">Yesterday</button>
+          <button data-pick="-2">2 days ago</button>
+          <button data-pick="pick" class="pick" style="color:#33489a">In the past…</button>
+        </div>` : ``}
+      </div>` : ``}
+    </div>
+  </div>`;
+}
+
+function render() {
+  document.getElementById("app").innerHTML = tasks.map(panelHTML).join("")
+    || `<p style="color:#8a8d91">All done. Hit <b>reset</b> in the rig.</p>`;
+
+  // patch card
+  const p = document.getElementById("patch");
+  if (!lastPatch) {
+    p.innerHTML = `<span style="color:#b9bcc0">nothing yet</span>`;
+  } else {
+    p.innerHTML =
+      `{ <br>&nbsp;&nbsp;status: <b>COMPLETED</b>,` +
+      `<br>&nbsp;&nbsp;completedOn: <b class="${lastPatch.backdated ? "hot" : "cool"}">${lastPatch.completedOn}</b>` +
+      `${lastPatch.backdated ? " ← backdated" : ""}<br>}` +
+      `<br><span style="color:#8a8d91">confirm shown: <b>${lastPatch.asked ? "yes" : "no"}</b></span>`;
+  }
+
+  // template clock — always reflects "Vacuum the living room"
+  const vac = SEED.find(t => t.n === "Vacuum the living room").tmpl;
+  const c = document.getElementById("clock");
+  const anchor = (lastPatch && lastPatch.name === "Vacuum the living room" && lastPatch.tmpl)
+    ? parseIso(lastPatch.completedOn) : vac.lastCompletedOn;
+  const moved = !sameDay(anchor, vac.lastCompletedOn);
+  c.innerHTML =
+    `anchor (last completed): <b class="${moved ? "hot" : ""}">${fmt(anchor)}</b>${moved ? " ← moved" : ""}` +
+    `<br>next round: <b>${fmt(addDays(anchor, vac.min))}</b> – <b>${fmt(addDays(anchor, vac.max))}</b>` +
+    (moved
+      ? `<br><span class="hot">next round is ${Math.round((+TODAY - +anchor) / 86400000)} day(s) earlier
+         than completing it today would give</span>`
+      : `<br><span style="color:#8a8d91">complete it above — backdate it — and watch this move</span>`);
+
+  // tally
+  document.getElementById("tally").innerHTML =
+    `<span><span class="n">${tally.silent}</span><small>silent</small></span>` +
+    `<span><span class="n ${tally.asked ? "warn" : ""}">${tally.asked}</span><small>popped a modal</small></span>`;
+
+  // log
+  document.getElementById("log").innerHTML = log.length
+    ? log.map(l => `<div>${l}</div>`).join("") : `<div class="empty">nothing yet</div>`;
+
+  // rig
+  document.querySelectorAll("#rig [data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === variant));
+  document.getElementById("rigdesc").textContent = DESC[variant];
+  document.getElementById("rigreport").innerHTML =
+    `variant <b>${variant}</b> · open tasks <b>${tasks.length}</b>`;
+
+  if (modal) renderModal();
+}
+
+// ---------------------------------------------------------------- variant A toast
+function showToast() {
+  const el = document.getElementById("toast");
+  const s = toastState;
+  const label = +s.completedOn === +TODAY ? "today"
+    : +s.completedOn === +addDays(TODAY, -1) ? "yesterday"
+    : +s.completedOn === +addDays(TODAY, -2) ? "2 days ago" : fmt(s.completedOn);
+  el.innerHTML = `
+    <div class="line1">
+      <span>Completed — ${s.name}</span>
+      <button data-t="undo">Undo</button>
+    </div>
+    <div class="whenrow">
+      <span class="cur">done <b>${label}</b></span>
+      ${s.whenOpen ? `<span class="opts">
+          <button data-when="-1">Yesterday</button>
+          <button data-when="-2">2 days ago</button>
+          <button data-when="pick" class="pick">Pick…</button>
+        </span>`
+        : `<button data-t="whentoggle" style="color:#9db4ff">change day ▾</button>`}
+    </div>`;
+  el.classList.add("on");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(hideToast, 8000);
+}
+function simpleToast(text, undo) {
+  const el = document.getElementById("toast");
+  el.innerHTML = `<div class="line1"><span>${text}</span><button data-t="undo2">Undo</button></div>`;
+  el.classList.add("on");
+  simpleToast._undo = undo;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(hideToast, 8000);
+}
+function hideToast() { document.getElementById("toast").classList.remove("on"); }
+
+// rewrite completedOn on the still-open completion (variant A) — same patch, inside the horizon
+function backdateToast(days) {
+  const s = toastState;
+  s.completedOn = addDays(TODAY, days);
+  s.whenOpen = false;
+  log.shift();                        // replace the log line rather than stack it
+  record(s.gone, s.completedOn, false, true);
+  render();
+  showToast();
+}
+
+// ---------------------------------------------------------------- variant C modal
+function openModal(i) {
+  modal = { i, name: tasks[i].n, value: iso(TODAY) };
+  render();
+}
+function renderModal() {
+  let host = document.getElementById("modalhost");
+  if (!host) { host = document.createElement("div"); host.id = "modalhost"; document.body.appendChild(host); }
+  host.innerHTML = `
+    <button class="scrim" data-m="cancel" aria-label="Close"></button>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-t">
+      <h3 id="m-t">When did you do it?</h3>
+      <p class="what">${modal.name}</p>
+      <input type="date" value="${modal.value}" max="${iso(TODAY)}" data-m="date">
+      <div class="mact">
+        <button class="cancel" data-m="cancel">Cancel</button>
+        <button class="ok" data-m="ok">Done</button>
+      </div>
+    </div>`;
+}
+function closeModal() { modal = null; const h = document.getElementById("modalhost"); if (h) h.innerHTML = ""; }
+
+// ---------------------------------------------------------------- events
+document.addEventListener("click", e => {
+  const rig = e.target.closest("#rig button");
+  if (rig) {
+    if (rig.dataset.v) variant = rig.dataset.v;
+    if (rig.dataset.reset) fresh();
+    return render();
+  }
+
+  // toast buttons
+  const tb = e.target.closest("#toast [data-t], #toast [data-when]");
+  if (tb) {
+    if (tb.dataset.t === "undo" || tb.dataset.t === "undo2") {
+      if (tb.dataset.t === "undo" && toastState) {
+        tasks.splice(toastState.i, 0, toastState.gone); log.shift();
+        tally.silent--; lastPatch = null;
+      } else if (simpleToast._undo) simpleToast._undo();
+      toastState = null; hideToast(); return render();
+    }
+    if (tb.dataset.t === "whentoggle") { toastState.whenOpen = true; return showToast(); }
+    if (tb.dataset.when === "pick") { const d = prompt("completedOn (YYYY-MM-DD), today or earlier:", iso(addDays(TODAY, -3)));
+      if (d) { const dd = new Date(d); if (!isNaN(dd) && +dd <= +TODAY) backdateToast(Math.round((+dd - +TODAY) / 86400000)); }
+      return; }
+    if (tb.dataset.when) return backdateToast(+tb.dataset.when);
+    return;
+  }
+
+  // modal (variant C)
+  const mb = e.target.closest("#modalhost [data-m]");
+  if (mb) {
+    if (mb.dataset.m === "cancel") { closeModal(); return render(); }
+    if (mb.dataset.m === "ok") {
+      const v = document.querySelector('#modalhost [data-m="date"]').value || iso(TODAY);
+      const i = tasks.findIndex(t => t.n === modal.name);
+      closeModal();
+      if (i >= 0) completeWith(i, new Date(v), true);
+      return;
+    }
+    return;
+  }
+
+  const panel = e.target.closest(".panel");
+  if (!panel) return;
+  const idx = +panel.dataset.idx;
+  const act = e.target.closest("[data-act], [data-pick]");
+  if (!act) return;
+  e.stopPropagation();
+
+  const a = act.dataset.act;
+  if (a === "toggle") { open = open === panel.dataset.n ? null : panel.dataset.n; menuFor = null; return render(); }
+  if (a === "edit" || a === "noop") return;
+
+  if (a === "complete-verb") {                       // variants A + C
+    if (variant === "C") return openModal(idx);
+    return completeNowSilently(idx);                 // variant A
+  }
+  if (a === "complete-today") return completeWith(idx, TODAY, false);   // variant B plain tap
+  if (a === "complete-menu") { menuFor = menuFor === panel.dataset.n ? null : panel.dataset.n; return render(); }
+
+  if (act.dataset.pick !== undefined) {              // variant B inline picker
+    const pk = act.dataset.pick;
+    if (pk === "pick") {
+      const d = prompt("completedOn (YYYY-MM-DD), today or earlier:", iso(addDays(TODAY, -3)));
+      if (d) { const dd = new Date(d); if (!isNaN(dd) && +dd <= +TODAY) completeWith(idx, dd, false); }
+      return;
+    }
+    return completeWith(idx, addDays(TODAY, +pk), false);
+  }
+});
+
+// swipe-right to complete — real pointer drag, mouse included (like the real panel)
+let drag = null;
+document.addEventListener("pointerdown", e => {
+  const fg = e.target.closest(".panel .fg");
+  if (!fg || e.target.closest("[data-act='edit'], .acts button, .menu button")) return;
+  const panel = fg.closest(".panel");
+  drag = { panel, fg, x0: e.clientX, moved: false };
+});
+document.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x0;
+  if (dx > 4) drag.moved = true;
+  const clamped = Math.max(0, Math.min(dx, 160));
+  drag.fg.style.transform = `translateX(${clamped}px)`;
+  drag.panel.querySelector(".swipehint").style.opacity = String(Math.min(1, clamped / 90));
+});
+document.addEventListener("pointerup", e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x0;
+  const { panel, fg } = drag;
+  const d = drag; drag = null;
+  fg.style.transform = "";
+  panel.querySelector(".swipehint").style.opacity = "0";
+  if (dx > 90) {
+    const idx = +panel.dataset.idx;
+    // swipe is silent-and-today in every variant (ADR-0014)
+    if (variant === "A") completeNowSilently(idx);
+    else completeWith(idx, TODAY, false);
+  } else if (d.moved) {
+    // a drag that fell short is not a tap on the row
+    const stop = ev => { ev.stopPropagation(); document.removeEventListener("click", stop, true); };
+    document.addEventListener("click", stop, true);
+  }
+});
+
+fresh();
+render();
+</script>
+</body>
+</html>
