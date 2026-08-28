@@ -11,40 +11,26 @@
         [routerLink]="['/in', card.value]"
         [attr.aria-current]="card.value === entered() ? 'true' : null"
       >
-        <span class="head">
-          <span class="context">{{ card.value }}</span>
-          <!--
-            **Started tasks only** (ADR-0015). A card claiming `1 overdue` over a context you can
-            click into and find nothing overdue in does not survive being checked, and pressure you
-            learn to distrust has stopped being pressure. Nothing replaces the honesty valve this
-            removed: postpone is deliberately unmitigated.
-          -->
-          @if (card.badge; as badge) {
-            <span class="badge" [class]="'badge-' + badge.kind">{{ this.badge(badge) }}</span>
-          }
-          <!-- A true total, sleeping work included: a count that is not a total is not a count. -->
-          <span class="count">{{ card.count }}</span>
-        </span>
+        <!--
+          The dominant-bucket dot: the importance bucket of the soonest task in the context, and all
+          that is left of the six-segment bar (#82). Like the bar it describes the context rather
+          than started work, so it is `aria-hidden` — the facts it backs up are the words beside it.
+        -->
+        <span class="dot" [class]="'bucket-' + card.dominant" aria-hidden="true"></span>
+
+        <span class="context">{{ card.value }}</span>
+
+        <!-- A true total, sleeping work included: a count that is not a total is not a count. -->
+        <span class="count">{{ card.count }}</span>
 
         <!--
-          Six segments of importance bucket, soonest first, drawing **everything** — the bar is not
-          scoped the way the badge is, because it describes the context rather than claiming
-          anything about urgency. A fifth colour for sleeping tasks was drawn and rejected: it
-          destroys the bar, since a purple segment cannot say `focus` from `back-burner`.
+          **Started tasks only** (ADR-0015), and **in words** (ADR-0019). A card claiming `1 overdue`
+          over a context you can click into and find nothing overdue in does not survive being
+          checked; and `⚠2` would be a glyph standing in for a fact, which the map does not do.
         -->
-        <span class="bar" aria-hidden="true">
-          @for (segment of card.segments; track $index) {
-            <i [class]="'bucket-' + segment"></i>
-          }
-        </span>
-
-        <span class="next">
-          @if (card.next; as next) {
-            {{ this.next(next) }}
-          } @else {
-            nothing pending
-          }
-        </span>
+        @if (card.badge; as badge) {
+          <span class="badge" [class]="'badge-' + badge.kind">{{ this.badge(badge) }}</span>
+        }
       </a>
     }
   </nav>

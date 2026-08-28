@@ -5,7 +5,8 @@ import { Task } from './task';
 
 /**
  * The context cards above the bands
- * ([ADR-0006 §82](../../../../docs/adr/0006-one-overview-grouped-by-a-swappable-axis.md)).
+ * ([ADR-0006 §82](../../../../docs/adr/0006-one-overview-grouped-by-a-swappable-axis.md), amended by
+ * [#82](https://github.com/stainii/task/issues/82)).
  *
  * **The axis is a property of this row alone.** Nothing below the cards knows the tasks are grouped
  * by context, which is what keeps a second axis — a goal — a change to this file rather than a
@@ -14,10 +15,14 @@ import { Task } from './task';
  *
  * A front-end rule over data the client already holds, like the bands and the ranking: no endpoint,
  * no query parameter, and identical behaviour offline.
+ *
+ * **#82 shrank each card to a pill.** The full-width card carried a six-segment colour bar and a
+ * *what comes next* line; on a phone with 5–7 contexts the day's work started a scroll below the
+ * fold. What is left is a dominant-bucket **dot**, the context name, the true-total count, and a
+ * worded badge only when started work is late or due. The bar and the next line were **dropped, not
+ * relocated** — four treatments were driven on `prototype/context-row-scope-line` and the author
+ * chose the one that keeps the `/in/:value` scope line exactly as it was.
  */
-
-/** How many segments the colour bar draws. ADR-0006's *six-segment colour bar*, and its whole width. */
-const SEGMENTS = 6;
 
 /** What the badge claims, or nothing at all. **Started tasks only** — see {@link contextCards}. */
 export interface ContextBadge {
@@ -32,10 +37,13 @@ export interface ContextCard {
   readonly count: number;
   /** The urgency claim, and the one part of the card scoped to started work. */
   readonly badge: ContextBadge | null;
-  /** Importance buckets of the soonest {@link SEGMENTS}, as shape-at-a-glance. */
-  readonly segments: readonly ImportanceBucket[];
-  /** What comes next **after** the visible work, or nothing when the context is all on screen. */
-  readonly next: Task | null;
+  /**
+   * The importance bucket of the **soonest** task in the context — the dot's colour.
+   *
+   * All that is left of the six-segment bar (#82). Like the bar, it describes the context rather
+   * than started work, so a sleeper that is the soonest thing here still sets it.
+   */
+  readonly dominant: ImportanceBucket;
 }
 
 /**
@@ -48,11 +56,11 @@ export interface ContextCard {
  * > A task that has not started is not taken into consideration by anything that speaks about
  * > urgency.
  *
- * The count is a total, the bar draws everything and the *what comes next* line will name a sleeper,
- * because those three describe the **context**. Only the badge makes a claim about urgency, and only
- * that claim has to survive being clicked into: `house — 1 overdue` above a context you can enter and
- * find nothing overdue in is a card that has stopped being believable, and pressure you learn to
- * distrust is not pressure.
+ * The count is a total and the dot is coloured from the soonest task asleep or not, because both
+ * describe the **context**. Only the badge makes a claim about urgency, and only that claim has to
+ * survive being clicked into: `house — 1 overdue` above a context you can enter and find nothing
+ * overdue in is a card that has stopped being believable, and pressure you learn to distrust is not
+ * pressure.
  *
  * The cost is recorded rather than mitigated: a sufficiently postponed task raises no badge anywhere.
  * Seven compensating candidates were put up and all seven declined — see that ADR before proposing
@@ -60,38 +68,26 @@ export interface ContextCard {
  *
  * @param tasks everything this device holds — **not** the entered scope, or the row collapses to the
  *   one card you are already standing in
- * @param onScreen the ids the bands are **actually showing**, which is the caller's to know rather
- *   than this function's to guess: the cap of five is global at `/` and per-context once you are
- *   inside one, so a card computing its own visible set would skip a task as *already on screen*
- *   that is not on screen at all
  */
-export function contextCards(
-  tasks: readonly Task[],
-  today: IsoDate,
-  onScreen: ReadonlySet<string>,
-): ContextCard[] {
+export function contextCards(tasks: readonly Task[], today: IsoDate): ContextCard[] {
   // Open work only, and that is the one place this differs from the omnibox's chips: a chip for a
-  // context you have just cleared is still somewhere to capture *into*, where a card for it would
-  // be a row describing nothing.
+  // context you have just cleared is still somewhere to capture *into*, where a card for it here
+  // would describe nothing.
   const open = tasks.filter((task) => task.status === 'OPEN');
-  return contextsOf(open).map((value) => card(value, open, today, onScreen));
+  return contextsOf(open).map((value) => card(value, open, today));
 }
 
-function card(
-  value: string,
-  open: readonly Task[],
-  today: IsoDate,
-  onScreen: ReadonlySet<string>,
-): ContextCard {
+function card(value: string, open: readonly Task[], today: IsoDate): ContextCard {
   const mine = open.filter((task) => task.context === value);
+  // `contextsOf` only yields a context that has open work, so `mine` is never empty and there is
+  // always a soonest task to take the dot's colour from.
   const soonest = [...mine].sort(bySoonest);
 
   return {
     value,
     count: mine.length,
     badge: badgeOf(mine, today),
-    segments: soonest.slice(0, SEGMENTS).map((task) => bucketOf(task, today)),
-    next: soonest.find((task) => !onScreen.has(task.id)) ?? null,
+    dominant: bucketOf(soonest[0], today),
   };
 }
 
