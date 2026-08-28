@@ -1,0 +1,470 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — issue #82, follow-on to PROTOTYPE-mobile-context-row.html.
+
+  That prototype chose variant C — one pill per context (dominant-bucket dot, name, count, an ⚠
+  only when something is overdue), chips at every width, the reflowing card grid gone. It left
+  FOUR decisions open for the implementation pass. This file exists to settle them:
+
+    1. COLOUR BAR — the chip carries only a dominant-bucket dot. Does ADR-0006 §82's
+       "six-segment colour bar … its whole width" RELOCATE to the entered scope line, or is it
+       CUT entirely (dot is the only bucket signal anywhere)?
+    2. next: LINE — "the first thing a card can tell you the bands have not". Does it survive
+       being demoted to the scope line, or is it cut?
+    3. CHIP ORDER — alphabetical (matching contextsOf()), or is the entered chip pinned first?
+    4. OVERFLOW — when the chips pass ~two rows, do they WRAP or SCROLL sideways?
+
+  Decisions 1 + 2 are both about the scope line, so they compose into three variants:
+
+    V1 — SCOPE LINE KEEPS EVERYTHING   bar relocates to the scope line  +  next: kept there
+    V2 — BAR RELOCATES, next CUT       bar on the scope line            +  no next: anywhere
+    V3 — DOT ONLY                      nothing relocated; scope line stays `house — 6 open`
+
+  Decisions 3 + 4 are orthogonal presentation choices → rig toggles (chip order, overflow),
+  applied across all three variants.
+
+  The chip ROW itself is identical in every variant — it was settled by the previous prototype.
+  The prototype opens already INSIDE a context (`house`) so the scope-line difference is the
+  first thing you see; tap `← everything` or another chip to move around.
+
+  Rig: scenario (how many contexts / what is overdue), viewport (phone / desktop),
+  chip order (alphabetical / entered pinned first), overflow (wrap / scroll).
+  ←/→ switches variant.
+
+  Light theme only: the question is structure and placement, not colour.
+  DELETE ME once the four decisions are settled and this is captured on its prototype/ branch.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PROTOTYPE — context row scope line</title>
+<style>
+  /* tokens lifted from src/styles.css (light half of each light-dark pair) */
+  :root {
+    --app-ink: #1c1b1f; --app-muted: #5f6368; --app-line: #e3e3e6;
+    --app-surface: #fff; --app-bg: #f6f6f8; --app-chip: #eceef7; --app-accent: #3f51b5;
+    --app-overdue: #c62828;
+    --app-focus: #e53935; --app-long-game: #7cb342; --app-fit-in: #fb8c00; --app-back-burner: #9e9e9e;
+    --app-hover: #fafafb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--app-bg); color: var(--app-ink);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 96px;
+  }
+
+  /* ---- prototype scaffolding — deliberately plain, not part of the design ---- */
+  #rig {
+    background: #ecebf1; border-bottom: 1px solid var(--app-line);
+    padding: 8px 16px; font-size: 12px; color: var(--app-muted);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 40;
+  }
+  #rig b { color: var(--app-ink); font-weight: 600; }
+  #rig .grp { display: flex; gap: 5px; align-items: center; }
+  #rig button {
+    border: 1px solid #c9c8d2; background: #fff; border-radius: 999px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; color: var(--app-muted);
+  }
+  #rig button.on { background: var(--app-ink); color: #fff; border-color: var(--app-ink); }
+  #rigreport { font-size: 12px; }
+
+  /* ---- the phone / desktop frame ---- */
+  #frame {
+    margin: 18px auto; background: var(--app-bg);
+    border: 1px solid var(--app-line); border-radius: 22px; overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,.12);
+    transition: max-width .2s ease;
+  }
+  #frame.phone { max-width: 390px; }
+  #frame.desktop { max-width: 1100px; border-radius: 12px; }
+
+  header.app {
+    background: var(--app-surface); border-bottom: 1px solid var(--app-line);
+    padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+  }
+  header.app .omni {
+    flex: 1; border: 1px solid var(--app-line); border-radius: 999px;
+    padding: 6px 12px; color: var(--app-muted); font-size: 13px; background: var(--app-bg);
+  }
+  header.app .more { color: var(--app-muted); font-size: 18px; }
+  nav.tabs { display: flex; gap: 4px; padding: 6px 12px; background: var(--app-surface); border-bottom: 1px solid var(--app-line); }
+  nav.tabs a { padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--app-muted); text-decoration: none; }
+  nav.tabs a.active { background: var(--app-chip); color: var(--app-ink); font-weight: 600; }
+
+  main { padding: 16px; }
+  #frame.desktop main { padding: 22px; }
+
+  /* ================= the chip row — variant C, settled by the previous prototype ================= */
+  .c-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .c-chips.scroll { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
+  .c-chips.scroll::-webkit-scrollbar { height: 5px; }
+  .c-chips.scroll::-webkit-scrollbar-thumb { background: var(--app-line); border-radius: 999px; }
+  .c-chip {
+    display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
+    padding: 6px 12px; border: 1px solid var(--app-line); border-radius: 999px;
+    background: var(--app-surface); font: inherit; font-size: 13px; cursor: pointer; color: inherit;
+    scroll-snap-align: start;
+  }
+  .c-chip:hover { border-color: var(--app-accent); }
+  .c-chip.entered { border-color: var(--app-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 18%, transparent); }
+  .c-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .c-chip .nm { font-weight: 600; }
+  .c-chip .ct { color: var(--app-muted); font-variant-numeric: tabular-nums; }
+  .c-chip .wn { color: var(--app-overdue); font-weight: 600; }
+
+  /* ================= the scope line — the thing under test ================= */
+  /* V3 keeps the current production line verbatim. */
+  .scope {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin: 0 0 14px; font-size: 14px;
+  }
+  .scope .ctx { font-weight: 600; }
+  .scope .sep { color: var(--app-muted); }
+  .scope .open { color: var(--app-muted); }
+  .scope a {
+    padding: 3px 11px; border: 1px solid var(--app-line); border-radius: 999px;
+    background: var(--app-surface); color: var(--app-muted); font-size: 12px;
+    text-decoration: none; cursor: pointer;
+  }
+  /* The relocated six-segment bar (V1, V2). Same widths, same colours as the card carried. */
+  .scope .bar { display: inline-flex; gap: 3px; height: 6px; width: 120px; }
+  .scope .bar i { flex: 1; border-radius: 2px; }
+  /* The relocated next: summary (V1). */
+  .scope .next { color: var(--app-muted); font-size: 13px; }
+  .scope .next::before { content: "· "; }
+  .leave { margin-left: auto; }
+
+  .bucket-focus { background: var(--app-focus); }
+  .bucket-long-game { background: var(--app-long-game); }
+  .bucket-fit-in { background: var(--app-fit-in); }
+  .bucket-back-burner { background: var(--app-back-burner); }
+
+  /* ---- the "at /" hint (no scope line, no bar, no next: — nothing relocates there) ---- */
+  .atroot { margin: 0 0 14px; font-size: 12px; color: var(--app-muted); font-style: italic; }
+
+  /* ================= the bands below, so the scope line is judged over real work ================= */
+  h2.band {
+    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--app-muted); margin: 0 0 10px;
+  }
+  .grid { display: grid; gap: 10px; grid-template-columns: minmax(0,1fr); align-items: start; }
+  #frame.desktop .grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .task {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--app-surface); border: 1px solid var(--app-line); border-radius: 10px;
+    padding: 10px 12px; padding-left: 0; overflow: hidden;
+  }
+  .task .stripe { width: 10px; align-self: stretch; }
+  .task .nm { flex: 1; font-size: 14px; min-width: 0; }
+  .task .ctx { font-size: 11px; color: var(--app-muted); }
+  .task .when { font-size: 12px; color: var(--app-muted); white-space: nowrap; }
+  .task .when.over { color: var(--app-overdue); font-weight: 600; }
+  .task .when.today { color: var(--app-ink); font-weight: 600; }
+  .foldbar {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 11px 14px; background: var(--app-surface);
+    border: 1px dashed var(--app-line); border-radius: 10px;
+    color: var(--app-muted); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+    margin-top: 10px;
+  }
+  .foldbar .chev { margin-left: auto; font-size: 11px; }
+  .band + .band, .grid + .foldbar, .foldbar + .band { margin-top: 22px; }
+
+  /* ---- variant switcher ---- */
+  #switcher {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: #1c1b1f; color: #fff; border-radius: 999px;
+    display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.28); z-index: 50; font-size: 13px;
+  }
+  #switcher button { background: transparent; border: 0; color: #fff; cursor: pointer; font-size: 16px; padding: 4px 10px; border-radius: 999px; }
+  #switcher button:hover { background: rgba(255,255,255,.15); }
+  #label { padding: 0 8px; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+  #label b { font-weight: 700; }
+  #hint { font-size: 11px; opacity: .55; padding-right: 6px; }
+
+  .note { max-width: 1100px; margin: 0 auto 6px; padding: 0 18px; font-size: 13px; color: var(--app-muted); }
+</style>
+</head>
+<body>
+
+<div id="rig">
+  <span class="grp"><b>scenario:</b>
+    <button data-sc="few">3 contexts, calm</button>
+    <button data-sc="many">7 contexts, 2 overdue</button>
+    <button data-sc="one">1 context</button>
+  </span>
+  <span class="grp"><b>viewport:</b>
+    <button data-vp="phone">phone</button>
+    <button data-vp="desktop">desktop</button>
+  </span>
+  <span class="grp"><b>chip order:</b>
+    <button data-ord="alpha">alphabetical</button>
+    <button data-ord="pinned">entered pinned first</button>
+  </span>
+  <span class="grp"><b>overflow:</b>
+    <button data-of="wrap">wrap</button>
+    <button data-of="scroll">scroll sideways</button>
+  </span>
+  <span id="rigreport"></span>
+</div>
+
+<p class="note" id="note"></p>
+
+<div id="frame" class="phone">
+  <header class="app">
+    <span class="omni">Capture a task…</span>
+    <span class="more">⋯</span>
+  </header>
+  <nav class="tabs">
+    <a class="active">Tasks</a>
+    <a>Templates</a>
+  </nav>
+  <main id="app"></main>
+</div>
+
+<div id="switcher">
+  <button id="prev" title="Previous (←)">←</button>
+  <span id="label"></span>
+  <button id="next" title="Next (→)">→</button>
+  <span id="hint">← → to switch</span>
+</div>
+
+<script>
+// ---------------------------------------------------------------- data
+// due: days from today. negative = overdue, 0 = today, null = no due date.
+// sleepIn: days until the task starts. > 0 means it is asleep (in the future band).
+const SC = {
+  few: [
+    { c:"house",  n:"Vacuum the living room",     b:"fit-in",      due:0,  sleepIn:0 },
+    { c:"house",  n:"Fix the loose shelf",        b:"long-game",   due:2,  sleepIn:0 },
+    { c:"house",  n:"Water the plants",           b:"fit-in",      due:3,  sleepIn:0 },
+    { c:"house",  n:"Descale the coffee machine", b:"back-burner", due:7,  sleepIn:0 },
+    { c:"house",  n:"Renew bike insurance",       b:"long-game",   due:9,  sleepIn:0 },
+    { c:"house",  n:"Clean the gutters",          b:"back-burner", due:14, sleepIn:0 },
+    { c:"health", n:"Book dentist appointment",   b:"focus",       due:0,  sleepIn:0 },
+    { c:"health", n:"Order new insoles",          b:"fit-in",      due:12, sleepIn:0 },
+    { c:"social", n:"Ring Oma",                   b:"focus",       due:2,  sleepIn:0 },
+    { c:"social", n:"Coffee with Tom",            b:"long-game",   due:7,  sleepIn:0 },
+  ],
+  many: [
+    { c:"house",   n:"Bleed the radiators",          b:"focus",       due:-3,  sleepIn:0 },
+    { c:"house",   n:"Vacuum the living room",       b:"fit-in",      due:0,   sleepIn:0 },
+    { c:"house",   n:"Ring the plumber",             b:"focus",       due:1,   sleepIn:0 },
+    { c:"house",   n:"Descale the coffee machine",   b:"back-burner", due:7,   sleepIn:0 },
+    { c:"house",   n:"Renew bike insurance",         b:"long-game",   due:9,   sleepIn:0 },
+    { c:"house",   n:"Clean the gutters",            b:"back-burner", due:14,  sleepIn:0 },
+    // 62 days overdue AND asleep — ADR-0015's canonical sleeper. It is the soonest thing in the
+    // context, so it becomes the `next:` — and the date must be dropped (`next: Onderhoud ketels`).
+    { c:"house",   n:"Onderhoud ketels",             b:"focus",       due:-62, sleepIn:5 },
+    { c:"work",    n:"Write the quarter's review",   b:"focus",       due:-1,  sleepIn:0 },
+    { c:"work",    n:"Book the team offsite",        b:"long-game",   due:5,   sleepIn:0 },
+    { c:"health",  n:"Book dentist appointment",     b:"focus",       due:0,   sleepIn:0 },
+    { c:"health",  n:"Order new insoles",            b:"fit-in",      due:12,  sleepIn:0 },
+    { c:"setlist", n:"Learn the bridge of Waltz #2", b:"long-game",   due:null,sleepIn:0 },
+    { c:"setlist", n:"Restring the acoustic",        b:"back-burner", due:21,  sleepIn:0 },
+    { c:"social",  n:"Ring Oma",                     b:"focus",       due:2,   sleepIn:0 },
+    { c:"garden",  n:"Cut back the wisteria",        b:"fit-in",      due:9,   sleepIn:0 },
+    { c:"garden",  n:"Order spring bulbs",           b:"back-burner", due:30,  sleepIn:0 },
+    { c:"admin",   n:"File the mileage claim",       b:"fit-in",      due:4,   sleepIn:0 },
+    { c:"admin",   n:"Cancel the old domain",        b:"back-burner", due:14,  sleepIn:0 },
+  ],
+  one: [
+    { c:"house", n:"Vacuum the living room",     b:"fit-in",      due:0,  sleepIn:0 },
+    { c:"house", n:"Descale the coffee machine", b:"back-burner", due:7,  sleepIn:0 },
+    { c:"house", n:"Clean the gutters",          b:"back-burner", due:14, sleepIn:0 },
+    { c:"house", n:"Winter tyres on",            b:"fit-in",      due:42, sleepIn:0 },
+  ],
+};
+
+let scenario = "many";
+let viewport = "phone";
+let chipOrder = "alpha";
+let overflow  = "wrap";
+let entered   = "house";   // opens INSIDE a context so the scope-line difference shows at once
+
+const CAP = 5;
+const contextsOf = all => [...new Set(all.map(t => t.c))].sort();
+const label = d =>
+  d === null ? "no due date" :
+  d < 0 ? `${-d} days overdue` :
+  d === 0 ? "today" :
+  d === 1 ? "tomorrow" :
+  d < 14 ? `in ${d} days` :
+  d < 60 ? `in ${Math.round(d/7)} weeks` : `in ${Math.round(d/30)} months`;
+const whenClass = d => d !== null && d < 0 ? "over" : d === 0 ? "today" : "";
+const bySoonest = (a,b) => (a.due ?? 9999) - (b.due ?? 9999);
+
+// ---------------------------------------------------------------- per-context model
+function model(ctx, all) {
+  const mine   = all.filter(t => t.c === ctx);
+  const soonest = mine.slice().sort(bySoonest);
+  // Badge is scoped to STARTED work only (ADR-0015): a sleeping overdue task raises nothing.
+  const started = mine.filter(t => t.sleepIn === 0);
+  const over  = started.filter(t => t.due !== null && t.due < 0).length;
+  const today = started.filter(t => t.due === 0).length;
+  // The visible band: started work, ranked, capped. (The prototype approximates visibleWork.)
+  const visible = started.slice().sort(bySoonest).slice(0, CAP);
+  const onScreen = new Set(visible);
+  return {
+    ctx,
+    count: mine.length,                                  // true total, sleepers included
+    over, today,
+    segments: soonest.slice(0, 6).map(t => t.b),         // six segments, sleepers included
+    dominant: soonest[0]?.b ?? "back-burner",
+    next: soonest.find(t => !onScreen.has(t)) ?? null,   // first thing after the visible band
+    visible,
+  };
+}
+
+// next: rendered — date dropped for a sleeper (ADR-0015 amendment)
+function nextText(t) {
+  if (!t) return "nothing pending";
+  return t.sleepIn > 0 ? `next: ${t.n}` : `next: ${t.n} · ${label(t.due)}`;
+}
+
+// ---------------------------------------------------------------- chips (identical in every variant)
+function chipRow(models) {
+  let order = models;
+  if (chipOrder === "pinned" && entered) {
+    order = [...models].sort((a, b) =>
+      (a.ctx === entered ? -1 : 0) - (b.ctx === entered ? -1 : 0));
+  }
+  const chips = order.map(m => `
+    <button class="c-chip ${entered === m.ctx ? "entered" : ""}" data-ctx="${m.ctx}">
+      <span class="dot bucket-${m.dominant}"></span>
+      <span class="nm">${m.ctx}</span>
+      <span class="ct">${m.count}</span>
+      ${m.over ? `<span class="wn">⚠${m.over}</span>` : ``}
+    </button>`).join("");
+  return `<div class="c-chips ${overflow === "scroll" ? "scroll" : ""}">${chips}</div>`;
+}
+
+// ---------------------------------------------------------------- the scope line — per variant
+function scopeLine(m, variant) {
+  if (!entered) {
+    return `<p class="atroot">at / — every context at once. No scope line: the bar and next: only
+      ever appear once you have entered a context.</p>`;
+  }
+  const bars = m.segments.map(s => `<i class="bucket-${s}"></i>`).join("");
+  const leave = `<a class="leave" data-clear href="#">← everything</a>`;
+
+  if (variant === "V3") {
+    // current production line, verbatim
+    return `<p class="scope"><span class="ctx">${m.ctx}</span> — <span class="open">${m.count} open</span>${leave}</p>`;
+  }
+  if (variant === "V2") {
+    return `<p class="scope">
+      <span class="ctx">${m.ctx}</span> <span class="sep">·</span>
+      <span class="open">${m.count} open</span>
+      <span class="bar" aria-hidden="true">${bars}</span>
+      ${leave}</p>`;
+  }
+  // V1 — everything
+  return `<p class="scope">
+    <span class="ctx">${m.ctx}</span> <span class="sep">·</span>
+    <span class="open">${m.count} open</span>
+    <span class="bar" aria-hidden="true">${bars}</span>
+    <span class="next">${nextText(m.next)}</span>
+    ${leave}</p>`;
+}
+
+// ---------------------------------------------------------------- bands (scoped when entered)
+function taskHTML(t, showCtx) {
+  return `<div class="task">
+    <span class="stripe bucket-${t.b}"></span>
+    <span class="nm">${t.n}${showCtx ? ` <span class="ctx">${t.c}</span>` : ``}</span>
+    <span class="when ${whenClass(t.due)}">${label(t.due)}</span>
+  </div>`;
+}
+function bands(all) {
+  const shown = entered ? all.filter(t => t.c === entered) : all;
+  const started = shown.filter(t => t.sleepIn === 0).sort(bySoonest);
+  const asleep  = shown.filter(t => t.sleepIn > 0);
+  const visible = started.slice(0, CAP);
+  const also    = started.slice(CAP);
+  return `
+    <h2 class="band">Today's work &amp; next up</h2>
+    <div class="grid">${visible.map(t => taskHTML(t, !entered)).join("")}</div>
+    ${also.length  ? `<button class="foldbar">Also… (${also.length})<span class="chev">▾</span></button>` : ``}
+    ${asleep.length ? `<button class="foldbar">Starting in the future… (${asleep.length})<span class="chev">▾</span></button>` : ``}`;
+}
+
+// ---------------------------------------------------------------- paint
+const VARIANTS = {
+  V1: "Scope line keeps everything",
+  V2: "Bar relocates, next: cut",
+  V3: "Dot only — scope line unchanged",
+};
+const NOTES = {
+  V1: "Bar RELOCATES to the scope line and the next: summary comes with it. `house · 6 open ▟▙▛ next: … ← everything`. Every fact the card used to carry survives, one tap in. Cost: the scope line is now four things wide, and on a phone it wraps.",
+  V2: "Bar relocates, next: is cut. The scope line shows shape (the six-segment bar) but not what-comes-next. Argument: the bands are right below it, so `next:` is nearly redundant once you are inside the context; the bar is the only thing the bands genuinely cannot show.",
+  V3: "Nothing relocates. The dominant-bucket dot on the chip is the whole colour signal, and the scope line is exactly today's `house — 6 open ← everything`. ADR-0006 §82's bar is deleted, not moved. Densest and simplest; the shape-at-a-glance of a context is gone.",
+};
+const keys = Object.keys(VARIANTS);
+const current = () => {
+  const v = new URLSearchParams(location.search).get("variant");
+  return keys.includes(v) ? v : keys[0];
+};
+
+function paint() {
+  const v = current();
+  const all = SC[scenario];
+  // keep `entered` valid across scenario switches
+  if (entered && !all.some(t => t.c === entered)) entered = null;
+  const models = contextsOf(all).map(c => model(c, all));
+  const em = entered ? models.find(m => m.ctx === entered) : null;
+
+  document.getElementById("frame").className = viewport;
+  document.getElementById("label").innerHTML = `<b>${v}</b> — ${VARIANTS[v]}`;
+  document.getElementById("note").textContent = NOTES[v];
+  document.querySelectorAll("#rig [data-sc]").forEach(b => b.classList.toggle("on", b.dataset.sc === scenario));
+  document.querySelectorAll("#rig [data-vp]").forEach(b => b.classList.toggle("on", b.dataset.vp === viewport));
+  document.querySelectorAll("#rig [data-ord]").forEach(b => b.classList.toggle("on", b.dataset.ord === chipOrder));
+  document.querySelectorAll("#rig [data-of]").forEach(b => b.classList.toggle("on", b.dataset.of === overflow));
+  document.getElementById("rigreport").innerHTML =
+    `<b>${models.length}</b> contexts · <b>${all.length}</b> open tasks` +
+    (entered ? ` · inside <b>${entered}</b>` : ` · at <b>/</b>`);
+
+  document.getElementById("app").innerHTML =
+    chipRow(models) +
+    (entered ? scopeLine(em, v) : scopeLine(null, v)) +
+    bands(all);
+  wire();
+}
+
+function wire() {
+  document.querySelectorAll("[data-ctx]").forEach(el => el.addEventListener("click", e => {
+    e.preventDefault();
+    entered = entered === el.dataset.ctx ? null : el.dataset.ctx;
+    paint();
+  }));
+  document.querySelectorAll("[data-clear]").forEach(el => el.addEventListener("click", e => {
+    e.preventDefault(); entered = null; paint();
+  }));
+}
+
+// ---------------------------------------------------------------- switcher / rig
+function go(v) {
+  const u = new URL(location); u.searchParams.set("variant", v);
+  history.replaceState({}, "", u);
+  paint();
+}
+document.getElementById("prev").onclick = () => go(keys[(keys.indexOf(current()) + keys.length - 1) % keys.length]);
+document.getElementById("next").onclick = () => go(keys[(keys.indexOf(current()) + 1) % keys.length]);
+document.querySelectorAll("#rig [data-sc]").forEach(b => b.onclick = () => { scenario = b.dataset.sc; paint(); });
+document.querySelectorAll("#rig [data-vp]").forEach(b => b.onclick = () => { viewport = b.dataset.vp; paint(); });
+document.querySelectorAll("#rig [data-ord]").forEach(b => b.onclick = () => { chipOrder = b.dataset.ord; paint(); });
+document.querySelectorAll("#rig [data-of]").forEach(b => b.onclick = () => { overflow = b.dataset.of; paint(); });
+document.addEventListener("keydown", e => {
+  if (["INPUT","TEXTAREA"].includes(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.key === "ArrowLeft") document.getElementById("prev").click();
+  if (e.key === "ArrowRight") document.getElementById("next").click();
+});
+paint();
+</script>
+</body>
+</html>
