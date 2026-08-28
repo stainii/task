@@ -205,19 +205,43 @@ It is deliberately not the completing patch's `dateTime`, which is the **write**
 that would make an older-looking completion lose the fold to any later edit from another device. This
 is a domain clock, not a sync clock.
 
-The **min/max** trigger reads the latest `completedOn` among a template's completed tasks, which is
-what "when did I last actually do this" means.
+*"When did I last actually do this"* reads the latest `completedOn` among a template's completed
+tasks — history, and the templates list's *last done* line. It is **not** what the **min/max**
+trigger schedules from; that is **closed on**, which any closure writes.
+
+### Closed on
+
+**The day a round ended** — `completedOn` for a completion, **`cancelledOn`** for a cancellation.
+The date a **min/max** round restarts from, and the one thing separating the two scheduled triggers
+in the arithmetic rather than only in the prose
+([ADR-0022](docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)).
+
+`cancelledOn` is set on every cancellation, is **always today**, and is not editable — *"I cancelled
+this on Tuesday"* means nothing, which is exactly why it does not get the affordance **completed
+on** has. Backdating `completedOn`, by contrast, moves the schedule along with the history, and that
+is the point: someone who corrects the date means *count from here*.
+
+It is not the same date as the **occurrence**'s firing date, and conflating the two is
+[#75](https://github.com/stainii/task/issues/75): a five-day chore done three weeks late came back
+within the hour, then again the next hour, one backdated task per completion. A **calendar**
+template still compares against the *firing* date — a bin day that passed while last fortnight's
+task sat open comes back once, because a bin you did not put out is worth more than a task you tick
+away.
 
 ### Trigger
 
 **When a task template fires.** A closed set of three:
 
 - **Manual** — fires when you ask it to. No clock.
-- **Min/max** — fires at *last closure + min days*; the task it produces is due at
-  *last closure + max days*. Authored as an **interval plus a window** — *"comes round every 10
+- **Min/max** — fires at *the day you closed the last task + min days*; the task it produces is due
+  at *+ max days*. Authored as an **interval plus a window** — *"comes round every 10
   days, and I have 11 days to do it"* — with a window of **0** meaning due immediately, which is
   what ten of portal's 44 recurring templates wanted. **Drifts on purpose**: if you forget, the whole rhythm moves with
   you. Use it for "no need to do this again within a week of actually doing it".
+  The day you **closed** it, not the day it fired ([ADR-0022](docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)):
+  counting from the firing date anchors the chore to a grid inherited from its own first firing —
+  the calendar this trigger exists in order not to be — so anything closed later than *min* days
+  after it appeared came straight back, already overdue, once an hour.
   **Cancelling counts as a closure**, so declining a round buys a full interval of quiet rather than
   the same task returning tomorrow — while *"when did I last do this"* still reads **completions
   only** and honestly reports that you did not. Forgetting is the task sitting open, which suppresses

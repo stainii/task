@@ -52,6 +52,7 @@
     "description": null,
     "status": "COMPLETED",
     "completedOn": "2026-03-04",
+    "cancelledOn": null,
     "taskTemplateId": "22222222-0000-0000-0000-000000000011",
     "occurrenceId": "33333333-0000-0000-0000-000000000011"
   }

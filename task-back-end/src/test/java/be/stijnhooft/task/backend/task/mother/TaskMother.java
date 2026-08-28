@@ -57,8 +57,13 @@ public class TaskMother {
     /// about.
     ///
     /// The firing date **is** the creation date, so it is set rather than defaulted, and the closing
-    /// patch is dated well after it: what the port answers with must be the date the template came
-    /// round, never the day someone got to it.
+    /// patch is dated well after it - because the two dates `TaskOccurrences#lastClosureOf` answers
+    /// with are the day the template came round and the day someone got to it, and a mother that
+    /// closed its tasks the day they fired would let a reader take either one and pass
+    /// ([ADR-0022](../../../../../../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)).
+    ///
+    /// A cancellation gets its `cancelledOn` from the closing patch's own day, which is what the app
+    /// does: it is always today at the moment of cancelling and is never given.
     ///
     /// @param completedOn  the day the work happened, for a completion; null for a cancellation,
     ///                     which is a closure and not a completion
@@ -74,11 +79,15 @@ public class TaskMother {
                 .build();
 
         if (status != TaskStatus.OPEN) {
+            var closedAt = task.creationDateTime().plus(CLOSED_AFTER_DAYS, ChronoUnit.DAYS);
             var closing = TaskPatch.builder()
                     .taskId(task.id())
-                    .dateTime(task.creationDateTime().plus(CLOSED_AFTER_DAYS, ChronoUnit.DAYS))
+                    .dateTime(closedAt)
                     .change("status", status)
                     .change("completedOn", completedOn)
+                    .change("cancelledOn", status == TaskStatus.CANCELLED
+                            ? LocalDate.ofInstant(closedAt, TestClock.ZONE)
+                            : null)
                     .build();
             task = task.patch(closing);
         }

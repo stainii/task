@@ -59,6 +59,7 @@
     "description": "All of them",
     "status": "OPEN",
     "completedOn": null,
+    "cancelledOn": null,
     "taskTemplateId": null,
     "occurrenceId": null
   }

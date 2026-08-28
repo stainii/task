@@ -2,7 +2,7 @@
   "rule": "A min/max template past its round shows the date it became due, behind today, rather than a tidied-up future one.",
   "trigger": { "type": "MIN_MAX", "minDays": 10, "maxDays": 10 },
   "activeSince": "2026-03-01",
-  "lastClosure": null,
+  "lastClosedOn": null,
   "from": "2026-04-10",
   "count": 2,
   "expected": ["2026-03-11"]

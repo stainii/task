@@ -72,6 +72,7 @@ interface FoldState {
   description: string | null;
   status: TaskStatus | null;
   completedOn: string | null;
+  cancelledOn: string | null;
   taskTemplateId: string | null;
   occurrenceId: string | null;
 }
@@ -96,6 +97,7 @@ const FIELDS: Record<string, (state: FoldState, value: string | null) => void> =
   description: (state, value) => (state.description = value),
   status: (state, value) => (state.status = parseStatus(value)),
   completedOn: (state, value) => (state.completedOn = value),
+  cancelledOn: (state, value) => (state.cancelledOn = value),
   taskTemplateId: (state, value) => (state.taskTemplateId = value),
   occurrenceId: (state, value) => (state.occurrenceId = value),
 };
@@ -160,6 +162,7 @@ export function foldOf(taskId: string, history: readonly TaskPatch[]): Task {
     description: null,
     status: null,
     completedOn: null,
+    cancelledOn: null,
     taskTemplateId: null,
     occurrenceId: null,
   };
@@ -187,6 +190,7 @@ export function foldOf(taskId: string, history: readonly TaskPatch[]): Task {
     description: state.description,
     status: state.status ?? 'OPEN',
     completedOn: state.completedOn,
+    cancelledOn: state.cancelledOn,
     taskTemplateId: state.taskTemplateId,
     occurrenceId: state.occurrenceId,
     history: ordered,

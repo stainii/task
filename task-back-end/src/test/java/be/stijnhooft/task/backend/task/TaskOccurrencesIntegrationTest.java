@@ -81,18 +81,41 @@ class TaskOccurrencesIntegrationTest extends AbstractIntegrationTestCases {
         save(TaskMother.firedTask(templateId, cancelled, TaskStatus.CANCELLED, null));
 
         assertThat(taskOccurrences.lastCompletionOf(templateId)).contains(done.plusDays(1));
-        assertThat(taskOccurrences.lastClosureOf(templateId)).contains(cancelled);
+        assertThat(taskOccurrences.lastClosureOf(templateId))
+                .map(LastClosure::firedOn)
+                .contains(cancelled);
     }
 
-    /// **A closure reports the firing date, not the closing date.** The mother closes its tasks
-    /// twenty days after they fire, so a query reading the wrong date is off by three weeks rather
-    /// than by something a boundary might hide - and a calendar template compares that answer
-    /// against its rule's dates, so being late by three weeks is being wrong by three firings.
+    /// **A closure carries both of its dates, and they are not the same date**
+    /// ([ADR-0022](../../../../../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)).
+    ///
+    /// `firedOn` is the day the template came round, which rule 3 compares a calendar date against.
+    /// `closedOn` is the day the work was actually filed under, which a min/max round restarts from.
+    /// This answered with the firing date alone until [#75](https://github.com/stainii/task/issues/75),
+    /// and a min/max template counting from it came straight back the hour you ticked it off.
+    ///
+    /// Forty days apart on purpose: a query reading the wrong one is wrong by six weeks rather than
+    /// by something a boundary might hide.
     @Test
-    void aClosureIsDatedByTheFiringAndNotByTheClosing() {
+    void aClosureCarriesBothTheFiringDateAndTheDayItWasClosed() {
         var templateId = fired(JANUARY, TaskStatus.COMPLETED, JANUARY.plusDays(40));
 
-        assertThat(taskOccurrences.lastClosureOf(templateId)).contains(JANUARY);
+        assertThat(taskOccurrences.lastClosureOf(templateId))
+                .contains(new LastClosure(JANUARY, JANUARY.plusDays(40)));
+    }
+
+    /// A cancellation has no `completedOn` to be closed by, so it is `cancelledOn` that dates it -
+    /// the field #75 added for exactly this, since without it the only date a cancelled task
+    /// carried was the day it fired.
+    @Test
+    void aCancellationIsClosedByItsCancelledOn() {
+        var templateId = fired(JANUARY, TaskStatus.CANCELLED, null);
+
+        assertThat(taskOccurrences.lastClosureOf(templateId))
+                .hasValueSatisfying(closure -> {
+                    assertThat(closure.firedOn()).isEqualTo(JANUARY);
+                    assertThat(closure.closedOn()).isAfter(JANUARY);
+                });
     }
 
     /// An open task is not a closure, however long it has been sitting there.
@@ -102,7 +125,9 @@ class TaskOccurrencesIntegrationTest extends AbstractIntegrationTestCases {
         save(TaskMother.firedTask(templateId, JANUARY, TaskStatus.COMPLETED, JANUARY));
         save(TaskMother.firedTask(templateId, JANUARY.plusDays(60), TaskStatus.OPEN, null));
 
-        assertThat(taskOccurrences.lastClosureOf(templateId)).contains(JANUARY);
+        assertThat(taskOccurrences.lastClosureOf(templateId))
+                .map(LastClosure::firedOn)
+                .contains(JANUARY);
     }
 
     /// A task nobody's template made - which is most of them - belongs to no template and must

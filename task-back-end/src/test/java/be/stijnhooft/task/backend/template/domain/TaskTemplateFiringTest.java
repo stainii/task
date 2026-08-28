@@ -1,6 +1,7 @@
 package be.stijnhooft.task.backend.template.domain;
 
 import be.stijnhooft.task.backend.task.Importance;
+import be.stijnhooft.task.backend.task.LastClosure;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -112,7 +113,7 @@ class TaskTemplateFiringTest {
         void aReRuledMinMaxTemplateCountsFromTheReRuleAndNotFromAnOlderClosure() {
             var reRuledOn = LocalDate.of(2026, 6, 1);
             var template = template(minMax(5, 5), reRuledOn);
-            var closedLongBefore = LocalDate.of(2026, 3, 10);
+            var closedLongBefore = closedTheDayItFired(LocalDate.of(2026, 3, 10));
 
             assertThat(template.firingDateOn(reRuledOn.plusDays(4), false, closedLongBefore)).isEmpty();
             assertThat(template.firingDateOn(reRuledOn.plusDays(5), false, closedLongBefore))
@@ -121,8 +122,8 @@ class TaskTemplateFiringTest {
     }
 
     @Nested
-    @DisplayName("Rule 3b: the date is strictly after the last closure")
-    class LastClosure {
+    @DisplayName("Rule 3b: the date is strictly after the last closure's firing date")
+    class LastClosureBound {
 
         /// **The 09:00 completion that must not refire at 10:00.** Complete today's bin task and
         /// the next tick still sees today's calendar date with nothing open - so without rule 3 it
@@ -132,7 +133,7 @@ class TaskTemplateFiringTest {
         void aDateAlreadyClosedDoesNotFireAgain() {
             var template = template(weekly(DayOfWeek.TUESDAY));
 
-            assertThat(template.firingDateOn(TUESDAY, false, TUESDAY)).isEmpty();
+            assertThat(template.firingDateOn(TUESDAY, false, closedTheDayItFired(TUESDAY))).isEmpty();
         }
 
         /// The other side of the same boundary: the *next* date the rule names does fire, and the
@@ -142,7 +143,7 @@ class TaskTemplateFiringTest {
         void theNextDateAfterAClosureFires() {
             var template = template(weekly(DayOfWeek.TUESDAY));
 
-            assertThat(template.firingDateOn(TUESDAY.plusWeeks(1), false, TUESDAY))
+            assertThat(template.firingDateOn(TUESDAY.plusWeeks(1), false, closedTheDayItFired(TUESDAY)))
                     .contains(TUESDAY.plusWeeks(1));
         }
 
@@ -155,12 +156,14 @@ class TaskTemplateFiringTest {
             var template = template(weekly(DayOfWeek.TUESDAY));
             var firedOn = LocalDate.of(2026, 7, 21);
             var closedThreeWeeksLater = LocalDate.of(2026, 8, 11);
+            var closure = new LastClosure(firedOn, closedThreeWeeksLater);
 
-            // The task fired on 21 July and was closed on 11 August, so the closure is dated by the
-            // firing: three Tuesdays went by while it sat there, and none of them comes back.
-            assertThat(template.firingDateOn(closedThreeWeeksLater, false, firedOn))
+            // Rule 3 compares against the **firing** date, and ADR-0022 kept it that way after
+            // putting the alternative: bound to the closure date, 4 August is swallowed instead of
+            // coming back once, and a bin you did not put out is gone until the fortnight is up.
+            assertThat(template.firingDateOn(closedThreeWeeksLater, false, closure))
                     .contains(LocalDate.of(2026, 8, 11));
-            assertThat(template.firingDateOn(LocalDate.of(2026, 8, 10), false, firedOn))
+            assertThat(template.firingDateOn(LocalDate.of(2026, 8, 10), false, closure))
                     .contains(LocalDate.of(2026, 8, 4));
         }
     }
@@ -201,10 +204,42 @@ class TaskTemplateFiringTest {
         void aClosureRestartsTheInterval() {
             var template = template(minMax(10, 10));
             var closedOn = ACTIVE_SINCE.plusDays(10);
+            var closure = new LastClosure(ACTIVE_SINCE, closedOn);
 
-            assertThat(template.firingDateOn(closedOn.plusDays(9), false, closedOn)).isEmpty();
-            assertThat(template.firingDateOn(closedOn.plusDays(10), false, closedOn))
+            assertThat(template.firingDateOn(closedOn.plusDays(9), false, closure)).isEmpty();
+            assertThat(template.firingDateOn(closedOn.plusDays(10), false, closure))
                     .contains(closedOn.plusDays(10));
+        }
+
+        /// **#75 at the predicate** (ADR-0022): the interval is measured from the day you closed the
+        /// task, so being three weeks late with a five-day chore still buys five days of quiet. The
+        /// old reading - the firing date - names a date 21 days behind today, which rule 3 waves
+        /// through because it is still after the firing date, and the hourly check hands you a
+        /// backdated task within the hour.
+        @Test
+        void aChoreClosedLateBuysAFullIntervalFromTheDayItWasClosed() {
+            var template = template(minMax(5, 5));
+            var firedOn = ACTIVE_SINCE.plusDays(5);
+            var closedThreeWeeksLate = firedOn.plusDays(21);
+            var closure = new LastClosure(firedOn, closedThreeWeeksLate);
+
+            assertThat(template.firingDateOn(closedThreeWeeksLate, false, closure)).isEmpty();
+            assertThat(template.firingDateOn(closedThreeWeeksLate.plusDays(4), false, closure)).isEmpty();
+            assertThat(template.firingDateOn(closedThreeWeeksLate.plusDays(5), false, closure))
+                    .contains(closedThreeWeeksLate.plusDays(5));
+        }
+
+        /// **Rule 3 stops being decoration for min/max.** A `completedOn` backdated past the task's
+        /// own firing date lands the next round on or before it, and rule 3 blocks that firing -
+        /// the filter that existed as a `Calendar` guard becomes load-bearing here too, which is
+        /// worth asserting rather than leaving as a happy accident (ADR-0022).
+        @Test
+        void aCompletionBackdatedBeforeTheFiringDoesNotFireForADateAlreadyAnsweredFor() {
+            var template = template(minMax(5, 5));
+            var firedOn = ACTIVE_SINCE.plusDays(30);
+            var backdatedBeforeItFired = new LastClosure(firedOn, firedOn.minusDays(10));
+
+            assertThat(template.firingDateOn(firedOn.plusDays(1), false, backdatedBeforeItFired)).isEmpty();
         }
 
         /// **Min/max drifts on purpose** - and a fortnight of downtime still costs exactly one
@@ -230,7 +265,8 @@ class TaskTemplateFiringTest {
             var template = template(weekly(DayOfWeek.TUESDAY));
             var threeTuesdaysLater = TUESDAY.plusWeeks(3);
 
-            assertThat(template.firingDateOn(threeTuesdaysLater.plusDays(1), false, TUESDAY.minusWeeks(1)))
+            assertThat(template.firingDateOn(threeTuesdaysLater.plusDays(1), false,
+                    closedTheDayItFired(TUESDAY.minusWeeks(1))))
                     .contains(threeTuesdaysLater);
         }
 
@@ -241,8 +277,10 @@ class TaskTemplateFiringTest {
         void aLateClosureDoesNotMoveTheNextDate() {
             var template = template(weekly(DayOfWeek.TUESDAY));
 
-            assertThat(template.firingDateOn(TUESDAY.plusDays(3), false, TUESDAY)).isEmpty();
-            assertThat(template.firingDateOn(TUESDAY.plusWeeks(1), false, TUESDAY))
+            var closedOnWednesday = new LastClosure(TUESDAY, TUESDAY.plusDays(1));
+
+            assertThat(template.firingDateOn(TUESDAY.plusDays(3), false, closedOnWednesday)).isEmpty();
+            assertThat(template.firingDateOn(TUESDAY.plusWeeks(1), false, closedOnWednesday))
                     .contains(TUESDAY.plusWeeks(1));
         }
     }
@@ -259,6 +297,12 @@ class TaskTemplateFiringTest {
 
             assertThat(template.firingDateOn(ACTIVE_SINCE.plusYears(1), false, null)).isEmpty();
         }
+    }
+
+    /// A task closed on the day it fired - the only shape in which the two dates ADR-0022 separated
+    /// cannot disagree, so it is spelled out where a test means it rather than being the default.
+    private static LastClosure closedTheDayItFired(LocalDate on) {
+        return new LastClosure(on, on);
     }
 
     private static Trigger minMax(int min, int max) {

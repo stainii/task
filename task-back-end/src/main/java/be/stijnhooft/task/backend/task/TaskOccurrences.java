@@ -56,21 +56,24 @@ public interface TaskOccurrences {
     /// ***When should I next be asked?*** — scheduling, which is a different question, and reading
     /// one answer for both is a bug with a worked example.
     ///
-    /// The firing date of the template's most recently **closed** task, completed or cancelled.
-    /// *Any* closure ends the round, so a cancelled task buys the template a full interval of quiet
-    /// (ADR-0011). Answer this with [#lastCompletionOf] instead and a cancelled min/max task leaves
-    /// nothing open to suppress the template while the last completion stays in the past — so it
-    /// fires again the next day, and the next, until something is completed.
+    /// The template's most recently **closed** task, completed or cancelled, as [LastClosure]'s two
+    /// dates: the day it came round and the day you closed it. *Any* closure ends the round, so a
+    /// cancelled task buys the template a full interval of quiet (ADR-0011). Answer this with
+    /// [#lastCompletionOf] instead and a cancelled min/max task leaves nothing open to suppress the
+    /// template while the last completion stays in the past — so it fires again the next day, and
+    /// the next, until something is completed.
     ///
-    /// **The firing date is the task's creation date**, which is the whole record of a firing that
-    /// exists; `TaskTemplateFired#firingDate` is written there precisely so a firing that catches up
-    /// on a date it slept through is dated for the date it was for.
+    /// **The two dates are not the same date, and #75 is what it cost to conflate them.** This
+    /// answered with the firing date alone until
+    /// [ADR-0022](../../../../../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md),
+    /// which is the day the task *appeared*: a `MinMax` round starting there is anchored to a grid
+    /// inherited from the template's own first firing, which is the calendar it exists in order not
+    /// to be. See [LastClosure] for which reader takes which date.
     ///
-    /// Read as the **latest** firing date among closed tasks rather than by following the closures
-    /// themselves: a round is not a unit that closes, and what the predicate compares against is a
-    /// bound — the newest date already answered for.
+    /// *Most recently closed* is by the **closure** date — the newest round to have ended. The two
+    /// orderings coincide in practice, because suppression serialises a template's firings.
     ///
     /// Empty for a template with nothing closed, which is what makes `activeSince` the seed of a
     /// brand-new template's first firing ([ADR-0017](../../../../../../../../docs/adr/0017-a-calendar-template-fires-for-its-latest-unclosed-date.md)).
-    Optional<LocalDate> lastClosureOf(UUID templateId);
+    Optional<LastClosure> lastClosureOf(UUID templateId);
 }

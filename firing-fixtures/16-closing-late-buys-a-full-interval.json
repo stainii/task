@@ -1,0 +1,9 @@
+{
+  "rule": "Closing a task buys a full min days of quiet, measured from the day you closed it - including the chore you were weeks late with. The task this round produced fired long before today; nothing here remembers that, and that is the point (#75, ADR-0022).",
+  "trigger": { "type": "MIN_MAX", "minDays": 5, "maxDays": 5 },
+  "activeSince": "2026-03-01",
+  "lastClosedOn": "2026-04-28",
+  "from": "2026-04-28",
+  "count": 1,
+  "expected": ["2026-05-03"]
+}

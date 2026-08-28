@@ -36,8 +36,15 @@ export interface Lookahead {
   readonly from: IsoDate;
   /** *The date this template began firing under its current rule* — the floor and the phase. */
   readonly activeSince: IsoDate;
-  /** The firing date of the most recently closed task, read by `MIN_MAX` alone. */
-  readonly lastClosure: IsoDate | null;
+  /**
+   * **The day the most recently closed task was closed**, read by `MIN_MAX` alone.
+   *
+   * The day it *closed*, not the day it fired
+   * ([ADR-0022](../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)): a round
+   * that starts at the firing date is anchored to a grid the template inherited from its own first
+   * firing, so a chore done later than its interval comes back the same day, already overdue.
+   */
+  readonly lastClosedOn: IsoDate | null;
   readonly count: number;
 }
 
@@ -65,11 +72,11 @@ export function nextFiringDates(trigger: StoredTrigger, lookahead: Lookahead): I
     case 'MANUAL':
       return [];
     case 'MIN_MAX': {
-      // The same round start the firing itself uses — the later of the closure and `activeSince` —
-      // so the preview and the scheduler cannot name different days.
-      const closure = lookahead.lastClosure;
+      // The same round start the firing itself uses — the later of the day it was closed and
+      // `activeSince` — so the preview and the scheduler cannot name different days.
+      const closedOn = lookahead.lastClosedOn;
       const roundStarted =
-        closure === null || closure < lookahead.activeSince ? lookahead.activeSince : closure;
+        closedOn === null || closedOn < lookahead.activeSince ? lookahead.activeSince : closedOn;
       return [addDays(roundStarted, present(trigger.minDays, 'minDays'))];
     }
     default:

@@ -2,7 +2,7 @@
   "rule": "A manual template lists no dates: its anchor is typed, not computed.",
   "trigger": { "type": "MANUAL", "anchorLabel": "When is the workshop?" },
   "activeSince": "2026-03-01",
-  "lastClosure": null,
+  "lastClosedOn": null,
   "from": "2026-03-01",
   "count": 3,
   "expected": []

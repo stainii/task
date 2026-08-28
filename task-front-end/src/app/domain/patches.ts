@@ -141,14 +141,20 @@ export function completePatch(task: Task, now: Date, completedOn: IsoDate = toda
 }
 
 /**
- * Cancelling: the status, and deliberately **no `completedOn`**.
+ * Cancelling: the status, `cancelledOn`, and deliberately **no `completedOn`**.
  *
  * Nothing in portal could set `CANCELLED`, so for years the only way to clear an abandoned task was
  * to press Complete — writing a false completion into the very history a template reads as its
  * clock. A cancellation that carried a completion date would reintroduce that by the back door.
+ *
+ * `cancelledOn` is what a min/max round restarts from when a round is declined
+ * ([ADR-0022](../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)), so
+ * cancelling buys a full interval measured **from today** rather than from a firing date that may
+ * be months old. It is always today and takes no parameter: *"I cancelled this on Tuesday"* means
+ * nothing, which is exactly why it does not get the argument {@link completePatch} has.
  */
 export function cancelPatch(task: Task, now: Date): TaskPatch {
-  return patchOn(task.id, now, { status: 'CANCELLED' });
+  return patchOn(task.id, now, { status: 'CANCELLED', cancelledOn: today(now) });
 }
 
 /**

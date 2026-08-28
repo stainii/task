@@ -62,6 +62,7 @@ class FoldFixtureTest {
         assertThat(folded.description()).as("description").isEqualTo(expected.description());
         assertThat(folded.status()).as("status").isEqualTo(expected.status());
         assertThat(folded.completedOn()).as("completedOn").isEqualTo(expected.completedOn());
+        assertThat(folded.cancelledOn()).as("cancelledOn").isEqualTo(expected.cancelledOn());
         assertThat(folded.taskTemplateId()).as("taskTemplateId").isEqualTo(expected.taskTemplateId());
         assertThat(folded.occurrenceId()).as("occurrenceId").isEqualTo(expected.occurrenceId());
 
@@ -134,6 +135,6 @@ class FoldFixtureTest {
 
     record ExpectedTask(UUID id, String name, Instant creationDateTime, LocalDate startDate, LocalDate dueDate,
                         String context, Importance importance, String description, TaskStatus status,
-                        LocalDate completedOn, UUID taskTemplateId, UUID occurrenceId) {
+                        LocalDate completedOn, LocalDate cancelledOn, UUID taskTemplateId, UUID occurrenceId) {
     }
 }

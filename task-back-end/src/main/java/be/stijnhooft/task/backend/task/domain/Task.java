@@ -75,6 +75,15 @@ public record Task(
         /// ([ADR-0011](../../../../../../../../docs/adr/0011-completion-is-a-task-fact-the-template-reads.md)).
         @Nullable LocalDate completedOn,
 
+        /// *When did I give up on it?* - set on every cancellation, always today, and **not
+        /// editable** ([ADR-0022](../../../../../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)).
+        ///
+        /// It exists because a `MinMax` round starts at the day the last task was **closed**, and a
+        /// cancellation had no such date - only the day it fired. *"I cancelled this on Tuesday"*
+        /// means nothing, which is why this deliberately does not get the backdating affordance
+        /// [#completedOn] has.
+        @Nullable LocalDate cancelledOn,
+
         /// The template that fired this task, when one did. Provenance is a real reference, not an
         /// event ([ADR-0001](../../../../../../../../docs/adr/0001-one-task-aggregate-with-triggered-templates.md)).
         @Nullable UUID taskTemplateId,
@@ -127,7 +136,7 @@ public record Task(
                 .map(patch -> patch.sequence() == null ? patch.withSequence(sequences.getAsLong()) : patch)
                 .toList();
         return new Task(id, name, creationDateTime, startDate, dueDate, context, importance, description, status,
-                completedOn, taskTemplateId, occurrenceId, stamped, version);
+                completedOn, cancelledOn, taskTemplateId, occurrenceId, stamped, version);
     }
 
     /// The fold. See the class comment; the rules live in ADR-0004 and in `/fold-fixtures/`.
@@ -214,6 +223,7 @@ public record Task(
             Map.entry("description", (state, value) -> state.description = value),
             Map.entry("status", (state, value) -> state.status = parse(value, TaskStatus::parse)),
             Map.entry("completedOn", (state, value) -> state.completedOn = parse(value, LocalDate::parse)),
+            Map.entry("cancelledOn", (state, value) -> state.cancelledOn = parse(value, LocalDate::parse)),
             Map.entry("taskTemplateId", (state, value) -> state.taskTemplateId = parse(value, UUID::fromString)),
             Map.entry("occurrenceId", (state, value) -> state.occurrenceId = parse(value, UUID::fromString)));
 
@@ -285,6 +295,7 @@ public record Task(
         private @Nullable String description;
         private @Nullable TaskStatus status;
         private @Nullable LocalDate completedOn;
+        private @Nullable LocalDate cancelledOn;
         private @Nullable UUID taskTemplateId;
         private @Nullable UUID occurrenceId;
 
@@ -342,6 +353,11 @@ public record Task(
             return this;
         }
 
+        public InitialTaskBuilder cancelledOn(@Nullable LocalDate cancelledOn) {
+            this.cancelledOn = cancelledOn;
+            return this;
+        }
+
         public InitialTaskBuilder taskTemplateId(@Nullable UUID taskTemplateId) {
             this.taskTemplateId = taskTemplateId;
             return this;
@@ -366,6 +382,7 @@ public record Task(
                     description,
                     status == null ? TaskStatus.OPEN : status,
                     completedOn,
+                    cancelledOn,
                     taskTemplateId,
                     occurrenceId,
                     List.of(),
@@ -402,6 +419,7 @@ public record Task(
         private @Nullable String description;
         private @Nullable TaskStatus status;
         private @Nullable LocalDate completedOn;
+        private @Nullable LocalDate cancelledOn;
         private @Nullable UUID taskTemplateId;
         private @Nullable UUID occurrenceId;
 
@@ -417,6 +435,7 @@ public record Task(
                     description,
                     status == null ? TaskStatus.OPEN : status,
                     completedOn,
+                    cancelledOn,
                     taskTemplateId,
                     occurrenceId,
                     orderedHistory,

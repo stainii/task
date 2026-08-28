@@ -10,6 +10,7 @@ import {
   postponePatch,
   undoPatch,
 } from './patches';
+import { today } from './dates';
 import { aTask } from './task.mother';
 
 /**
@@ -78,10 +79,23 @@ describe('cancelPatch', () => {
   it('closes the task without claiming any of it was done', () => {
     // For years the only way to clear an abandoned task was to press Complete, which wrote a false
     // completion into the history ADR-0011 reads as the min/max clock anchor. So a cancellation
-    // must never carry `completedOn`.
+    // must never carry `completedOn` — `cancelledOn` is the date it does carry, and the two are
+    // separate fields precisely so that this one cannot be read as *you did it* (ADR-0022).
     const patch = cancelPatch(aTask(), NOW);
 
-    expect(patch.changes).toEqual({ status: 'CANCELLED' });
+    expect(patch.changes).toEqual({ status: 'CANCELLED', cancelledOn: today(NOW) });
+    expect(patch.changes['completedOn']).toBeUndefined();
+  });
+
+  it('dates the cancellation today, with no way to say otherwise', () => {
+    // A min/max round restarts at the day the last task was closed (#75), so declining a round you
+    // were already three weeks late for still buys a full interval — measured from now, not from a
+    // firing date that may be months old. There is deliberately no parameter: *"I cancelled this on
+    // Tuesday"* means nothing, which is the whole reason `completedOn`'s affordance is not repeated
+    // here.
+    const patch = cancelPatch(aTask({ creationDateTime: '2026-06-01T09:00:00Z' }), NOW);
+
+    expect(patch.changes['cancelledOn']).toBe(today(NOW));
   });
 });
 

@@ -6,7 +6,7 @@
     "calendarInterval": 7
   },
   "activeSince": "2026-03-01",
-  "lastClosure": null,
+  "lastClosedOn": null,
   "from": "2026-03-10",
   "count": 2,
   "expected": ["2026-03-15", "2026-03-22"]

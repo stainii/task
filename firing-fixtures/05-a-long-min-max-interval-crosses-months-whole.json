@@ -2,7 +2,7 @@
   "rule": "A 45-day interval lands 45 days later, not 15: the D1 canary, forward.",
   "trigger": { "type": "MIN_MAX", "minDays": 45, "maxDays": 45 },
   "activeSince": "2026-03-01",
-  "lastClosure": null,
+  "lastClosedOn": null,
   "from": "2026-03-01",
   "count": 1,
   "expected": ["2026-04-15"]
