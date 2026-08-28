@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { describe, expect, it, beforeEach } from 'vitest';
 
 import { NOW } from '../../clock';
-import { addDays } from '../../domain/dates';
+import { addDays, today } from '../../domain/dates';
 import { PanelAction } from '../../domain/patches';
 import { Task } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
@@ -212,7 +212,11 @@ describe('the expanded panel', () => {
     verb('Cancel').click();
     await fixture.whenStable();
 
-    expect(fixture.componentInstance.acted?.patch.changes).toEqual({ status: 'CANCELLED' });
+    expect(fixture.componentInstance.acted?.patch.changes).toEqual({
+      status: 'CANCELLED',
+      // Always today, and never given: what a min/max round restarts from (ADR-0022).
+      cancelledOn: today(NOW_AT),
+    });
     expect(fixture.componentInstance.acted?.completed).toBeUndefined();
   });
 
@@ -330,7 +334,11 @@ describe('the swipe', () => {
     await show(aTask());
     await swipe(-200);
 
-    expect(fixture.componentInstance.acted?.patch.changes).toEqual({ status: 'CANCELLED' });
+    expect(fixture.componentInstance.acted?.patch.changes).toEqual({
+      status: 'CANCELLED',
+      // Always today, and never given: what a min/max round restarts from (ADR-0022).
+      cancelledOn: today(NOW_AT),
+    });
   });
 
   it('says which verb the gesture is about to do, on the fill', async () => {

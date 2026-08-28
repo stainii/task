@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.StreamSupport;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
@@ -172,24 +173,73 @@ class DueTemplateCheckerIntegrationTest extends AbstractIntegrationTestCases {
     }
 
     /// **A cancelled task buys a full interval of quiet** (ADR-0011). Any closure ends the round, so
-    /// the clock restarts from the cancelled task's firing date. Read the last *completion* instead
-    /// and nothing is open to suppress the template while the last completion stays in the past —
-    /// so it fires again tomorrow, and the day after, until something is completed.
+    /// the clock restarts — read the last *completion* instead and nothing is open to suppress the
+    /// template while the last completion stays in the past, so it fires again tomorrow, and the day
+    /// after, until something is completed.
+    ///
+    /// **From the day it was cancelled**, which is what `cancelledOn` is for
+    /// ([ADR-0022](../../../../../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)):
+    /// the mother's task fires on day 10 and is cancelled twenty days later, so the quiet runs from
+    /// day 30 and not from day 10. Declining a round you were already late for buys the same full
+    /// interval as declining one on time — which is the whole of *cancelling is not forgetting*.
     @Test
-    void aCancelledTaskBuysAFullInterval() {
+    void aCancelledTaskBuysAFullIntervalFromTheDayItWasCancelled() {
         clock.moveTo(MARCH);
         var template = save(minMaxTemplate(10, 0));
-        taskRepository.save(TaskMother.firedTask(template.id(), MARCH.plusDays(10), TaskStatus.CANCELLED, null));
+        var cancelled = taskRepository.save(
+                TaskMother.firedTask(template.id(), MARCH.plusDays(10), TaskStatus.CANCELLED, null));
+        var cancelledOn = requireNonNull(cancelled.cancelledOn());
 
-        clock.moveTo(MARCH.plusDays(19));
+        clock.moveTo(cancelledOn.plusDays(9));
         dueTemplateChecker.check();
         assertThat(openTasksOf(template)).isEmpty();
 
-        clock.moveTo(MARCH.plusDays(20));
+        clock.moveTo(cancelledOn.plusDays(10));
         dueTemplateChecker.check();
 
         assertThat(openTasksOf(template)).singleElement()
-                .satisfies(task -> assertThat(firingDateOf(task)).isEqualTo(MARCH.plusDays(20)));
+                .satisfies(task -> assertThat(firingDateOf(task)).isEqualTo(cancelledOn.plusDays(10)));
+    }
+
+    /// **#75, the regression, on the far side of the scheduler**
+    /// ([ADR-0022](../../../../../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)).
+    ///
+    /// A five-day chore fires, sits open for forty days, and is finally done. Counting the next
+    /// round from the day it *fired* names day 10 — already a month behind — so the very next tick
+    /// hands back a task dated in the past and overdue on arrival, and the tick after that does it
+    /// again for day 15. In production that ran once an hour: the author completed the same chore
+    /// three times in one afternoon and was looking at a fourth, *28 days overdue, last done today*.
+    ///
+    /// Asserted here rather than only at `TaskTemplateFiringTest`'s unit seam because the predicate
+    /// was never the whole defect: what closed the loop was the round start being read back out of
+    /// the tasks the previous firing had written. Six ticks, because one tick proves nothing about a
+    /// loop — and the loop is the symptom.
+    @Test
+    void aMinMaxChoreDoneLateDoesNotComeStraightBack() {
+        clock.moveTo(MARCH);
+        var template = save(minMaxTemplate(5, 0));
+
+        clock.moveTo(MARCH.plusDays(5));
+        dueTemplateChecker.check();
+        assertThat(openTasksOf(template)).hasSize(1);
+
+        clock.moveTo(MARCH.plusDays(45));
+        complete(openTasksOf(template).getFirst(), MARCH.plusDays(45));
+
+        // The rest of the day's hourly ticks, and the four days after it.
+        for (var tick = 0; tick < 6; tick++) {
+            dueTemplateChecker.check();
+        }
+        clock.moveTo(MARCH.plusDays(49));
+        dueTemplateChecker.check();
+        assertThat(openTasksOf(template)).isEmpty();
+
+        // Five days after it was done, the chore comes round again — on time, and dated today.
+        clock.moveTo(MARCH.plusDays(50));
+        dueTemplateChecker.check();
+
+        assertThat(openTasksOf(template)).singleElement()
+                .satisfies(task -> assertThat(firingDateOf(task)).isEqualTo(MARCH.plusDays(50)));
     }
 
     /// **The calendar task completed at 09:00 that must not come back at 10:00.** ADR-0016 needed a

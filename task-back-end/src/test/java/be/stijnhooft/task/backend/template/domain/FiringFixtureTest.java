@@ -51,7 +51,7 @@ class FiringFixtureTest {
     void listsTheDatesTheFixtureNames(String name, Fixture fixture) {
         var trigger = fixture.trigger().toTrigger();
 
-        var dates = trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosure(), fixture.count());
+        var dates = trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosedOn(), fixture.count());
 
         assertThat(dates).containsExactlyElementsOf(fixture.expected());
     }
@@ -68,10 +68,10 @@ class FiringFixtureTest {
     void listsNothingWhenNoDatesAreAskedFor(String name, Fixture fixture) {
         var trigger = fixture.trigger().toTrigger();
 
-        assertThat(trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosure(), 0))
+        assertThat(trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosedOn(), 0))
                 .as("asked for none")
                 .isEmpty();
-        assertThat(trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosure(), -1))
+        assertThat(trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosedOn(), -1))
                 .as("asked for fewer than none")
                 .isEmpty();
     }
@@ -93,7 +93,7 @@ class FiringFixtureTest {
     void everyDateListedIsADateTheSchedulerWouldFireOn(String name, Fixture fixture) {
         var trigger = fixture.trigger().toTrigger();
 
-        for (var date : trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosure(), fixture.count())) {
+        for (var date : trigger.nextFiringDates(fixture.from(), fixture.activeSince(), fixture.lastClosedOn(), fixture.count())) {
             assertThat(trigger.latestFiringDateOn(date, fixture.activeSince(), null))
                     .as("the scheduler's answer on %s, a date the preview lists", date)
                     .contains(date);
@@ -126,7 +126,7 @@ class FiringFixtureTest {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Fixture(String rule, StoredTrigger trigger, LocalDate activeSince, @Nullable LocalDate lastClosure,
+    record Fixture(String rule, StoredTrigger trigger, LocalDate activeSince, @Nullable LocalDate lastClosedOn,
                    LocalDate from, int count, List<LocalDate> expected) {
 
         @Override

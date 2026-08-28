@@ -52,6 +52,7 @@
     "description": "The tap drips",
     "status": "OPEN",
     "completedOn": null,
+    "cancelledOn": null,
     "taskTemplateId": null,
     "occurrenceId": null
   }

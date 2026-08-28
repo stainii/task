@@ -1,0 +1,49 @@
+{
+  "rule": "A cancellation carries cancelledOn and never completedOn (#75, ADR-0022). The two are the same clock read for two different reasons - a min/max round restarts at whichever of them ended it - and they are separate fields because only one of them may be backdated: 'I cancelled this on Tuesday' means nothing. The task fired on 1 March and was given up on 20 March, which is the pair the defect conflated.",
+  "taskId": "11111111-0000-0000-0000-000000000015",
+  "patches": [
+    {
+      "id": "aaaaaa15-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000015",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Hoover the bed",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "House",
+        "importance": "IMPORTANT",
+        "status": "OPEN",
+        "taskTemplateId": "22222222-0000-0000-0000-000000000015",
+        "occurrenceId": "33333333-0000-0000-0000-000000000015"
+      }
+    },
+    {
+      "id": "aaaaaa15-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000015",
+      "dateTime": "2026-03-20T19:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "status": "CANCELLED",
+        "cancelledOn": "2026-03-20"
+      }
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000015",
+    "name": "Hoover the bed",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "House",
+    "importance": "IMPORTANT",
+    "description": null,
+    "status": "CANCELLED",
+    "completedOn": null,
+    "cancelledOn": "2026-03-20",
+    "taskTemplateId": "22222222-0000-0000-0000-000000000015",
+    "occurrenceId": "33333333-0000-0000-0000-000000000015"
+  }
+}

@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.template.domain;
 
+import be.stijnhooft.task.backend.task.LastClosure;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
@@ -27,10 +28,17 @@ import java.util.Optional;
 ///
 /// ### Why the two scheduled shapes are not one
 ///
-/// `MinMax` **drifts on purpose**: its clock restarts from the last closure, so a chore done late
-/// is next asked for late. `Calendar` **never drifts**: its dates come from the calendar and a
-/// closure moves nothing. That difference is the whole reason both exist, and it is visible right
-/// here — `MinMax` reads `lastClosure` and `Calendar` ignores it.
+/// `MinMax` **drifts on purpose**: its clock restarts from the day you closed the last task, so a
+/// chore done late is next asked for late. `Calendar` **never drifts**: its dates come from the
+/// calendar and a closure moves nothing. That difference is the whole reason both exist, and it is
+/// visible right here — `MinMax` reads [LastClosure#closedOn] and `Calendar` reads neither of the
+/// record's dates.
+///
+/// The claim was false until [#75](https://github.com/stainii/task/issues/75)
+/// ([ADR-0022](../../../../../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)):
+/// `MinMax` counted from the **firing** date of the last closed task, which is a grid it inherited
+/// from its own first firing — the calendar it exists in order not to be. Anything closed later
+/// than `min` days after it fired came straight back, already overdue.
 public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.Calendar {
 
     /// The date this trigger last came round, on or before `today`; empty when it has not come
@@ -40,11 +48,13 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
     /// @param activeSince  the date this template began firing under its current rule — the floor
     ///                     of the enumeration, and the phase every calendar rule is measured from
     ///                     (ADR-0017)
-    /// @param lastClosure  the firing date of the template's most recently **closed** task, or
-    ///                     `null` when it has none. *Any* closure ends a round, so a cancelled task
-    ///                     buys a full interval of quiet
+    /// @param lastClosure  the template's most recently **closed** task, or `null` when it has
+    ///                     none. *Any* closure ends a round, so a cancelled task buys a full
+    ///                     interval of quiet
     ///                     ([ADR-0011](../../../../../../../../docs/adr/0011-completion-is-a-task-fact-the-template-reads.md)).
-    Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure);
+    ///                     Which of its two dates a shape reads is the difference between the
+    ///                     shapes — see [LastClosure].
+    Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LastClosure lastClosure);
 
     /// The due date a definition with no due offset falls back to, for a firing on `firingDate`.
     ///
@@ -81,9 +91,11 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
     ///
     /// @param from         the date to look forward from — *today*, in the preview
     /// @param activeSince  as on [#latestFiringDateOn]: the floor and the phase
-    /// @param lastClosure  as on [#latestFiringDateOn], and read by [MinMax] alone
+    /// @param lastClosedOn **the day the last task was closed**, and read by [MinMax] alone. One
+    ///                     date rather than the whole [LastClosure]: rule 3 is the predicate's, not
+    ///                     the preview's, so the firing date has no reader on this side.
     /// @param count        how many dates the caller has room for
-    List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count);
+    List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosedOn, int count);
 
     /// Run by hand. It never comes round on its own, so it never fires: someone opens the template
     /// and types the anchor date.
@@ -103,7 +115,7 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
     record Manual(@Nullable String anchorLabel) implements Trigger {
 
         @Override
-        public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure) {
+        public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LastClosure lastClosure) {
             return Optional.empty();
         }
 
@@ -113,7 +125,7 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
         }
 
         @Override
-        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count) {
+        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosedOn, int count) {
             return List.of();
         }
     }
@@ -166,8 +178,14 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
             return Optional.of(firingDate.plusDays(window()));
         }
 
-        /// The round starts at **the later of the last closure and `active_since`**, and the
-        /// `active_since` half is not a formality.
+        /// The round starts at **the later of the day you closed the last task and `active_since`**,
+        /// and neither half is a formality.
+        ///
+        /// **The closure date, not the firing date** (ADR-0022). Counting from the day the task
+        /// *appeared* means a chore you were later than `min` with computes a next firing already in
+        /// the past, and the hourly check hands it back to you within the hour — one new backdated
+        /// task per completion, for as long as you keep completing them. That is not an exotic
+        /// condition: for a five-day chore it is most weeks.
         ///
         /// Reading the closure alone freezes a re-ruled or reactivated template *permanently*: a
         /// template last closed in March and re-ruled in June computes a firing date in March,
@@ -178,35 +196,46 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
         /// Taking the later of the two is also ADR-0017's stated direction for a reset: it can only
         /// ever *prevent* a firing, never lose one.
         @Override
-        public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure) {
-            var roundStarted = lastClosure == null || lastClosure.isBefore(activeSince) ? activeSince : lastClosure;
-            var firingDate = roundStarted.plusDays(min);
+        public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LastClosure lastClosure) {
+            var firingDate = roundStartedAfter(lastClosure == null ? null : lastClosure.closedOn(), activeSince)
+                    .plusDays(min);
             return firingDate.isAfter(today) ? Optional.empty() : Optional.of(firingDate);
+        }
+
+        /// Said once and used by both answers, so the preview and the scheduler cannot name
+        /// different days — which is what `/firing-fixtures/` exists to keep true across two
+        /// languages as well as two methods.
+        private static LocalDate roundStartedAfter(@Nullable LocalDate lastClosedOn, LocalDate activeSince) {
+            return lastClosedOn == null || lastClosedOn.isBefore(activeSince) ? activeSince : lastClosedOn;
         }
 
         /// **One date, and `count` cannot buy a second.** The round after this one begins at a
         /// closure that has not happened, so every further date would be invented — and inventing
         /// them would draw this trigger as the calendar it deliberately is not.
         ///
-        /// The round start is computed exactly as [#latestFiringDateOn] computes it, so the preview
-        /// and the scheduler cannot name different days.
+        /// The round start is computed exactly as [#latestFiringDateOn] computes it — the same
+        /// method — so the preview and the scheduler cannot name different days.
         @Override
-        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count) {
+        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosedOn, int count) {
             if (count <= 0) {
                 return List.of();
             }
-            var roundStarted = lastClosure == null || lastClosure.isBefore(activeSince) ? activeSince : lastClosure;
-            return List.of(roundStarted.plusDays(min));
+            return List.of(roundStartedAfter(lastClosedOn, activeSince).plusDays(min));
         }
     }
 
     /// On the calendar, following one [CalendarRule]. Its dates are absolute, so a closure never
-    /// moves them and `lastClosure` is deliberately unread here — the predicate compares against it
-    /// instead ([ADR-0017 §105](../../../../../../../../docs/adr/0017-a-calendar-template-fires-for-its-latest-unclosed-date.md)).
+    /// moves them and `lastClosure` is deliberately unread here — the predicate compares against its
+    /// firing date instead ([ADR-0017 §105](../../../../../../../../docs/adr/0017-a-calendar-template-fires-for-its-latest-unclosed-date.md)).
+    ///
+    /// **ADR-0022 left this alone deliberately**, after putting the alternative. Bound rule 3 to the
+    /// closure date rather than the firing date and a bin day that passed while last fortnight's
+    /// task sat open is swallowed instead of coming back once — and a missed bin costs more than a
+    /// task you tick away. `MinMax` is measured from you, `Calendar` from the calendar.
     record Calendar(CalendarRule rule) implements Trigger {
 
         @Override
-        public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LocalDate lastClosure) {
+        public Optional<LocalDate> latestFiringDateOn(LocalDate today, LocalDate activeSince, @Nullable LastClosure lastClosure) {
             return rule.latestOccurrenceOnOrBefore(today, activeSince);
         }
 
@@ -217,10 +246,10 @@ public sealed interface Trigger permits Trigger.Manual, Trigger.MinMax, Trigger.
             return Optional.empty();
         }
 
-        /// The rule enumerates itself, and `lastClosure` is unread here for the same reason it is
+        /// The rule enumerates itself, and the closure is unread here for the same reason it is
         /// unread above: a closure moves no calendar date.
         @Override
-        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosure, int count) {
+        public List<LocalDate> nextFiringDates(LocalDate from, LocalDate activeSince, @Nullable LocalDate lastClosedOn, int count) {
             return rule.nextOccurrencesOnOrAfter(from, activeSince, count);
         }
     }

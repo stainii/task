@@ -2,7 +2,7 @@
   "rule": "A min/max template lists exactly one date however many are asked for: the round after it starts at a closure that has not happened.",
   "trigger": { "type": "MIN_MAX", "minDays": 10, "maxDays": 13 },
   "activeSince": "2026-03-01",
-  "lastClosure": null,
+  "lastClosedOn": null,
   "from": "2026-03-01",
   "count": 3,
   "expected": ["2026-03-11"]

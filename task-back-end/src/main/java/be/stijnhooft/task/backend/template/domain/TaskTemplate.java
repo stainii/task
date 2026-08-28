@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.template.domain;
 
+import be.stijnhooft.task.backend.task.LastClosure;
 import be.stijnhooft.task.backend.task.TaskTemplateFired;
 import be.stijnhooft.task.backend.template.exception.TaskTemplateInvalidException;
 import be.stijnhooft.task.backend.template.util.VariableUtils;
@@ -108,7 +109,7 @@ public record TaskTemplate(
     ///
     /// 1. the template is **active**;
     /// 2. it has **no open task** — ADR-0001's suppression rule;
-    /// 3. `D >= activeSince`, and `D` is strictly after `lastClosure`.
+    /// 3. `D >= activeSince`, and `D` is strictly after the last closure's **firing date**.
     ///
     /// ADR-0016's *"a calendar trigger fires for a date only once"* is **subsumed here, not
     /// implemented beside this**: a task already carrying today's date is either open, and rule 2
@@ -116,10 +117,18 @@ public record TaskTemplate(
     /// implementations come to disagree at a date boundary — and a date boundary is where
     /// `docs/quality-bar.md` says the bugs are.
     ///
-    /// Rule 3 reads the most recent **closed** task rather than any task, which is what makes dates
-    /// that passed *while a task was open* satisfied by closing it: suppression pauses the rhythm
-    /// and the dates never move. Otherwise completing a three-week-old bin task instantly hands you
-    /// another.
+    /// Rule 3 reads the most recent **closed** task rather than any task, which is what makes a
+    /// calendar date that passed *while a task was open* come back exactly once when it is closed:
+    /// suppression pauses the rhythm and the dates never move.
+    ///
+    /// **It is the firing date that rule 3 compares against, and only `Calendar` is protected by
+    /// it** (ADR-0022). For `MinMax` the filter is close to vacuous — `closedOn + min` is after the
+    /// firing date whenever you closed on time — so the *"completing a three-week-old bin task
+    /// instantly hands you another"* hazard this rule was written for was never covered here for
+    /// min/max at all. What covers it is `MinMax` counting from the closure date;
+    /// [#75](https://github.com/stainii/task/issues/75) is what it cost to believe otherwise. The
+    /// filter still earns its place for min/max: a `completedOn` backdated past the task's own
+    /// firing date lands `closedOn + min` on or before it, and rule 3 blocks that firing.
     ///
     /// A missed date therefore comes back as **exactly one** firing, anchored on the most recent
     /// date missed, however long the outage — `latestFiringDateOn` names one date and there is no
@@ -134,16 +143,16 @@ public record TaskTemplate(
     /// @param today        the application's notion of today, from the `Clock` bean
     /// @param hasOpenTask  whether any task of this template is still open
     ///                     (`TaskOccurrences#hasOpenOccurrence`)
-    /// @param lastClosure  the firing date of the most recently closed task
+    /// @param lastClosure  the most recently closed task's two dates
     ///                     (`TaskOccurrences#lastClosureOf`), or null when nothing has closed
     /// @return the date to fire for, or empty when this template must not fire
-    public Optional<LocalDate> firingDateOn(LocalDate today, boolean hasOpenTask, @Nullable LocalDate lastClosure) {
+    public Optional<LocalDate> firingDateOn(LocalDate today, boolean hasOpenTask, @Nullable LastClosure lastClosure) {
         if (!active || hasOpenTask) {
             return Optional.empty();
         }
         return trigger().latestFiringDateOn(today, activeSince, lastClosure)
                 .filter(firingDate -> !firingDate.isBefore(activeSince))
-                .filter(firingDate -> lastClosure == null || firingDate.isAfter(lastClosure));
+                .filter(firingDate -> lastClosure == null || firingDate.isAfter(lastClosure.firedOn()));
     }
 
     /// A trigger change is one of the three things that rewrites [#activeSince], so the two move

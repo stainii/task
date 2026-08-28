@@ -100,6 +100,15 @@ export interface Task {
   readonly status: TaskStatus;
   /** *When did I do it?* — a domain value, not a third sync clock. */
   readonly completedOn: string | null;
+  /**
+   * *When did I give up on it?* — always the day it was cancelled, and never editable
+   * ([ADR-0022](../../../../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)).
+   *
+   * A min/max round starts at the day the last task was **closed**, and a cancellation had no such
+   * date. *"I cancelled this on Tuesday"* means nothing, which is why this gets no backdating
+   * affordance where {@link completedOn} has one.
+   */
+  readonly cancelledOn: string | null;
   readonly taskTemplateId: string | null;
   readonly occurrenceId: string | null;
   /** Held in fold order, so `history[0]` is always the creation patch. */

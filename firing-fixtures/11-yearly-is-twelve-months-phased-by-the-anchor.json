@@ -7,7 +7,7 @@
     "calendarDayOfMonth": 14
   },
   "activeSince": "2026-03-01",
-  "lastClosure": null,
+  "lastClosedOn": null,
   "from": "2026-03-15",
   "count": 2,
   "expected": ["2027-03-14", "2028-03-14"]

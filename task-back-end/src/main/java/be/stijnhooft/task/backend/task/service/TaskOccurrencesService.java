@@ -1,5 +1,6 @@
 package be.stijnhooft.task.backend.task.service;
 
+import be.stijnhooft.task.backend.task.LastClosure;
 import be.stijnhooft.task.backend.task.TaskOccurrences;
 import be.stijnhooft.task.backend.task.repository.TaskOccurrenceQueries;
 import lombok.RequiredArgsConstructor;
@@ -37,10 +38,14 @@ public class TaskOccurrencesService implements TaskOccurrences {
     }
 
     /// A creation date is an `Instant` and a firing date is a day, so the zone is applied here -
-    /// from the `Clock` bean, the one place that owns it.
+    /// from the `Clock` bean, the one place that owns it. The closure date is already a day: it is
+    /// `completedOn` or `cancelledOn`, both of them domain values someone stood on a date to write.
     @Override
-    public Optional<LocalDate> lastClosureOf(UUID templateId) {
-        return queries.latestClosedFiring(templateId)
-                .map(firing -> LocalDate.ofInstant(firing, clock.getZone()));
+    public Optional<LastClosure> lastClosureOf(UUID templateId) {
+        return queries.latestClosure(templateId)
+                .map(closed -> {
+                    var firedOn = LocalDate.ofInstant(closed.firedAt(), clock.getZone());
+                    return new LastClosure(firedOn, closed.closedOn() == null ? firedOn : closed.closedOn());
+                });
     }
 }

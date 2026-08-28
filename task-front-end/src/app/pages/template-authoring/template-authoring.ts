@@ -245,7 +245,7 @@ export class TemplateAuthoring {
     const from = today(this.now());
     const stored = this.stored();
     const trigger = triggerOf(draft);
-    const lookahead = { from, activeSince: from, lastClosure: null, count: PREVIEW_DATES };
+    const lookahead = { from, activeSince: from, lastClosedOn: null, count: PREVIEW_DATES };
 
     if (stored === null || !sameTrigger(stored.trigger, trigger)) {
       return nextFiringDates(trigger, lookahead);

@@ -8,7 +8,7 @@
     "calendarWeekdays": "FRIDAY"
   },
   "activeSince": "2026-03-01",
-  "lastClosure": null,
+  "lastClosedOn": null,
   "from": "2026-03-01",
   "count": 3,
   "expected": ["2026-03-27", "2026-06-26", "2026-09-25"]

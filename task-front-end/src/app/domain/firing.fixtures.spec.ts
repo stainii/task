@@ -26,7 +26,7 @@ interface Fixture {
   /** The flat wire shape, read straight in — no conversion to keep honest. */
   readonly trigger: StoredTrigger;
   readonly activeSince: IsoDate;
-  readonly lastClosure: IsoDate | null;
+  readonly lastClosedOn: IsoDate | null;
   readonly from: IsoDate;
   readonly count: number;
   readonly expected: readonly IsoDate[];
@@ -60,7 +60,7 @@ describe('the shared firing fixtures', () => {
           nextFiringDates(fixture.trigger, {
             from: fixture.from,
             activeSince: fixture.activeSince,
-            lastClosure: fixture.lastClosure,
+            lastClosedOn: fixture.lastClosedOn,
             count: fixture.count,
           }),
         ).toEqual(fixture.expected);
@@ -80,7 +80,7 @@ describe('the shared firing fixtures', () => {
           nextFiringDates(fixture.trigger, {
             from: fixture.from,
             activeSince: fixture.activeSince,
-            lastClosure: fixture.lastClosure,
+            lastClosedOn: fixture.lastClosedOn,
             count,
           }),
         ).toEqual([]);

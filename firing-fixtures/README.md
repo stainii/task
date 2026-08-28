@@ -20,9 +20,18 @@ date no task will ever carry, and nothing would ever report it.
 
 ## What a fixture pins
 
-**Trigger + `active_since` + last closure + a floor → the next dates, in order.** That is the phase
-arithmetic, the _on or after_ boundary, day-of-month clamping, ISO week parity, and each shape's
-answer _length_.
+**Trigger + `active_since` + the day the last task closed + a floor → the next dates, in order.**
+That is the phase arithmetic, the _on or after_ boundary, day-of-month clamping, ISO week parity,
+and each shape's answer _length_.
+
+`lastClosedOn` is **the day the task was closed**, not the day it fired
+([ADR-0022](../docs/adr/0022-a-min-max-round-starts-when-you-closed-it.md)). Fixture `03` is named
+for that rule and, until [#75](https://github.com/stainii/task/issues/75), pinned the closure to the
+same day as the floor — the one configuration where the two readings cannot disagree. **A fixture
+that names a rule and cannot fail on it** is the shape
+[#32](https://github.com/stainii/task/issues/32) already paid for once, so it is worth stating
+plainly: give a fixture the value that distinguishes the rule from its nearest wrong neighbour, or
+it pins nothing.
 
 The three shapes answer with different lengths, and the difference is the model showing through
 rather than an inconsistency:
@@ -61,7 +70,7 @@ be. A calendar rule's dates never do.
     "calendarWeekdays": "TUESDAY,THURSDAY",
   }, // the flat wire shape
   "activeSince": "2026-03-04", // the floor of the enumeration, and the phase every rule counts from
-  "lastClosure": null, // read by MIN_MAX alone; null when nothing has closed
+  "lastClosedOn": null, // the day the last task was CLOSED; read by MIN_MAX alone, null when nothing has
   "from": "2026-03-04", // the date to look forward from — today, in the preview
   "count": 4,
   "expected": ["2026-03-05", "2026-03-17", "2026-03-19", "2026-03-31"],
