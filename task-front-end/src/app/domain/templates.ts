@@ -70,7 +70,10 @@ export function lastCompletionOf(templateId: string, tasks: readonly Task[]): Is
  * The one shared helper behind the templates list row and the overview panel's `↻` line, so the
  * two cannot drift.
  */
-export function lastCompletionFloor(template: TaskTemplate, tasks: readonly Task[]): IsoDate | null {
+export function lastCompletionFloor(
+  template: TaskTemplate,
+  tasks: readonly Task[],
+): IsoDate | null {
   return maxIso(template.lastCompletedOn ?? null, lastCompletionOf(template.id, tasks));
 }
 

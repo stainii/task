@@ -210,10 +210,7 @@ export class Overview {
   private readonly lastDoneByTemplate = computed(() => {
     const tasks = this.held();
     return new Map(
-      this.heldTemplates().map((template) => [
-        template.id,
-        lastCompletionFloor(template, tasks),
-      ]),
+      this.heldTemplates().map((template) => [template.id, lastCompletionFloor(template, tasks)]),
     );
   });
 

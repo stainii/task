@@ -204,7 +204,9 @@ describe('the templates list', () => {
    * server's whole-history `lastCompletedOn`.
    */
   it('falls back to the server’s last-completion when this device holds no completed task', async () => {
-    await render([aTemplate({ id: 'boiler', name: 'Onderhoud ketels', lastCompletedOn: '2026-06-01' })]);
+    await render([
+      aTemplate({ id: 'boiler', name: 'Onderhoud ketels', lastCompletedOn: '2026-06-01' }),
+    ]);
 
     expect(texts('li.template .last')).toEqual(['last 74 days ago · 1 Jun']);
   });
