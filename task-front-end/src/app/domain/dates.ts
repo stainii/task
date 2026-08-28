@@ -62,6 +62,26 @@ export function dueIn(dueDate: IsoDate | null, today: IsoDate): number | null {
   return dueDate === null ? null : daysUntil(today, dueDate);
 }
 
+/**
+ * The later of two ISO local dates, with `null` meaning *no date* and losing to any real one;
+ * `null` when both are absent.
+ *
+ * ISO dates compare as strings — the whole reason the wire keeps them that way — so this is a `>`
+ * pick, not a parse. It is the floor #88 needs in two places: a template's server-supplied
+ * `lastCompletedOn` is stale or absent for a chore last done more than a day ago on this device
+ * ({@link IsoDate}s older than the local prune horizon), while a completion made *here* is not yet
+ * on the server — whichever is later is the honest answer.
+ */
+export function maxIso(a: IsoDate | null, b: IsoDate | null): IsoDate | null {
+  if (a === null) {
+    return b;
+  }
+  if (b === null) {
+    return a;
+  }
+  return a > b ? a : b;
+}
+
 /** Midnight UTC on that calendar date — a fixed point, with no zone in it to shift. */
 function utcOf(date: IsoDate): number {
   const [year, month, day] = date.split('-').map(Number);

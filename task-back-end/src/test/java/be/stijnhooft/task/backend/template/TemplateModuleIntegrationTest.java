@@ -22,8 +22,12 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
+import org.springframework.core.ParameterizedTypeReference;
+
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -138,7 +142,7 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
 
         var reRuled = new TaskTemplateDto(stored.id(), stored.name(), stored.context(), true, null,
                 StoredTrigger.of(new Trigger.Calendar(new CalendarRule.Weeks(1, Set.of(DayOfWeek.THURSDAY)))),
-                definitionsOf(stored));
+                definitionsOf(stored), null);
 
         restTestClient.put()
                 .uri("/api/task-templates/" + stored.id())
@@ -215,7 +219,7 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
     @Test
     void refusesATemplateThatCouldNeverProduceATask() {
         var withoutDefinitions = new TaskTemplateDto(UUID.randomUUID(), "Empty", "house", true, null,
-                StoredTrigger.of(new Trigger.Manual("When?")), List.of());
+                StoredTrigger.of(new Trigger.Manual("When?")), List.of(), null);
 
         create(withoutDefinitions).expectStatus().isEqualTo(HttpStatus.BAD_REQUEST);
 
@@ -316,7 +320,7 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
                 TaskTemplateMother.calendarTemplate().deactivated(TaskTemplateMother.ACTIVE_SINCE));
 
         var claimingActive = new TaskTemplateDto(stored.id(), stored.name(), stored.context(), true, null,
-                stored.storedTrigger(), definitionsOf(stored));
+                stored.storedTrigger(), definitionsOf(stored), null);
 
         restTestClient.put()
                 .uri("/api/task-templates/" + stored.id())
@@ -348,6 +352,55 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
         assertThat(taskTemplateRepository.findById(stored.id())).isPresent();
     }
 
+    /// The wiring for #88: `GET /api/task-templates` echoes each template's last completion, read
+    /// from `task`'s query port. The port's own semantics — max `completedOn`, cancellations
+    /// excluded, backdate-safe — are pinned in `TaskOccurrencesIntegrationTest`; here the port is
+    /// mocked and the only question is whether the derived value reaches the JSON.
+    @Test
+    void listCarriesEachTemplatesLastCompletion() {
+        var stored = taskTemplateRepository.save(TaskTemplateMother.manualTemplate());
+        var lastDone = LocalDate.of(2026, 2, 14);
+        when(taskOccurrences.lastCompletionOf(stored.id())).thenReturn(Optional.of(lastDone));
+
+        var listed = restTestClient.get()
+                .uri("/api/task-templates")
+                .header("Authorization", getAuthorizationHeaderForUser())
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.OK)
+                .expectBody(new ParameterizedTypeReference<List<TaskTemplateDto>>() {})
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(listed)
+                .filteredOn(dto -> stored.id().equals(dto.id()))
+                .singleElement()
+                .extracting(TaskTemplateDto::lastCompletedOn)
+                .isEqualTo(lastDone);
+    }
+
+    /// A template no chore of which has ever been completed reports `null`, not an absent field or a
+    /// zero date — the port answers `Optional.empty()` and the mapper folds that to null.
+    @Test
+    void listReportsNullForATemplateNeverCompleted() {
+        var stored = taskTemplateRepository.save(TaskTemplateMother.manualTemplate());
+        when(taskOccurrences.lastCompletionOf(stored.id())).thenReturn(Optional.empty());
+
+        var listed = restTestClient.get()
+                .uri("/api/task-templates")
+                .header("Authorization", getAuthorizationHeaderForUser())
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.OK)
+                .expectBody(new ParameterizedTypeReference<List<TaskTemplateDto>>() {})
+                .returnResult()
+                .getResponseBody();
+
+        assertThat(listed)
+                .filteredOn(dto -> stored.id().equals(dto.id()))
+                .singleElement()
+                .extracting(TaskTemplateDto::lastCompletedOn)
+                .isNull();
+    }
+
     private RestTestClient.ResponseSpec create(TaskTemplateDto dto) {
         return restTestClient.post()
                 .uri("/api/task-templates")
@@ -358,7 +411,7 @@ public class TemplateModuleIntegrationTest extends AbstractIntegrationTestCases 
 
     private TaskTemplateDto dtoOf(TaskTemplate template, String name) {
         return new TaskTemplateDto(template.id(), name, template.context(), template.active(),
-                template.activeSince(), template.storedTrigger(), definitionsOf(template));
+                template.activeSince(), template.storedTrigger(), definitionsOf(template), null);
     }
 
     /// A `PUT` carries the definitions it means to keep. Sending none used to be accepted and left a

@@ -18,6 +18,7 @@ export interface TemplateOverrides {
   readonly context?: string;
   readonly active?: boolean;
   readonly activeSince?: IsoDate;
+  readonly lastCompletedOn?: IsoDate | null;
   readonly trigger?: StoredTrigger;
   readonly taskDefinitions?: readonly TaskDefinition[];
 }
@@ -30,6 +31,8 @@ export function aTemplate(overrides: TemplateOverrides = {}): TaskTemplate {
     context: overrides.context ?? 'house',
     active: overrides.active ?? true,
     activeSince: overrides.activeSince ?? '2026-01-01',
+    // Null by default — the server's answer for a template no chore of which it has seen completed.
+    lastCompletedOn: overrides.lastCompletedOn ?? null,
     // Min/max by default: 44 of the 47 real templates are exactly that shape, so a test that says
     // nothing about the trigger gets the one the author actually has.
     trigger: overrides.trigger ?? minMax(10, 3),

@@ -91,6 +91,17 @@ export interface TaskTemplate {
   readonly active: boolean;
   /** Read-only on the wire. *The date this template began firing under its current rule.* */
   readonly activeSince?: IsoDate | null;
+  /**
+   * Read-only on the wire. The latest completion the **server** knows of — the day this template's
+   * chore was last actually done, across its whole history, or null. Cancellations excluded
+   * (ADR-0011).
+   *
+   * Floored client-side by {@link lastCompletionOf} — see `lastCompletionFloor` in `domain/templates.ts`.
+   * `GET /api/tasks` returns `OPEN` tasks only and the store prunes closed ones after 24h, so the
+   * client's own derivation is `null` for any chore last done more than a day ago on this device;
+   * this is the server filling that gap.
+   */
+  readonly lastCompletedOn?: IsoDate | null;
   readonly trigger: StoredTrigger;
   readonly taskDefinitions: readonly TaskDefinition[];
 }

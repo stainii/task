@@ -17,15 +17,17 @@ import java.util.UUID;
 /// JSON object: one shape for the table and the API means one conversion to keep honest instead of
 /// two.
 ///
-/// ### Three fields the client sends and the server ignores
+/// ### Four fields the client sends and the server ignores
 ///
-/// `id` is the client's on creation and the URL's on update. **`active` and `activeSince` are read
-/// only** — they are echoed back so the authoring screen can show them, and discarded on the way in.
-/// Neither is a value a client can know: `activeSince` is *the date this template began firing under
-/// its current rule*, and `active` is changed through `POST /{id}/deactivation` and
-/// `/{id}/reactivation` precisely so that changing it always writes `activeSince`. Accepting it here
-/// would have made a `PUT` a second, silent path to reactivation — one that leaves a calendar
-/// template free to catch up on the months it spent switched off.
+/// `id` is the client's on creation and the URL's on update. **`active`, `activeSince` and
+/// `lastCompletedOn` are read only** — they are echoed back so the authoring screen and the
+/// reminding list can show them, and discarded on the way in. None is a value a client can know:
+/// `activeSince` is *the date this template began firing under its current rule*; `active` is
+/// changed through `POST /{id}/deactivation` and `/{id}/reactivation` precisely so that changing it
+/// always writes `activeSince`; `lastCompletedOn` is derived from the whole task history, which the
+/// client prunes after 24h. Accepting `active` here would have made a `PUT` a second, silent path to
+/// reactivation — one that leaves a calendar template free to catch up on the months it spent
+/// switched off.
 ///
 /// A read-only field is kept in the record rather than split into a request and a response shape:
 /// one wire type for a resource is what the front-end's store expects, and the rule is stated here
@@ -50,5 +52,11 @@ public record TaskTemplateDto(
         /// behind by `PUT`ting exactly this. The domain refuses it as well
         /// (`TaskTemplate#validateForSaving`); this is the same rule stated where a client can be
         /// told about it in one round trip.
-        @NotEmpty @Valid List<TaskDefinitionDto> taskDefinitions) {
+        @NotEmpty @Valid List<TaskDefinitionDto> taskDefinitions,
+
+        /// Read-only. The latest `completedOn` among this template's `COMPLETED` tasks — the day the
+        /// chore was last actually done, or null if it never has been. Cancellations excluded
+        /// (ADR-0011's two-anchor rule), occurrence-agnostic, whole history. Server-derived on the
+        /// way out (`TaskOccurrences#lastCompletionOf`), ignored on the way in.
+        @Nullable LocalDate lastCompletedOn) {
 }

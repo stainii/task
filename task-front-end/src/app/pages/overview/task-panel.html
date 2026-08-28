@@ -42,6 +42,17 @@
   @if (open()) {
     <div class="body">
       <!--
+        *When this chore was last actually done* (#88) — for template-generated tasks only. A fact,
+        so words (ADR-0019); the `↻` is decoration the label already says in full. The value is the
+        server's whole history floored by local completions, computed by the overview and passed in,
+        so it is fresh after a completion here and correct for a chore last done months ago that
+        `GET /api/tasks` no longer carries.
+      -->
+      @if (fromTemplate()) {
+        <p class="facts"><span aria-hidden="true">↻</span> {{ lastDone() }}</p>
+      }
+
+      <!--
         **URLs linkified, and nothing else** (ADR-0015). Built from runs rather than from a string of
         HTML, which is the security half of the same decision: nothing here writes markup, so nothing
         pasted into a description can inject any. `noopener` because this app holds a live session.

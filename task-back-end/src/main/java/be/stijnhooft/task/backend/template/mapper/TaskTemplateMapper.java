@@ -6,9 +6,12 @@ import be.stijnhooft.task.backend.template.dto.TaskDefinitionDto;
 import be.stijnhooft.task.backend.template.dto.TaskTemplateDto;
 import org.springframework.stereotype.Component;
 
+import org.jspecify.annotations.Nullable;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 /// Hand-written rather than MapStruct, for one reason: the aggregate is a record with an embedded
@@ -58,7 +61,12 @@ public class TaskTemplateMapper {
                 existing.version());
     }
 
-    public TaskTemplateDto toDto(TaskTemplate template) {
+    /// `lastCompletedOn` is passed in rather than read from the template: it is a fact about the
+    /// template's **tasks**, derived by the service from `task`'s query port (ADR-0011), and the
+    /// domain `TaskTemplate` has no field for it. Null is a legitimate value — a template no chore
+    /// of which has ever been completed — and the caller decides whether to derive it at all
+    /// (`GET /api/task-templates` must; the mutation responses need not).
+    public TaskTemplateDto toDto(TaskTemplate template, @Nullable LocalDate lastCompletedOn) {
         return new TaskTemplateDto(
                 template.id(),
                 template.name(),
@@ -74,12 +82,20 @@ public class TaskTemplateMapper {
                                 definition.dueDateOffsetDays(),
                                 definition.importance(),
                                 definition.description()))
-                        .toList());
+                        .toList(),
+                lastCompletedOn);
     }
 
-    public List<TaskTemplateDto> toDtos(Iterable<TaskTemplate> templates) {
+    /// The list mapping. `lastCompletedOn` looks up each template's last completion through the
+    /// supplied function — `taskOccurrences.lastCompletionOf(id).orElse(null)` at the call site.
+    ///
+    /// One `SELECT MAX(completed_on)` per template (N+1): negligible at the current ~43 templates
+    /// (#85). If template volume grows an order of magnitude, widen the port to a batched
+    /// `GROUP BY` / `IN` method and pass a prebuilt map here instead.
+    public List<TaskTemplateDto> toDtos(Iterable<TaskTemplate> templates,
+                                        Function<UUID, @Nullable LocalDate> lastCompletedOn) {
         return StreamSupport.stream(templates.spliterator(), false)
-                .map(this::toDto)
+                .map(template -> toDto(template, lastCompletedOn.apply(template.id())))
                 .toList();
     }
 

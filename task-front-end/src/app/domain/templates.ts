@@ -1,5 +1,5 @@
 import { CAP } from './bands';
-import { IsoDate } from './dates';
+import { IsoDate, maxIso } from './dates';
 import { byRank } from './ranking';
 import { Task } from './task';
 import { TaskTemplate } from './template';
@@ -56,6 +56,25 @@ export function lastCompletionOf(templateId: string, tasks: readonly Task[]): Is
 }
 
 /**
+ * *When was this template's chore last actually done?* — **the server's answer, floored by this
+ * device's** (#88, #86 option c).
+ *
+ * `GET /api/tasks` returns `OPEN` tasks only and the store prunes closed ones after 24h, so
+ * {@link lastCompletionOf} alone is `null` for anything last done more than a day ago on this
+ * device — the staleness this whole feature is about. `template.lastCompletedOn` is the server's
+ * whole-history value, which fixes that; the local floor is what keeps a ✓ on the list giving
+ * instant feedback (the fresh local completion outranks a server value minted before it) and what
+ * still works offline. A backdated completion older than the server's latest loses to `maxIso`,
+ * which is correct.
+ *
+ * The one shared helper behind the templates list row and the overview panel's `↻` line, so the
+ * two cannot drift.
+ */
+export function lastCompletionFloor(template: TaskTemplate, tasks: readonly Task[]): IsoDate | null {
+  return maxIso(template.lastCompletedOn ?? null, lastCompletionOf(template.id, tasks));
+}
+
+/**
  * The template's open task, or null.
  *
  * One task, not a list: a scheduled template does not fire again while it has an open one, so a
@@ -101,7 +120,7 @@ export function templateRows(
     .map<TemplateRow>((template) => ({
       template,
       openTask: openTaskOf(template.id, tasks),
-      lastCompletedOn: lastCompletionOf(template.id, tasks),
+      lastCompletedOn: lastCompletionFloor(template, tasks),
     }))
     .sort((left, right) => {
       if ((left.openTask === null) !== (right.openTask === null)) {

@@ -9,6 +9,8 @@ import { foldOf } from '../../domain/fold';
 import { SyncFailure } from '../../domain/sync';
 import { Task, TaskPatch } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
+import { TaskTemplate } from '../../domain/template';
+import { aTemplate } from '../../domain/template.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { flush } from '../../testing';
@@ -26,6 +28,7 @@ const NOW_AT = new Date('2026-08-14T10:00:00Z');
  */
 
 let held: Task[] = [];
+let heldTemplates: TaskTemplate[] = [];
 let recorded: TaskPatch[] = [];
 const revision = signal(0);
 /** What the outbox dropped — the band's input, and empty in every test that is not about it. */
@@ -64,6 +67,7 @@ async function render(tasks: Task[], context?: string): Promise<void> {
 
 beforeEach(() => {
   held = [];
+  heldTemplates = [];
   recorded = [];
   revision.set(0);
   failures.set([]);
@@ -73,7 +77,13 @@ beforeEach(() => {
     providers: [
       provideRouter([]),
       { provide: NOW, useValue: () => NOW_AT },
-      { provide: LocalStore, useValue: { tasks: () => Promise.resolve([...held]) } },
+      {
+        provide: LocalStore,
+        useValue: {
+          tasks: () => Promise.resolve([...held]),
+          templates: () => Promise.resolve([...heldTemplates]),
+        },
+      },
       {
         provide: SyncService,
         useValue: {
@@ -536,5 +546,45 @@ describe('the changes the server refused', () => {
     await render([aTask({ dueDate: TODAY })]);
 
     expect(element().querySelector('section.band.rejected')).toBeNull();
+  });
+});
+
+/**
+ * The `↻ last done…` line in the expanded panel (#88). The overview holds the templates and the
+ * tasks, floors the server's whole-history value with the completions this device keeps, and
+ * passes the result to each panel — the panel itself reads no store.
+ */
+describe('the last-done line for a template task', () => {
+  function expand(): void {
+    element().querySelector<HTMLElement>('.row')?.click();
+  }
+
+  it('shows when the chore was last done, from the server value this device has pruned past', async () => {
+    heldTemplates = [aTemplate({ id: 'boiler', lastCompletedOn: '2026-06-01' })];
+    await render([aTask({ id: 'a', taskTemplateId: 'boiler', dueDate: TODAY })]);
+
+    expand();
+    await fixture.whenStable();
+
+    expect(texts('app-task-panel .facts')).toEqual(['↻ last 74 days ago · 1 Jun']);
+  });
+
+  it('says never done for a template task whose chore has no recorded completion', async () => {
+    heldTemplates = [aTemplate({ id: 'boiler', lastCompletedOn: null })];
+    await render([aTask({ id: 'a', taskTemplateId: 'boiler', dueDate: TODAY })]);
+
+    expand();
+    await fixture.whenStable();
+
+    expect(texts('app-task-panel .facts')).toEqual(['↻ never done']);
+  });
+
+  it('renders no such line for a task no template made', async () => {
+    await render([aTask({ id: 'a', taskTemplateId: null, dueDate: TODAY })]);
+
+    expand();
+    await fixture.whenStable();
+
+    expect(element().querySelector('app-task-panel .facts')).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { addDays, daysUntil, today } from './dates';
+import { addDays, daysUntil, maxIso, today } from './dates';
 
 /**
  * These tests only mean anything in a zone that has daylight saving, which is why the `test` script
@@ -87,5 +87,23 @@ describe('daysUntil', () => {
 
   it('is negative for a date in the past, by whole days', () => {
     expect(daysUntil('2026-03-29', '2026-03-27')).toBe(-2);
+  });
+});
+
+describe('maxIso', () => {
+  it('returns the later of two dates', () => {
+    expect(maxIso('2024-06-07', '2026-08-13')).toBe('2026-08-13');
+    expect(maxIso('2026-08-13', '2024-06-07')).toBe('2026-08-13');
+  });
+
+  it('lets a real date win over null, whichever side it is on', () => {
+    // The floor #88 needs: a server value the client has pruned past, or a fresh local completion
+    // the server has not heard of yet — either one beats the other's absence.
+    expect(maxIso('2026-08-13', null)).toBe('2026-08-13');
+    expect(maxIso(null, '2026-08-13')).toBe('2026-08-13');
+  });
+
+  it('is null only when both sides are', () => {
+    expect(maxIso(null, null)).toBeNull();
   });
 });

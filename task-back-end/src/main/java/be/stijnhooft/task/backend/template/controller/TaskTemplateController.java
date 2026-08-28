@@ -52,9 +52,14 @@ public class TaskTemplateController {
     private final TaskTemplateMapper taskTemplateMapper;
     private final Clock clock;
 
+    /// The one response that reaches the client's store: `TemplateService.save/deactivate/reactivate`
+    /// all discard the mutation response and immediately `refresh()` through this list. So this is
+    /// where `lastCompletedOn` has to be derived — the mutation responses below carry it too, for a
+    /// DTO that never lies, but nothing observes it there.
     @GetMapping
     public List<TaskTemplateDto> findAllTemplates() {
-        return taskTemplateMapper.toDtos(taskTemplateService.findAll());
+        return taskTemplateMapper.toDtos(
+                taskTemplateService.findAll(), taskTemplateService::lastCompletionOf);
     }
 
     @PostMapping
@@ -62,7 +67,8 @@ public class TaskTemplateController {
     public TaskTemplateDto create(@Valid @RequestBody TaskTemplateDto taskTemplate) {
         var created = taskTemplateService.create(
                 taskTemplateMapper.toNewDomain(taskTemplate, LocalDate.now(clock)));
-        return taskTemplateMapper.toDto(created);
+        // A brand-new template has no tasks, so its last completion is null without asking.
+        return taskTemplateMapper.toDto(created, null);
     }
 
     @PutMapping("/{id}")
@@ -74,19 +80,21 @@ public class TaskTemplateController {
         var existing = taskTemplateService.findOne(id);
 
         var updated = taskTemplateService.update(taskTemplateMapper.applyEdit(taskTemplate, existing), existing);
-        return taskTemplateMapper.toDto(updated);
+        return taskTemplateMapper.toDto(updated, taskTemplateService.lastCompletionOf(updated.id()));
     }
 
     /// **Stop firing.** The template keeps its tasks and its history; it drops out of the list.
     @PostMapping("/{id}/deactivation")
     public TaskTemplateDto deactivate(@PathVariable UUID id) {
-        return taskTemplateMapper.toDto(taskTemplateService.deactivate(id));
+        var deactivated = taskTemplateService.deactivate(id);
+        return taskTemplateMapper.toDto(deactivated, taskTemplateService.lastCompletionOf(id));
     }
 
     /// **Start firing again, from today** — never from where it left off.
     @PostMapping("/{id}/reactivation")
     public TaskTemplateDto reactivate(@PathVariable UUID id) {
-        return taskTemplateMapper.toDto(taskTemplateService.reactivate(id));
+        var reactivated = taskTemplateService.reactivate(id);
+        return taskTemplateMapper.toDto(reactivated, taskTemplateService.lastCompletionOf(id));
     }
 
     /// `409` once the template has produced a single task, whatever became of it. Deleting is for

@@ -8,6 +8,7 @@ import be.stijnhooft.task.backend.template.exception.TaskTemplateInUseException;
 import be.stijnhooft.task.backend.template.exception.TaskTemplateNotFoundException;
 import be.stijnhooft.task.backend.template.repository.TaskTemplateRepository;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,18 @@ public class TaskTemplateService {
 
     public Iterable<TaskTemplate> findAll() {
         return taskTemplateRepository.findAll();
+    }
+
+    /// *When was this template's chore last actually done?* — the latest `completedOn` among its
+    /// `COMPLETED` tasks, or null. Read straight from `task`'s query port (ADR-0011); cancellations
+    /// are excluded there and this is deliberately **not** `lastClosureOf`, which is the scheduling
+    /// anchor and would refire a template every day after a cancelled occurrence.
+    ///
+    /// Lives here rather than in the controller because deriving a value from another module's port
+    /// is service work, not routing (REC-013 / D4).
+    @Nullable
+    public LocalDate lastCompletionOf(UUID templateId) {
+        return taskOccurrences.lastCompletionOf(templateId).orElse(null);
     }
 
     public Optional<TaskTemplate> findById(UUID id) {

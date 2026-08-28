@@ -35,6 +35,7 @@ public class TaskTemplateDtoMother {
                 null,
                 StoredTrigger.of(trigger),
                 List.of(new TaskDefinitionDto(UUID.randomUUID(), definitionName,
-                        0, 2, Importance.IMPORTANT, null)));
+                        0, 2, Importance.IMPORTANT, null)),
+                null);
     }
 }

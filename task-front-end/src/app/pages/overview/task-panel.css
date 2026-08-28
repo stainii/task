@@ -137,6 +137,17 @@
   white-space: pre-wrap;
 }
 
+/* A fact line above the description — the `↻ last done…` recurrence memory (#88). */
+.facts {
+  margin: 10px 0 0;
+  color: var(--app-muted);
+  font-size: 14px;
+}
+
+.facts + .description {
+  margin-top: 6px;
+}
+
 .verbs {
   display: flex;
   align-items: center;

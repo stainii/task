@@ -74,6 +74,47 @@ describe('the open task of a template', () => {
   });
 });
 
+describe('the row floors the server’s last completion with what this device holds (#88)', () => {
+  /**
+   * The server sees the whole history; this device has pruned every closed task older than a day.
+   * So for a chore last done weeks ago, the server value is the only one there is.
+   */
+  it('takes the server value when no completed task is held for the template', () => {
+    const templates = [aTemplate({ id: 'boiler', lastCompletedOn: '2026-06-01' })];
+
+    expect(templateRows(templates, [], TODAY)[0].lastCompletedOn).toBe('2026-06-01');
+  });
+
+  /**
+   * A ✓ on the list mints a completion this device holds immediately, before the server has heard
+   * of it. The instant feedback the list is built on depends on that local completion winning.
+   */
+  it('takes a held completion when it is newer than the server value', () => {
+    const templates = [aTemplate({ id: 'boiler', lastCompletedOn: '2026-06-01' })];
+    const tasks = [
+      aTask({ taskTemplateId: 'boiler', status: 'COMPLETED', completedOn: '2026-08-13' }),
+    ];
+
+    expect(templateRows(templates, tasks, TODAY)[0].lastCompletedOn).toBe('2026-08-13');
+  });
+
+  /** A completion backdated before the server's latest is correctly ignored by the floor. */
+  it('keeps the server value when the held completion is older', () => {
+    const templates = [aTemplate({ id: 'boiler', lastCompletedOn: '2026-06-01' })];
+    const tasks = [
+      aTask({ taskTemplateId: 'boiler', status: 'COMPLETED', completedOn: '2024-01-09' }),
+    ];
+
+    expect(templateRows(templates, tasks, TODAY)[0].lastCompletedOn).toBe('2026-06-01');
+  });
+
+  it('is null when neither the server nor this device knows of a completion', () => {
+    const templates = [aTemplate({ id: 'boiler', lastCompletedOn: null })];
+
+    expect(templateRows(templates, [], TODAY)[0].lastCompletedOn).toBeNull();
+  });
+});
+
 describe('the rows of the templates list', () => {
   /** ADR-0013: deactivating drops a template from the list. The filter is the escape hatch. */
   it('drops deactivated templates, and shows them when asked', () => {

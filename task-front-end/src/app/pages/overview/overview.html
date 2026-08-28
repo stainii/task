@@ -48,6 +48,7 @@
           [task]="task"
           [today]="today()"
           [showContext]="atRoot()"
+          [lastCompletedOn]="lastDoneFor(task)"
           (acted)="acted($event)"
         />
       }
@@ -64,6 +65,7 @@
               [task]="task"
               [today]="today()"
               [showContext]="atRoot()"
+              [lastCompletedOn]="lastDoneFor(task)"
               (acted)="acted($event)"
             />
           }

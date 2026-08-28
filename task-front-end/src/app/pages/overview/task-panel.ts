@@ -27,7 +27,7 @@ import { Task, TaskPatch } from '../../domain/task';
 import { Confirms } from '../../ui/confirms';
 import { GlyphButton } from '../../ui/glyph-button';
 import { linkify } from '../../ui/linkify';
-import { dueLabel, dueTone } from '../../ui/wording';
+import { dueLabel, dueTone, lastDoneLabel } from '../../ui/wording';
 
 /**
  * One task, as an expandable row (FE-005, FE-006).
@@ -79,6 +79,14 @@ export class TaskPanel {
   readonly today = input.required<IsoDate>();
 
   /**
+   * *When this task's template was last actually done* — the floored value the overview computes
+   * (server whole-history, floored by held completions), or `null` for a task no template made or a
+   * chore never done. Passed in, like {@link today}: the panel stays presentational and never reads
+   * the store (#88).
+   */
+  readonly lastCompletedOn = input<IsoDate | null>(null);
+
+  /**
    * Whether to show the context chip.
    *
    * Off inside a context (`/in/:value`), where every row on screen carries the same chip: about
@@ -104,6 +112,15 @@ export class TaskPanel {
   protected readonly bucket = computed(() => bucketOf(this.task(), this.today()));
   protected readonly due = computed(() => dueLabel(this.task().dueDate, this.today()));
   protected readonly tone = computed(() => dueTone(this.task().dueDate, this.today()));
+
+  /** Whether this task came from a template — the `↻ last done…` line shows only then. */
+  protected readonly fromTemplate = computed(() => this.task().taskTemplateId !== null);
+
+  /**
+   * `last done 12 days ago · 16 Aug` / `never done` — the same wording the templates list uses,
+   * including its `null` → `never done` case, so a template task reads the same in both places.
+   */
+  protected readonly lastDone = computed(() => lastDoneLabel(this.lastCompletedOn(), this.today()));
 
   /**
    * The description, split into plain runs and links (ADR-0015: *URLs, and nothing else*).

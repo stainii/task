@@ -198,6 +198,46 @@ describe('the templates list', () => {
     expect(texts('li.template .last')).toEqual(['never done']);
   });
 
+  /**
+   * #88: a chore last done weeks ago has no completed task left on this device — `GET /api/tasks`
+   * is `OPEN`-only and the store prunes closed tasks after a day. The row falls back to the
+   * server's whole-history `lastCompletedOn`.
+   */
+  it('falls back to the server’s last-completion when this device holds no completed task', async () => {
+    await render([aTemplate({ id: 'boiler', name: 'Onderhoud ketels', lastCompletedOn: '2026-06-01' })]);
+
+    expect(texts('li.template .last')).toEqual(['last 74 days ago · 1 Jun']);
+  });
+
+  /**
+   * #88 / #86(c): the ✓ still gives instant feedback. A completion minted here outranks the
+   * server's older value, so the row flips to *today* before any sync round trip — offline too.
+   */
+  it('shows last done today the moment the ✓ records, over a stale server value', async () => {
+    await render([
+      aTemplate({
+        id: 'bins',
+        name: 'Vuilbakken',
+        trigger: minMax(10, 0),
+        lastCompletedOn: '2026-06-01',
+        taskDefinitions: [aDefinition({ name: 'Vuilbakken buitenzetten' })],
+      }),
+    ]);
+
+    expect(texts('li.template .last')).toEqual(['last 74 days ago · 1 Jun']);
+
+    click('li.template .did-it');
+    await fixture.whenStable();
+    await confirmOn('2026-08-14');
+
+    // The real SyncService bumps its revision when the store changes; the stub folds the patch
+    // into heldTasks but leaves that to the test.
+    revision.update((value) => value + 1);
+    await fixture.whenStable();
+
+    expect(texts('li.template .last')).toEqual(['last done today']);
+  });
+
   /** A template that is due is already asking, on the overview. The row says which state it is in. */
   it('says how overdue the task is for a template that is currently asking', async () => {
     await render(

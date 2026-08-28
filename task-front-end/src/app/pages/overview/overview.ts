@@ -6,6 +6,7 @@ import {
   effect,
   inject,
   input,
+  PendingTasks,
   signal,
 } from '@angular/core';
 
@@ -16,6 +17,8 @@ import { visibleWork } from '../../domain/bands';
 import { IsoDate, today } from '../../domain/dates';
 import { completePatch, PanelAction, undoPatch } from '../../domain/patches';
 import { Task, TaskPatch } from '../../domain/task';
+import { TaskTemplate } from '../../domain/template';
+import { lastCompletionFloor } from '../../domain/templates';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { Confirms } from '../../ui/confirms';
@@ -78,10 +81,23 @@ export class Overview {
   private readonly toasts = inject(Toasts);
   private readonly confirms = inject(Confirms);
 
+  /**
+   * Keeps the store re-read visible to `whenStable` / SSR — the same reason the templates list
+   * wraps its reload. Now that `reload` reads two object stores it is worth being explicit that the
+   * screen is not settled until both have answered.
+   */
+  private readonly pending = inject(PendingTasks);
+
   /** Bound from the route parameter; absent at `/`, which is every context at once. */
   readonly value = input<string>();
 
   private readonly held = signal<readonly Task[]>([]);
+
+  /**
+   * The templates this device holds, mirrored like {@link held} — read for the panel's
+   * `↻ last done…` line only (#88). The templates list already loads them the same way.
+   */
+  private readonly heldTemplates = signal<readonly TaskTemplate[]>([]);
 
   /**
    * The date every band and every label on this screen is measured against.
@@ -185,6 +201,34 @@ export class Overview {
   protected readonly onScreen = computed(() => new Set(this.visible().map((task) => task.id)));
 
   /**
+   * `templateId → when its chore was last actually done`, the **same floor the templates list
+   * uses** ({@link lastCompletionFloor}): the server's whole-history value, floored by the
+   * completions this device holds. Built here because only the overview has both the held
+   * templates and `heldTasks` — and the floor being shared is what keeps the panel's line fresh
+   * after a completion made on this screen (#88, #86 option c).
+   */
+  private readonly lastDoneByTemplate = computed(() => {
+    const tasks = this.held();
+    return new Map(
+      this.heldTemplates().map((template) => [
+        template.id,
+        lastCompletionFloor(template, tasks),
+      ]),
+    );
+  });
+
+  /**
+   * The value the panel's `↻` line shows for one task: `null` for a task no template made, or one
+   * whose template this device does not hold — the panel then renders no line.
+   */
+  protected lastDoneFor(task: Task): IsoDate | null {
+    if (task.taskTemplateId === null) {
+      return null;
+    }
+    return this.lastDoneByTemplate().get(task.taskTemplateId) ?? null;
+  }
+
+  /**
    * Whether we are standing at `/` rather than inside a context.
    *
    * Named here rather than written as `value() === undefined` in the template, where the reader has
@@ -226,7 +270,7 @@ export class Overview {
     // in-memory copy of the task list is a second thing that can be wrong.
     effect(() => {
       this.sync.revision();
-      void this.reload();
+      void this.pending.run(() => this.reload());
     });
 
     if (typeof document !== 'undefined') {
@@ -365,8 +409,10 @@ export class Overview {
   private async reload(): Promise<void> {
     try {
       const tasks = await this.store.tasks();
+      const templates = await this.store.templates();
       this.asOf.set(today(this.now()));
       this.held.set(tasks);
+      this.heldTemplates.set(templates);
     } catch (error) {
       console.error('The overview could not read the local store.', error);
     }
