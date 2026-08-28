@@ -8,7 +8,7 @@ import { foldOf } from '../../domain/fold';
 import { Task, TaskPatch } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
 import { TaskTemplate } from '../../domain/template';
-import { aDefinition, aTemplate, minMax } from '../../domain/template.mother';
+import { aDefinition, aTemplate, manual, minMax } from '../../domain/template.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { TemplateService } from '../../sync/templates';
@@ -196,6 +196,33 @@ describe('the templates list', () => {
     await render([aTemplate({ name: 'Vissen eten geven' })]);
 
     expect(texts('li.template .last')).toEqual(['never done']);
+  });
+
+  /**
+   * #90: a `MANUAL` template is *run* by answering its anchor question — it has no cadence, so a
+   * "last done / never done" line and an "I already did this" ✓ have nothing to mean. The row still
+   * appears (its name links to authoring), just without the two chore affordances. A `MIN_MAX` row
+   * beside it is unchanged.
+   */
+  it('drops the last-done line and the ✓ for a manual template', async () => {
+    await render([
+      aTemplate({
+        name: 'Nagaan of workshop mogelijk is',
+        trigger: manual('When is the workshop?'),
+      }),
+      aTemplate({ name: 'Onderhoud ketels', trigger: minMax(10, 3) }),
+    ]);
+
+    expect(texts('li.template .name')).toEqual([
+      'Nagaan of workshop mogelijk is',
+      'Onderhoud ketels',
+    ]);
+
+    const rows = [...element().querySelectorAll('li.template')];
+    expect(rows[0].querySelector('.last')).toBeNull();
+    expect(rows[0].querySelector('.did-it')).toBeNull();
+    expect(rows[1].querySelector('.last')?.textContent?.trim()).toBe('never done');
+    expect(rows[1].querySelector('.did-it')).not.toBeNull();
   });
 
   /**

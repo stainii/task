@@ -87,6 +87,16 @@ export class TaskPanel {
   readonly lastCompletedOn = input<IsoDate | null>(null);
 
   /**
+   * Whether this task's template is `Trigger.Manual` (#90).
+   *
+   * A manual template is *run* by answering its anchor question — it has no cadence and no "last
+   * done" clock, so the `↻` line has nothing to mean and a task it generated would otherwise read
+   * `↻ never done`. Passed in, like {@link lastCompletedOn}: only the overview holds the template,
+   * and this keeps the panel presentational (#88).
+   */
+  readonly manualTemplate = input(false);
+
+  /**
    * Whether to show the context chip.
    *
    * Off inside a context (`/in/:value`), where every row on screen carries the same chip: about
@@ -113,8 +123,15 @@ export class TaskPanel {
   protected readonly due = computed(() => dueLabel(this.task().dueDate, this.today()));
   protected readonly tone = computed(() => dueTone(this.task().dueDate, this.today()));
 
-  /** Whether this task came from a template — the `↻ last done…` line shows only then. */
+  /** Whether this task came from a template. */
   protected readonly fromTemplate = computed(() => this.task().taskTemplateId !== null);
+
+  /**
+   * Whether the `↻ last done…` line shows: the task came from a template, and that template has a
+   * cadence. A `MANUAL` template (#90) is *run*, not ticked, so it has no last-done clock and the
+   * line would only ever say `never done`.
+   */
+  protected readonly showLastDone = computed(() => this.fromTemplate() && !this.manualTemplate());
 
   /**
    * `last done 12 days ago · 16 Aug` / `never done` — the same wording the templates list uses,

@@ -10,7 +10,7 @@ import { SyncFailure } from '../../domain/sync';
 import { Task, TaskPatch } from '../../domain/task';
 import { aTask } from '../../domain/task.mother';
 import { TaskTemplate } from '../../domain/template';
-import { aTemplate } from '../../domain/template.mother';
+import { aTemplate, manual } from '../../domain/template.mother';
 import { LocalStore } from '../../store/local-store';
 import { SyncService } from '../../sync/sync';
 import { flush } from '../../testing';
@@ -582,6 +582,21 @@ describe('the last-done line for a template task', () => {
 
   it('renders no such line for a task no template made', async () => {
     await render([aTask({ id: 'a', taskTemplateId: null, dueDate: TODAY })]);
+
+    expand();
+    await fixture.whenStable();
+
+    expect(element().querySelector('app-task-panel .facts')).toBeNull();
+  });
+
+  /**
+   * #90: a `MANUAL` template has no cadence — it is run by answering its anchor question, not
+   * ticked. A task it generated must not carry a `↻ last done` line (it would only ever read
+   * `never done`), so the overview tells the panel the template is manual.
+   */
+  it('renders no such line for a task from a manual template', async () => {
+    heldTemplates = [aTemplate({ id: 'workshop', trigger: manual('When is the workshop?') })];
+    await render([aTask({ id: 'a', taskTemplateId: 'workshop', dueDate: TODAY })]);
 
     expand();
     await fixture.whenStable();

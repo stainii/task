@@ -75,15 +75,23 @@
           @if (row.openTask !== null) {
             <p class="state">{{ due(row.openTask) }}</p>
           }
-          <p class="last">{{ lastDone(row) }}</p>
 
-          <app-glyph-button
-            class="did-it"
-            verb="complete"
-            tone="good"
-            label="I already did this"
-            (click)="didIt(row)"
-          />
+          <!--
+            A MANUAL template is *run* by answering its anchor question (#90), not ticked — it has
+            no cadence, so a "last done / never done" count and the ✓ have nothing to mean. The row
+            still appears, name linking to authoring; it just loses the two chore affordances.
+          -->
+          @if (row.template.trigger.type !== 'MANUAL') {
+            <p class="last">{{ lastDone(row) }}</p>
+
+            <app-glyph-button
+              class="did-it"
+              verb="complete"
+              tone="good"
+              label="I already did this"
+              (click)="didIt(row)"
+            />
+          }
         </li>
       }
     </ul>

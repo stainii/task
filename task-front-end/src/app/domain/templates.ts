@@ -204,6 +204,8 @@ export interface TemplateOffer {
  *   would have done anyway.
  * - **A deactivated template is not offered.** It cannot fire, so *"I already did this"* would be
  *   recording work against a rule the author switched off.
+ * - **A `MANUAL` template is not offered** (#90). It is *run* by answering its anchor question, not
+ *   ticked — no cadence, no "last done" clock, so there is nothing an out-of-band completion means.
  * - **Nothing before a key is pressed.** The box is a thing you type into; browsing is the
  *   templates list's job.
  *
@@ -233,6 +235,7 @@ export function templateOffers(
 
   return templateRows(templates, tasks, today)
     .filter((row) => row.openTask === null)
+    .filter((row) => row.template.trigger.type !== 'MANUAL')
     .flatMap((row) =>
       row.template.taskDefinitions.map((definition, definitionIndex) => ({
         row,
