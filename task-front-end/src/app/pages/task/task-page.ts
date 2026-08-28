@@ -139,13 +139,22 @@ export class TaskPage {
   });
 
   /**
-   * Where closing goes back to, captured **once, on arrival**, so entering a context survives an
-   * edit: closing a dialog opened from `/in/housagotchi` must not drop you back at every context at
-   * once. `untracked` because `lastSuccessfulNavigation` is a signal, and this may not become a
+   * Where closing goes back to: the page you were on when this dialog opened, captured **once, on
+   * arrival**, so entering a context survives an edit — closing a dialog opened from
+   * `/in/housagotchi` must not drop you back at every context at once.
+   *
+   * **`lastSuccessfulNavigation`, not its `previousNavigation`.** The dialog's own navigation has
+   * not landed yet while this field initialises, so `lastSuccessfulNavigation` is *already* the one
+   * that brought you to the page underneath — `previousNavigation` is a second hop back, one page
+   * too far. That extra hop is invisible until the page underneath is itself a `/task/:id`: open a
+   * task, close it, open another, and each dialog took the *other* as its way out, so Save and
+   * Cancel only ever swapped the two dialogs and neither could be left.
+   *
+   * `untracked` because `lastSuccessfulNavigation` is a signal, and this may not become a
    * dependency of anything.
    */
   private readonly returnTo = untracked(
-    () => this.router.lastSuccessfulNavigation()?.previousNavigation?.finalUrl?.toString() ?? '/',
+    () => this.router.lastSuccessfulNavigation()?.finalUrl?.toString() ?? '/',
   );
 
   protected readonly changeCount = computed(() => {

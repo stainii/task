@@ -314,6 +314,43 @@ describe('saving', () => {
   });
 });
 
+describe('closing lands on the page it was opened from, never on another dialog', () => {
+  /** Drives the URL by hand: this is about the trail closing reads, not about one screen. */
+  async function walk(...urls: readonly string[]): Promise<HTMLElement> {
+    harness = await RouterTestingHarness.create();
+    for (const url of urls) {
+      await harness.navigateByUrl(url);
+      await settle();
+    }
+    return harness.fixture.nativeElement as HTMLElement;
+  }
+
+  it('does not bounce back into the dialog visited just before this one', async () => {
+    // Open a task, close it, then open another — the create toast's *Add details* is an ordinary
+    // navigation, so this is the every-day path. Closing the second must reach the overview, not
+    // ping-pong into the first for ever.
+    held = [aTask({ id: 'a' }), aTask({ id: 'b', name: 'B' })];
+    const page = await walk('/task/a', '/', '/task/b');
+
+    type(field(page, 'name'), 'B edited');
+    await settle();
+    save(page).click();
+    await settle();
+
+    expect(router().url).toBe('/');
+  });
+
+  it('keeps the context it was opened from', async () => {
+    held = [aTask({ id: 'a', name: 'A' })];
+    const page = await walk('/in/house', '/task/a');
+
+    button(page, '.actions .discard').click();
+    await settle();
+
+    expect(router().url).toBe('/in/house');
+  });
+});
+
 describe('leaving without saving', () => {
   it('discards on a deliberate Cancel, and says what went', async () => {
     // A deliberate Cancel is an answer, so it does not ask (ADR-0018).
