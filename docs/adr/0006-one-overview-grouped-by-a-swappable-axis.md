@@ -287,3 +287,44 @@ due date by construction.
 only what is true; `soonest never` and `soonest no due date` are both answers to a question that was
 not asked. This is the same rule as ADR-0015's count-only future band — say nothing where there is
 nothing to say — reached one band along.
+
+### A card is a pill now: the colour bar and the *what comes next* line are dropped
+
+Amended by [Mobile: shrink the context row](https://github.com/stainii/task/issues/82), 2026-08-28.
+
+*Contexts are cards above one global list* specifies a full-width card carrying the context name, its
+open count, a badge, **a six-segment colour bar** *(importance buckets of its soonest tasks)* and
+**one line of what is next after the visible work**. On a phone with 5–7 contexts that stacks to
+5–7 full-width cards, and the day's work starts a scroll below the fold. The row's job is unchanged —
+it is how you move between contexts, it is not scoped to the entered context, and nothing below it
+knows it groups by context — so only its **look** and its **place** are in question. The term stays
+**card**: the concept is untouched, only its rendering shrinks.
+
+Four treatments were built and driven on `prototype/mobile-context-row` (a collapsible summary bar, a
+horizontal card scroller, one pill per context, a bottom sheet) and then, for the winner, four more
+on `prototype/context-row-scope-line`. **Each card is now a pill:** a dominant-bucket **dot**, the
+context name, the true-total count, and the worded badge — `2 overdue` / `1 today` — only when
+started work is late or due. Same rendering at every width; the reflowing card grid is gone. The row
+is **one line tall and scrolls sideways** when the cards overflow, rather than wrapping to a second
+row.
+
+**The six-segment bar and the *what comes next* line are dropped, not relocated.** An earlier
+refinement had them reappear on the `/in/:value` scope line; the driven prototype rejected that — the
+scope line stays exactly `house — 7 open ← everything`. The bar's shape-at-a-glance survives only as
+the single dot, which, like the bar, is coloured from the **soonest task including sleepers**,
+because it describes the context rather than started work. What the bar and the next line said is now
+simply not said: the count, the badge and the bands below carry the rest.
+
+- The dot is one bucket where the bar was six, so a context's *mix* of importance buckets is no
+  longer legible at a glance — only its most urgent one. Accepted: the mix was never actionable, and
+  the bands show it for the entered context anyway.
+- `next:` was *"the first thing a card can tell you the bands have not"*. It is gone. Accepted for
+  the same reason the cards never listed their next few tasks — additive-but-quiet lost to the
+  vertical space it cost across every context.
+
+The badge stays **words, not `⚠n`** as [#82](https://github.com/stainii/task/issues/82) first
+sketched it: [ADR-0019](0019-verbs-are-glyphs-facts-are-words.md) makes a count and a state
+indicator facts, and a glyph does not stand in for a fact.
+
+*Decided by the author against the prototype; the sketch had the bar and the next line moving to the
+scope line, and driving it settled that they should go.*

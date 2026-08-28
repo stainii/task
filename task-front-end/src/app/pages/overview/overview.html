@@ -4,7 +4,7 @@
   with one door. The bands below know nothing about which axis the row groups by, which is what keeps
   a second axis (a goal) a change to the cards rather than a rewrite.
 -->
-<app-context-cards [tasks]="all()" [today]="today()" [entered]="value()" [onScreen]="onScreen()" />
+<app-context-cards [tasks]="all()" [today]="today()" [entered]="value()" />
 
 <!--
   The changes the server refused (ADR-0014), **above the day's work** — a rejection is not
@@ -87,8 +87,8 @@
           <span class="count">{{ fold.title }} ({{ fold.tasks.length }})</span>
           <!--
             What is behind the door, in words — for `Also…` only. Words beat stripes on four driven
-            variants: a distribution nobody can act on is not worth a colour, and it would collide
-            with the six-segment bar on the cards one band above.
+            variants: a distribution nobody can act on is not worth a colour. (#82 has since dropped
+            the six-segment bar this would also have collided with.)
           -->
           @if (fold.summary; as summary) {
             <span class="summary">{{ summary }}</span>

@@ -57,10 +57,10 @@ function plural(count: number, noun: string): string {
  *
  * Four variants were built and driven — count only, count + colour stripes, count + words, and both
  * — and words won. Stripes describe a *distribution* nobody can act on ("two of the nine are
- * orange") and would additionally collide with the six-segment bar on the context cards one band
- * above, so the same visual language would mean two different things a band apart. What the words
- * answer are the only two questions that would make you open it: **is anything urgent in there**,
- * and **when does the next one arrive**.
+ * orange"). At the time they would also have collided with the six-segment bar on the context cards
+ * one band above; #82 has since dropped that bar, but the distribution argument stands on its own.
+ * What the words answer are the only two questions that would make you open it: **is anything urgent
+ * in there**, and **when does the next one arrive**.
  *
  * Urgent means the `focus` bucket — important *and* near — rather than merely overdue: `long-game`
  * is important and far off, which is exactly the thing not to open a band for.

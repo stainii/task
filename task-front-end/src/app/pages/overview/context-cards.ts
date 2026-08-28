@@ -2,13 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { RouterLink } from '@angular/router';
 
 import { ContextBadge, contextCards } from '../../domain/contexts';
-import { daysUntil, IsoDate } from '../../domain/dates';
+import { IsoDate } from '../../domain/dates';
 import { Task } from '../../domain/task';
-import { dueLabel } from '../../ui/wording';
 
 /**
- * The card row above the bands
- * ([ADR-0006 §82](../../../../../docs/adr/0006-one-overview-grouped-by-a-swappable-axis.md)).
+ * The context card row above the bands
+ * ([ADR-0006 §82](../../../../../docs/adr/0006-one-overview-grouped-by-a-swappable-axis.md),
+ * amended by [#82](https://github.com/stainii/task/issues/82)).
  *
  * **Clicking a card enters that context**, at `/in/:value` — filtering *is* entering the app, which
  * gives back portal's four-apps feeling without four routes, four modules or four deployments. A
@@ -19,7 +19,9 @@ import { dueLabel } from '../../ui/wording';
  * context, which is what keeps a goal axis a change here rather than a rewrite — and the route says
  * `value` rather than `context` so no stored URL hard-codes the answer.
  *
- * The rules are in `domain/contexts.ts`; this draws them.
+ * **#82 shrank each card to a pill** — a dot, a name, a count, a badge — dropping the six-segment
+ * bar and the *what comes next* line; the row is one line tall and scrolls sideways. The why and the
+ * rules are in `domain/contexts.ts`; this draws them.
  */
 @Component({
   selector: 'app-context-cards',
@@ -37,40 +39,7 @@ export class ContextCards {
   /** The context you are standing in, or nothing at `/`. */
   readonly entered = input<string>();
 
-  /**
-   * The ids the bands below are showing, so *what comes next* means what it says.
-   *
-   * Passed in rather than recomputed here: the cap of five is global at `/` and per-context once you
-   * have entered one, and only the screen knows which it is applying.
-   */
-  readonly onScreen = input.required<ReadonlySet<string>>();
-
-  protected readonly cards = computed(() =>
-    contextCards(this.tasks(), this.today(), this.onScreen()),
-  );
-
-  /**
-   * *what comes next **after** the visible work* — the first thing a card can tell you that the
-   * bands below have not already said.
-   *
-   * Cards deliberately do not list their next few tasks: an earlier draft did, and it duplicated
-   * almost the entire visible band inside the first fold.
-   *
-   * **A sleeping task is named and nothing more.** ADR-0015 is explicit that `Onderhoud ketels`, 62
-   * days overdue and asleep, *can still be the name on this line* and that **nothing says it is
-   * late** — so `next: Onderhoud ketels · 62 days overdue` would be the one surface breaking the
-   * rule the whole reversal turns on. It is the same rule as the badge's, applied to the half of
-   * the line that speaks about time rather than to the whole line: a task that has not started is
-   * not taken into consideration by anything that speaks about urgency.
-   *
-   * *Decided by recommendation while building #58; recorded as an amendment to ADR-0006.*
-   */
-  protected next(task: Task): string {
-    if (daysUntil(this.today(), task.startDate) > 0) {
-      return `next: ${task.name}`;
-    }
-    return `next: ${task.name} · ${dueLabel(task.dueDate, this.today())}`;
-  }
+  protected readonly cards = computed(() => contextCards(this.tasks(), this.today()));
 
   /** `2 overdue`, `1 today` — a fact in words (ADR-0019), with the colour only backing it up. */
   protected badge(badge: ContextBadge): string {

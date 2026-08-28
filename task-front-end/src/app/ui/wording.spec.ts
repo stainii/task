@@ -135,9 +135,9 @@ describe('the facts on the status screen', () => {
  * The words a folded band carries (ADR-0015, *The collapsed band says what is behind the door*).
  *
  * Of four variants the author drove, words beat stripes: a distribution nobody can act on is not
- * worth a colour, and it would collide with the six-segment bar one band above. What survives are
- * the only two questions that would make you open the band — is anything urgent in there, and when
- * does the next one arrive.
+ * worth a colour (and at the time it would also have collided with the six-segment bar one band
+ * above, which #82 has since dropped). What survives are the only two questions that would make you
+ * open the band — is anything urgent in there, and when does the next one arrive.
  */
 describe('foldSummary', () => {
   const dated = (name: string, days: number, importance: Importance = 'NOT_SO_IMPORTANT') =>

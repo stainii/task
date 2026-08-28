@@ -345,12 +345,14 @@ meaning, and the task wakes by the calendar reaching its date rather than by any
 
 A sleeping task **keeps its true overdue count** — it is not counted as overdue anywhere on a context
 card, but the row itself still says `62 days overdue` when you open the fold. It is otherwise an
-ordinary member of its context: inside the card's count, inside the card's colour bar, and eligible
-to be the name on the card's *what comes next* line. Only the **overdue badge** excludes it. That
-split is deliberate; see **postpone**.
+ordinary member of its context: inside the card's count, and — like the six-segment colour bar it
+replaced — eligible to colour the card's dominant-bucket dot. Only the **overdue badge** excludes it.
+That split is deliberate; see **postpone**.
 
 Named in [ADR-0015](docs/adr/0015-postpone-pushes-the-start-date-and-the-fold-speaks.md), defined
-here in [#58](https://github.com/stainii/task/issues/58).
+here in [#58](https://github.com/stainii/task/issues/58); [#82](https://github.com/stainii/task/issues/82)
+shrank the card to a pill and dropped its colour bar and its *what comes next* line, leaving the
+dot as the only trace of the bar.
 
 ### Importance bucket
 

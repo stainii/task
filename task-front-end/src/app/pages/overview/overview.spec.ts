@@ -223,7 +223,8 @@ describe('the bands', () => {
 describe('what a folded band says is behind its door', () => {
   it('answers the two questions that would make you open `Also…`', async () => {
     // Of four variants the author drove, words beat stripes: a distribution nobody can act on is
-    // not worth a colour, and it would clash with the six-segment bar on the cards one band above.
+    // not worth a colour. (It would once have clashed with the six-segment bar on the cards one
+    // band above; #82 dropped that bar, but the distribution argument stands on its own.)
     await render(
       Array.from({ length: 8 }, (_, index) =>
         aTask({

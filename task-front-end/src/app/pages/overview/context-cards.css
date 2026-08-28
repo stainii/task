@@ -3,32 +3,52 @@
 }
 
 /*
- * The card row reflows freely, unlike the task grid below it, which is capped at two columns
- * (ADR-0021). The cap exists to give a task name room; a card's widest line is a context and a
- * short sentence, and there are as many cards as you have contexts rather than as many as the
- * day's work.
+ * One line of cards, scrolling sideways when they overflow (#82).
+ *
+ * The row that stood here was a reflowing grid — `repeat(auto-fill, minmax(210px, 1fr))` — so 5–7
+ * contexts stacked into 5–7 full-width cards and the day's work began a scroll below the fold on a
+ * phone. Four treatments were driven on `prototype/context-row-scope-line`; the author chose the
+ * densest: each card is now a pill — dot, name, count, badge — the row exactly one card tall, with
+ * horizontal scroll for the overflow. Wrapping to a second row was the alternative and was declined.
  */
 .cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 12px;
+  display: flex;
+  gap: 8px;
   margin-bottom: 22px;
+  overflow-x: auto;
+  /* A phone drags the row; a trackpad and the scrollbar reach the rest. Snap settles it left-aligned. */
+  scroll-snap-type: x proximity;
+}
+
+.cards::-webkit-scrollbar {
+  height: 5px;
+}
+
+.cards::-webkit-scrollbar-thumb {
+  background: var(--app-line);
+  border-radius: 999px;
 }
 
 .card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 6px 12px;
   border: 1px solid var(--app-line);
-  border-radius: 12px;
+  border-radius: 999px;
   background: var(--app-surface);
   color: inherit;
+  font-size: 13px;
   text-decoration: none;
+  white-space: nowrap;
+  scroll-snap-align: start;
 }
 
-.card:hover {
-  border-color: var(--app-accent);
+@media (hover: hover) {
+  .card:hover {
+    border-color: var(--app-accent);
+  }
 }
 
 /* Where you are standing, said in the same channel the row's own hover uses. */
@@ -37,51 +57,17 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-accent) 18%, transparent);
 }
 
-.head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+/*
+ * The dominant-bucket dot: the last of the six-segment bar #82 removed. The same four buckets the
+ * panel stripes use, so one colour means one thing across the screen.
+ */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
 }
 
-.context {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.badge {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.badge-overdue {
-  color: var(--app-overdue);
-}
-
-.badge-today {
-  color: var(--app-ink);
-}
-
-/* Pushed to the far edge, because it is the one number that is never a claim about urgency. */
-.count {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--app-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.bar {
-  display: flex;
-  gap: 3px;
-  height: 6px;
-}
-
-.bar i {
-  flex: 1;
-  border-radius: 2px;
-}
-
-/* The same four buckets the panel stripes use, so one colour means one thing across the screen. */
 .bucket-focus {
   background: var(--app-focus);
 }
@@ -98,15 +84,24 @@
   background: var(--app-back-burner);
 }
 
-/*
- * **Up to two lines** (#73). This was one line with an ellipsis, on the argument that the card is a
- * glance — but the name of the next task is the whole point of the line, and
- * `next: Architectuurreview inplannen met het team · in 2 weeks` does not survive 210px, so the
- * glance showed everything except the thing it was for. The cards are a grid, so one wrapping card
- * lifts its neighbours rather than misaligning them.
- */
-.next {
-  font-size: 12px;
+.context {
+  font-weight: 600;
+}
+
+/* The quiet total, told apart from the badge beside it by being muted rather than coloured. */
+.count {
   color: var(--app-muted);
-  text-wrap: pretty;
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  font-weight: 600;
+}
+
+.badge-overdue {
+  color: var(--app-overdue);
+}
+
+.badge-today {
+  color: var(--app-ink);
 }

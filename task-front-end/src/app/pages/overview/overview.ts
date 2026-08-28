@@ -184,21 +184,12 @@ export class Overview {
   });
 
   /**
-   * The card row's input: **everything this device holds**, not the entered scope.
+   * The chip row's input: **everything this device holds**, not the entered scope.
    *
-   * Scoping it would collapse the row to the single card you are standing in, and the row is how you
+   * Scoping it would collapse the row to the single chip you are standing in, and the row is how you
    * move between contexts.
    */
   protected readonly all = this.held.asReadonly();
-
-  /**
-   * What the bands are **actually showing**, for the cards' *what comes next* line.
-   *
-   * Computed here rather than inside a card, because only this screen knows which cap is in force:
-   * five is global at `/` and per-context once you have entered one, so a card working it out for
-   * itself would skip a task as already-on-screen that the global cap had folded away.
-   */
-  protected readonly onScreen = computed(() => new Set(this.visible().map((task) => task.id)));
 
   /**
    * `templateId → when its chore was last actually done`, the **same floor the templates list
