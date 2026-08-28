@@ -8,11 +8,14 @@ task-back-end/http-requests/http-client.env.json
 *.env
 !*.example.env
 
-# Installed agent skills (Angular's own, pinned in skills-lock.json). They are
-# vendored third-party content, reinstallable from the lock file, so they stay
-# out of the repo.
+# Local Claude Code / agent state: per-user settings, launch configs (they hold
+# machine-specific absolute paths), worktrees, and the installed skills (Angular's
+# own, pinned in skills-lock.json and reinstallable from it).
 .agents/skills/
-.claude/skills/
+.claude/
+
+# Angular CLI cache and build state.
+.angular/
 
 # OS
 .DS_Store
