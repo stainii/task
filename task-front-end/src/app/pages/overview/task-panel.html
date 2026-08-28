@@ -42,13 +42,14 @@
   @if (open()) {
     <div class="body">
       <!--
-        *When this chore was last actually done* (#88) — for template-generated tasks only. A fact,
-        so words (ADR-0019); the `↻` is decoration the label already says in full. The value is the
-        server's whole history floored by local completions, computed by the overview and passed in,
-        so it is fresh after a completion here and correct for a chore last done months ago that
-        `GET /api/tasks` no longer carries.
+        *When this chore was last actually done* (#88) — for template-generated tasks only, and not
+        those a MANUAL template made (#90): it is *run*, not ticked, so it has no last-done clock and
+        the line would only ever say *never done*. A fact, so words (ADR-0019); the `↻` is decoration
+        the label already says in full. The value is the server's whole history floored by local
+        completions, computed by the overview and passed in, so it is fresh after a completion here
+        and correct for a chore last done months ago that `GET /api/tasks` no longer carries.
       -->
-      @if (fromTemplate()) {
+      @if (showLastDone()) {
         <p class="facts"><span aria-hidden="true">↻</span> {{ lastDone() }}</p>
       }
 

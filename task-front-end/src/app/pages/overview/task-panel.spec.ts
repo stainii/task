@@ -25,6 +25,8 @@ const NOW_AT = new Date('2026-08-14T10:00:00Z');
     [task]="task()"
     [today]="today"
     [showContext]="showContext()"
+    [lastCompletedOn]="lastCompletedOn()"
+    [manualTemplate]="manualTemplate()"
     (acted)="acted = $event"
   />`,
 })
@@ -32,6 +34,8 @@ class Host {
   readonly task = signal<Task>(aTask());
   readonly today = TODAY;
   readonly showContext = signal(true);
+  readonly lastCompletedOn = signal<string | null>(null);
+  readonly manualTemplate = signal(false);
   acted: PanelAction | null = null;
 }
 
@@ -403,5 +407,28 @@ describe('the description', () => {
 
     await expand();
     expect(text('.description')).toBe('No description.');
+  });
+});
+
+describe('the ↻ last-done line', () => {
+  it('shows for a task its template made', async () => {
+    fixture.componentInstance.lastCompletedOn.set('2026-08-02');
+    await show(aTask({ taskTemplateId: 'boiler' }));
+    await expand();
+
+    expect(text('.facts')).toBe('↻ last 12 days ago · 2 Aug');
+  });
+
+  /**
+   * #90: a `MANUAL` template has no cadence and no "last done" clock — a task it generated would
+   * otherwise read `↻ never done`. The overview tells the panel the template is manual and the
+   * line is dropped, the same way the templates list drops it.
+   */
+  it('is dropped for a task from a manual template', async () => {
+    fixture.componentInstance.manualTemplate.set(true);
+    await show(aTask({ taskTemplateId: 'workshop' }));
+    await expand();
+
+    expect(element().querySelector('.facts')).toBeNull();
   });
 });

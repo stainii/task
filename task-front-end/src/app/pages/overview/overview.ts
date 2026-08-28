@@ -216,6 +216,28 @@ export class Overview {
     return this.lastDoneByTemplate().get(task.taskTemplateId) ?? null;
   }
 
+  /** `templateId` of every held `MANUAL` template — the panel drops the `↻` line for their tasks (#90). */
+  private readonly manualTemplateIds = computed(
+    () =>
+      new Set(
+        this.heldTemplates()
+          .filter((template) => template.trigger.type === 'MANUAL')
+          .map((template) => template.id),
+      ),
+  );
+
+  /**
+   * Whether this task's template is `MANUAL` (#90). A manual template is *run*, not ticked — it
+   * has no last-done clock, so the panel's `↻` line has nothing to say for a task it generated.
+   *
+   * `false` for a task whose template this device does not hold, so the panel falls back to the
+   * `↻ never done` line — the same degradation {@link lastDoneFor} already accepts, and rare
+   * because a manual-template task seldom sits open.
+   */
+  protected fromManualTemplate(task: Task): boolean {
+    return task.taskTemplateId !== null && this.manualTemplateIds().has(task.taskTemplateId);
+  }
+
   /**
    * Whether we are standing at `/` rather than inside a context.
    *

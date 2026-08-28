@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { aTask } from './task.mother';
-import { aDefinition, aTemplate } from './template.mother';
+import { aDefinition, aTemplate, manual } from './template.mother';
 import {
   groupedTemplateRows,
   lastCompletionOf,
@@ -259,6 +259,21 @@ describe('the templates the omnibox offers', () => {
     const templates = [aTemplate({ name: 'Vuilbakken buitenzetten', active: false })];
 
     expect(templateOffers(templates, [], 'vuilbak', TODAY)).toEqual([]);
+  });
+
+  /**
+   * A `MANUAL` template is *run* by answering its anchor question, not ticked (#90). It has no
+   * cadence and no "last done" clock, so *"I already did this"* has nothing to record against it.
+   */
+  it('says nothing about a manual template', () => {
+    const templates = [
+      aTemplate({
+        name: 'Nagaan of workshop mogelijk is',
+        trigger: manual('When is the workshop?'),
+      }),
+    ];
+
+    expect(templateOffers(templates, [], 'workshop', TODAY)).toEqual([]);
   });
 
   /** The box is a thing you type into, not a thing you browse. That is the list's job. */
