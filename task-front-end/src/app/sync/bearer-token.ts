@@ -26,14 +26,19 @@ export const bearerToken: HttpInterceptorFn = (request, next) => {
 
   const auth = inject(AuthService);
   return from(auth.token()).pipe(
-    switchMap((token) =>
+    switchMap((answer) =>
       // No token is not an error here. The request goes out bare and comes back `401`, which is
       // what the outbox reads as *stall and preserve order* — the alternative, failing locally,
       // would be a different error for the same situation depending on how far the client got.
+      //
+      // That holds for both of the token-less answers, and deliberately: this frame does not know
+      // whose request it is carrying. **Deciding what a missing token means is the loops' job** —
+      // `PatchStream` and `Outbox` ask before they dial and never let an `unknown` reach the
+      // network (#94), so the bare request this sends is one whose `401` is a real verdict.
       next(
-        token === null
-          ? request
-          : request.clone({ setHeaders: { Authorization: `Bearer ${token}` } }),
+        answer.kind === 'token'
+          ? request.clone({ setHeaders: { Authorization: `Bearer ${answer.value}` } })
+          : request,
       ),
     ),
   );

@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { TaskPatch } from '../domain/task';
-import { AuthService } from './auth';
+import { AuthService, TokenAnswer } from './auth';
 import { bearerToken } from './bearer-token';
 import { SyncApi } from './sync-api';
 
@@ -29,10 +29,10 @@ const PATCH: TaskPatch = {
 describe('the sync API', () => {
   let api: SyncApi;
   let http: HttpTestingController;
-  let token: string | null;
+  let token: TokenAnswer;
 
   beforeEach(() => {
-    token = 'a-token';
+    token = { kind: 'token', value: 'a-token' };
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([bearerToken])),
@@ -94,7 +94,7 @@ describe('the sync API', () => {
   it('sends the request bare when there is no token, rather than failing locally', async () => {
     // The server's `401` is what the outbox knows how to read. Failing here instead would make the
     // same situation produce a different outcome depending on how far the client happened to get.
-    token = null;
+    token = { kind: 'no-session' };
     void api.send(PATCH);
     await Promise.resolve();
 

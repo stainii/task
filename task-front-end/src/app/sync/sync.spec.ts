@@ -65,7 +65,7 @@ describe('the sync service', () => {
         {
           provide: AuthService,
           useValue: {
-            token: () => Promise.resolve('a-token'),
+            token: () => Promise.resolve({ kind: 'token', value: 'a-token' }),
             loginRequired: { set: () => undefined },
           },
         },

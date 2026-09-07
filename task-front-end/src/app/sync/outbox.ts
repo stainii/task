@@ -153,6 +153,13 @@ export class Outbox {
         return 'unreachable';
       }
 
+      // The same guard, one layer in: a token this client could not *ask* for says nothing about
+      // the session, so the patch waits exactly as it waits for a radio (#94). Only `no-session`
+      // goes out bare, and only its `401` is allowed to raise the prompt below.
+      if ((await this.auth.token()).kind === 'unknown') {
+        return 'unreachable';
+      }
+
       const { outcome, status } = await this.api.send(next);
       if (outcome === 'accepted') {
         await this.store.stopSending(next.id);
