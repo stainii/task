@@ -82,6 +82,9 @@ describe('the outbox', () => {
     outbox = TestBed.inject(Outbox);
     status = TestBed.inject(SyncStatus);
     auth = TestBed.inject(AuthService);
+    // A session, so every test below is about what the *server* said. The one test about a token
+    // this client could not ask for overrides it (#94).
+    auth.token = () => Promise.resolve({ kind: 'token', value: 'a-token' });
     await store.ready();
   });
 
@@ -184,6 +187,41 @@ describe('the outbox', () => {
     // true: an untried server is not a broken one, which is what keeps the banner quiet on a train.
     expect(api.sent).toEqual([]);
     expect(status.reachable()).toBe(true);
+  });
+
+  /**
+   * [#94](https://github.com/stainii/task/issues/94): **the sign-in bar is for a session that is
+   * gone, never for a check this client could not make.**
+   *
+   * The two are one HTTP status apart at the far end and nothing alike at this one. A request sent
+   * with no bearer earns a `401` that is entirely correct and says nothing whatever about the
+   * session — so sending it at all turns the client's own failure into a bar the user is asked to
+   * press, on a session that is very much alive. It waits instead, exactly as it waits for a radio.
+   */
+  it('sends nothing, and asks nothing, when it could not ask for a token', async () => {
+    await queue(CREATED);
+    auth.token = () => Promise.resolve({ kind: 'unknown' });
+
+    expect(await outbox.drain()).toBe('unreachable');
+
+    expect(api.sent).toEqual([]);
+    expect(auth.loginRequired()).toBe(false);
+    expect((await store.pending()).map((each) => each.id)).toEqual([CREATED.id]);
+  });
+
+  /**
+   * And the other half of the same rule: a check that *did* answer, saying there is no session, is
+   * a verdict. The request goes out bare, the `401` is real, and the bar goes up.
+   */
+  it('still lets a refused session raise the bar', async () => {
+    await queue(CREATED);
+    auth.token = () => Promise.resolve({ kind: 'no-session' });
+    api.answers.set(CREATED.id, { outcome: 'unauthenticated', status: 401 });
+
+    expect(await outbox.drain()).toBe('unauthenticated');
+
+    expect(api.sent).toEqual([CREATED.id]);
+    expect(auth.loginRequired()).toBe(true);
   });
 
   it('picks up a patch made while it was already draining', async () => {

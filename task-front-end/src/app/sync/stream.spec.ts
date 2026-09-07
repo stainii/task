@@ -180,7 +180,7 @@ describe('the patch stream', () => {
     stream = TestBed.inject(PatchStream);
     status = TestBed.inject(SyncStatus);
     auth = TestBed.inject(AuthService);
-    auth.token = () => Promise.resolve('a-token');
+    auth.token = () => Promise.resolve({ kind: 'token', value: 'a-token' });
     await store.ready();
   });
 
@@ -276,6 +276,47 @@ describe('the patch stream', () => {
 
     await until('The stream', () => TestBed.inject(AuthService).loginRequired());
     expect(transport.connections).toBe(1);
+  });
+
+  /**
+   * [#94](https://github.com/stainii/task/issues/94): **it does not dial without a bearer it could
+   * have had.**
+   *
+   * This is the boot the user actually saw. The stream is the first thing to ask for a token, so a
+   * silent check that failed — Keycloak restarting behind the proxy, a radio still waking up —
+   * used to become a connection with no `Authorization`, a `401` the server was entirely right to
+   * give, and a sign-in bar within a second of a cold start. Pressing it asked for no password,
+   * because the session had been there all along, and a plain reload made it go away.
+   *
+   * So `unknown` stops here, beside the dead-radio guard it belongs with: nothing dialled, nothing
+   * said, and the next backoff tick asks again.
+   */
+  it('does not dial, or prompt, when it could not ask for a token', async () => {
+    await store.setCursor({ epoch: 3, sequence: 40 });
+    auth.token = () => Promise.resolve({ kind: 'unknown' });
+
+    stream.start();
+
+    // The loop has had its first pass *and* its first retry: whatever it was going to do, it has
+    // done twice. The stream's `MIN_BACKOFF_MS` is a second, and this is deliberately just past it
+    // — asserting on one pass alone would pass against a loop that dials on its second.
+    await new Promise((resolve) => setTimeout(resolve, 1_100));
+
+    expect(transport.connections).toBe(0);
+    expect(auth.loginRequired()).toBe(false);
+  });
+
+  /** And a check that answered *no session* still reaches the server, and still raises the bar. */
+  it('still dials bare when it knows there is no session, so the `401` is a real one', async () => {
+    await store.setCursor({ epoch: 3, sequence: 40 });
+    auth.token = () => Promise.resolve({ kind: 'no-session' });
+
+    stream.start();
+    await until('The stream', () => transport.connections === 1);
+    await transport.accept(401);
+
+    expect(transport.headers[0]['Authorization']).toBeUndefined();
+    await until('The prompt', () => auth.loginRequired());
   });
 
   it('reports the server unreachable when the socket dies', async () => {

@@ -157,6 +157,19 @@ export class PatchStream {
       return 'unreachable';
     }
 
+    // Asked **before anything is dialled**, and once for the whole connection — the snapshot rides
+    // the same answer through the interceptor.
+    //
+    // `unknown` stops here, in the same breath as a dead radio and for the same reason: this client
+    // could not ask the auth server, so it has nothing to send and nothing to say. Dialling anyway
+    // sends a request with no bearer, and the `401` it earns is indistinguishable at the far end
+    // from a session that is genuinely over — which is how a cold start on a waking radio used to
+    // raise the sign-in bar (#94). A retry costs one backoff tick and no user's attention.
+    const answer = await this.auth.token();
+    if (answer.kind === 'unknown') {
+      return 'unreachable';
+    }
+
     let cursor = await this.store.cursor();
     if (cursor === null) {
       const started = await this.snapshot();
@@ -169,7 +182,7 @@ export class PatchStream {
       }
     }
 
-    return this.tail(cursor);
+    return this.tail(cursor, answer.kind === 'token' ? answer.value : null);
   }
 
   /**
@@ -191,10 +204,9 @@ export class PatchStream {
     }
   }
 
-  private tail(cursor: SyncCursor): Promise<ConnectionOutcome> {
+  private tail(cursor: SyncCursor, token: string | null): Promise<ConnectionOutcome> {
     return new Promise((resolve) => {
       void (async () => {
-        const token = await this.auth.token();
         const aborter = new AbortController();
         this.aborter = aborter;
 

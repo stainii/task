@@ -16,6 +16,33 @@ export const KEYCLOAK = new InjectionToken<(config: KeycloakConfig) => Keycloak>
 });
 
 /**
+ * What came back when a token was asked for.
+ *
+ * **Three answers, not two**, and that is the whole of
+ * [#94](https://github.com/stainii/task/issues/94). A `string | null` made *Keycloak says there is
+ * no session* and *Keycloak did not answer me* the same fact, and they are opposites: the first is
+ * a verdict only the user can act on, the second is this client's own failure to ask. Collapsed
+ * into one `null`, both loops sent a request with no bearer, the server refused it exactly as it
+ * should, and a `401` the client had caused was reported to the user as *sign in*. The bar went up
+ * seconds after a cold start, and pressing it asked for no password — because the session had been
+ * there all along.
+ */
+export type TokenAnswer =
+  /** A bearer token, good for at least {@link AuthService.MIN_TOKEN_VALIDITY_SECONDS}. */
+  | { readonly kind: 'token'; readonly value: string }
+  /** The auth server answered, and this device has no session. The one answer worth prompting on. */
+  | { readonly kind: 'no-session' }
+  /**
+   * No answer: the silent check never came back, the refresh did not, the configuration could not
+   * be fetched. Says nothing about the session, so **nothing may be shown to the user about it** —
+   * the loops treat it exactly as they treat a server that is not answering.
+   */
+  | { readonly kind: 'unknown' };
+
+const NO_SESSION: TokenAnswer = { kind: 'no-session' };
+const UNKNOWN: TokenAnswer = { kind: 'unknown' };
+
+/**
  * Authentication, on ADR-0004's terms: **authenticate to sync, not to see.**
  *
  * Nothing here runs at boot. The app renders from IndexedDB with no token and no network, and
@@ -26,9 +53,9 @@ export const KEYCLOAK = new InjectionToken<(config: KeycloakConfig) => Keycloak>
  * ([#14](https://github.com/stainii/task/issues/14)).
  *
  * **It never redirects on its own.** {@link token} returns a token if one can be had silently and
- * `null` otherwise; the redirect happens only in {@link login}, which the outbox raises when a
- * `401`/`403` stalls it *and* the device is online. An expired token degrades the client to offline
- * mode rather than bouncing it to a login screen.
+ * says why it could not otherwise; the redirect happens only in {@link login}, which the outbox
+ * raises when a `401`/`403` stalls it *and* the device is online. An expired token degrades the
+ * client to offline mode rather than bouncing it to a login screen.
  *
  * `keycloak-js` directly rather than `keycloak-angular`: what that library adds is the bootstrap
  * provider and interceptor helpers, and the provider is the thing this design cannot use.
@@ -80,16 +107,20 @@ export class AuthService {
   private initialising: Promise<Keycloak | null> | null = null;
 
   /**
-   * A bearer token, or null if one cannot be had without asking the user.
+   * A bearer token, or the reason there is none — see {@link TokenAnswer}.
    *
-   * Null is an ordinary answer, not a failure: it is what an offline device gets, and what a device
-   * whose session has expired gets. The caller decides what that means — the outbox stalls, and the
-   * stream waits.
+   * Not having one is an ordinary answer, not a failure: it is what a device with no session gets
+   * and what an offline device gets. **Which of the two it was is the part that matters**, because
+   * only one of them is something the user can do anything about.
    */
-  async token(): Promise<string | null> {
+  async token(): Promise<TokenAnswer> {
     const keycloak = await this.instance();
-    if (keycloak === null || !keycloak.authenticated) {
-      return null;
+    if (keycloak === null) {
+      // The configuration or the silent check never came back. Nothing was refused; nothing is known.
+      return UNKNOWN;
+    }
+    if (!keycloak.authenticated) {
+      return NO_SESSION;
     }
     try {
       await bounded(
@@ -97,11 +128,16 @@ export class AuthService {
         AuthService.ANSWER_TIMEOUT_MS,
       );
     } catch {
-      // The refresh token is gone or expired, or the refresh never came back at all. Nothing to do
-      // silently; the outbox will stall and raise the prompt if the device is online.
-      return null;
+      // Either the refresh token is gone, or the refresh never came back at all — and `keycloak-js`
+      // rejects the same way for both, so this frame cannot tell them apart and must not guess. The
+      // instance goes with it, so the next ask runs the silent check against the SSO cookie again:
+      // a session that is genuinely over comes back as `no-session` from *there*, which is an answer
+      // rather than an inference.
+      this.keycloak = null;
+      return UNKNOWN;
     }
-    return keycloak.token ?? null;
+    const value = keycloak.token;
+    return value === undefined ? UNKNOWN : { kind: 'token', value };
   }
 
   /** Raises the login prompt — a full-page redirect, returning to where the user was. */
@@ -130,8 +166,16 @@ export class AuthService {
    * reintroduce the failure the iframe exists to avoid, on precisely the browsers most likely to
    * block it.
    *
-   * A failed initialisation is not remembered as a verdict, only as *not now*: the next attempt
-   * re-runs it, because the usual cause is that the network was not there yet.
+   * **Neither a failed initialisation nor a negative one is remembered as a verdict**, only as *not
+   * now*: the next attempt re-runs it, because the usual cause is that the network was not there
+   * yet.
+   *
+   * The second half of that was [#94](https://github.com/stainii/task/issues/94), and it is the
+   * sharper bug of the two. Only a *thrown* `init()` used to be retried; one that **resolved**
+   * saying *no session* was cached, so a silent check that answered no — Keycloak restarting behind
+   * the proxy on a nightly deploy, a round trip lost on a radio still waking up — was the client's
+   * answer for the rest of the page's life. It never looked again, the sign-in bar was the only way
+   * out, and a plain reload fixed it: proof that the session had been there the whole time.
    *
    * **And a slow one is a failed one, after {@link ANSWER_TIMEOUT_MS}** — which is not belt-and-braces
    * but the whole of [#71](https://github.com/stainii/task/issues/71). `#checkSsoSilently` waits for
@@ -176,8 +220,11 @@ export class AuthService {
     } catch {
       return null;
     }
-    this.keycloak = keycloak;
     if (keycloak.authenticated) {
+      // Only a session is worth keeping. An instance that came back unauthenticated is a *moment*,
+      // not a state: `keycloak-js` never revisits that flag on its own, so caching one here is
+      // caching the answer `null` to every later ask.
+      this.keycloak = keycloak;
       this.loginRequired.set(false);
     }
     return keycloak;
