@@ -360,10 +360,32 @@ do it?"_ step, where a template and complete-by-name both have one.
   the only correction a wrong `completedOn` gets.
 
 Two consequences are taken knowingly. `DateConfirm` now caps at **today** on every path, because it
-only ever collects a completion date and you cannot have done a thing tomorrow. And the toast
-correction is **undo-then-recomplete** (ADR-0011's amendment names it): a patch id is an idempotency
+only ever collects a completion date and you cannot have done a thing tomorrow — _withdrawn below,
+2026-09-13_. And the toast correction is **undo-then-recomplete** (ADR-0011's amendment names it): a patch id is an idempotency
 key, so _change day_ records a void plus a fresh `completePatch` rather than rewriting the original,
 and re-arms the horizon around the new completion each time it is used.
 
 _Driven by `PROTOTYPE-complete-on-another-day.html`; the A+B verdict and its three open
 sub-decisions are recorded on #83._
+
+### `DateConfirm` has no ceiling, and the menu says _Another day…_
+
+Amended 2026-09-13, on a bug the cap produced.
+
+The amendment above capped `DateConfirm` at today. The cap was enforced twice — a `max` on the field
+and a clamp in the handler — and the clamp bit **silently**: a date picker that ignores `max` (the
+mobile ones do) left next week on screen while _Done_ filed today, and the toast then said
+_done today_ about a completion the author had just dated ahead. The screen and the record
+disagreed, which is the one thing a confirm must never do.
+
+The fix drops the ceiling rather than making it louder. _You cannot have done a thing tomorrow_ was
+true and beside the point: dating a completion ahead is _"this will be done by then"_, an honest
+record of an appointment already made, and nothing downstream needs the date to be in the past —
+the fold takes it as a string, `lastCompletionOf` reads it as an anchor, and the toast's
+{@link doneOnLabel} already fell to a calendar date for anything that is not _today · yesterday ·
+2 days ago_. What the field shows is now, unconditionally, what gets filed.
+
+With the ceiling gone, _In the past…_ on the panel's `▾` menu and the toast's _change day_ row
+was a false label, and it is **_Another day…_** on both. The three presets stay backward-looking:
+they are the glanceable tail of a completion history, not a date field, and the confirm is where
+any other day goes.

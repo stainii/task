@@ -235,7 +235,7 @@ Amended by [Complete a one-off task on another day](https://github.com/stainii/t
 The limit above still holds — `completedOn` is not editable once the toast expires — but issue #83
 adds an **earlier** path that keeps more dates from being wrong in the first place. The expanded
 panel's `Complete` splits into `[ complete ][▾]`, and the `▾` picks the completion date **before**
-the write (`Today · Yesterday · 2 days ago · In the past…`), the same deliberate _"when did you do
+the write (`Today · Yesterday · 2 days ago · In the past…` — since renamed _Another day…_, ADR-0014), the same deliberate _"when did you do
 it?"_ a template and complete-by-name already carry. The task panel had been the one completion
 surface without it.
 

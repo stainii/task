@@ -18,7 +18,7 @@ export interface CompletionCorrection {
   readonly today: IsoDate;
   /** *Yesterday* / *2 days ago* — a preset day, already resolved to a date. */
   readonly changeDay: (on: IsoDate) => void;
-  /** *In the past…* — opens the shell's one confirm for anything older. */
+  /** *Another day…* — opens the shell's one confirm for any day the presets do not name. */
   readonly pickDay: () => void;
 }
 

@@ -426,7 +426,7 @@ describe('acting on a task', () => {
     expect(undoable().correction?.on).toBe(addDays(TODAY, -1));
   });
 
-  it('sends "In the past…" through the shared confirm before the recomplete', async () => {
+  it('sends "Another day…" through the shared confirm before the recomplete', async () => {
     vi.spyOn(TestBed.inject(Confirms), 'ask').mockResolvedValue('2026-08-01');
     await render([aTask({ id: 'a', name: 'Call mum', dueDate: TODAY })]);
     await completeFromPanel();
@@ -438,7 +438,7 @@ describe('acting on a task', () => {
     expect(recorded[2].changes).toEqual({ status: 'COMPLETED', completedOn: '2026-08-01' });
   });
 
-  it('keeps "In the past…" a no-op when the confirm is dismissed', async () => {
+  it('keeps "Another day…" a no-op when the confirm is dismissed', async () => {
     vi.spyOn(TestBed.inject(Confirms), 'ask').mockResolvedValue(null);
     await render([aTask({ id: 'a', dueDate: TODAY })]);
     await completeFromPanel();

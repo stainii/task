@@ -86,6 +86,8 @@ describe('doneOnLabel', () => {
     ['2 days ago', '2026-08-12', '2 days ago'],
     ['older than that', '2026-08-09', '9 Aug'],
     ['a past year', '2024-06-07', "7 Jun '24"],
+    // A completion dated ahead is not one of the picker's words, so it is a date, never *today*.
+    ['a day that has not come yet', '2026-08-20', '20 Aug'],
   ])('says %s', (_case, on, expected) => {
     expect(doneOnLabel(on, TODAY)).toBe(expected);
   });
