@@ -59,7 +59,7 @@ import { doneOnLabel } from './wording';
               class="change-day app-toast-action"
               (click)="correction.pickDay()"
             >
-              In the past…
+              Another day…
             </button>
           } @else {
             <button

@@ -274,7 +274,7 @@ describe('completing on another day (issue #83)', () => {
       option.textContent?.trim(),
     );
     expect(options).toEqual(['Today', 'Yesterday', '2 days ago']);
-    expect(document.querySelector('.done-when-past')?.textContent?.trim()).toBe('In the past…');
+    expect(document.querySelector('.done-when-past')?.textContent?.trim()).toBe('Another day…');
   });
 
   it('backdates the completion by a preset', async () => {
@@ -292,7 +292,7 @@ describe('completing on another day (issue #83)', () => {
     expect(fixture.componentInstance.acted?.completed?.task.id).toBe('a');
   });
 
-  it('routes "In the past…" through the shared "When did you do it?" confirm', async () => {
+  it('routes "Another day…" through the shared "When did you do it?" confirm', async () => {
     askAnswer = '2026-08-09';
     await show(aTask({ name: 'Descale the coffee machine' }));
     await openDoneWhen();

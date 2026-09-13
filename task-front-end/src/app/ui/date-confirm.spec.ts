@@ -75,19 +75,22 @@ describe('DateConfirm', () => {
     expect(confirmed).toEqual(['2026-08-11']);
   });
 
-  it('will not let the work have happened in the future', async () => {
-    // The field only ever collects a `completedOn` (issue #83), and you cannot have done it
-    // tomorrow. The `max` caps the picker UI; a typed value that slips past it lands on today.
+  it('confirms with a day that has not come yet, and shows the day it will file', async () => {
+    // Issue #83 capped the field at today — *you cannot have done it tomorrow* — and the cap bit
+    // silently: a typed date past it stayed on screen while *Done* filed today, so the toast said
+    // *done today* about a completion you had just dated next week. The ceiling is gone, and the
+    // one rule that remains is the one that matters: what the field shows is what gets filed.
     const page = await open('Beddengoed wassen', '2026-08-14');
     const confirmed: string[] = [];
     fixture.componentInstance.confirmed.subscribe((on: string) => confirmed.push(on));
 
-    expect(date(page).getAttribute('max')).toBe('2026-08-14');
+    expect(date(page).hasAttribute('max')).toBe(false);
 
     type(date(page), '2026-08-20');
     page.querySelector<HTMLElement>('.confirm')?.click();
 
-    expect(confirmed).toEqual(['2026-08-14']);
+    expect(confirmed).toEqual([date(page).value]);
+    expect(confirmed).toEqual(['2026-08-20']);
   });
 
   it('cancels without saying anything happened', async () => {

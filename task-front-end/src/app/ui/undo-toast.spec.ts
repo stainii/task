@@ -77,12 +77,12 @@ describe('UndoToast', () => {
     expect(changed).toEqual(['2026-08-13', '2026-08-12']);
   });
 
-  it('hands "In the past…" to the correction for the shared confirm', () => {
+  it('hands "Another day…" to the correction for the shared confirm', () => {
     const page = render('x', TODAY);
 
     button(page, 'change day ▾').click();
     fixture.detectChanges();
-    button(page, 'In the past…').click();
+    button(page, 'Another day…').click();
 
     expect(picked).toBe(1);
     expect(changed).toEqual([]);

@@ -97,11 +97,11 @@ export const DUE_PRESETS: readonly DatePreset[] = ASK_FROM_PRESETS.filter(
 /**
  * The panel's *done when?* offsets (issue #83): **today, and the two days before it**.
  *
- * The one preset set whose days go **backward** — a completion in the future is not a thing — so it
- * is written out rather than derived from {@link ASK_FROM_PRESETS}, which share only `0` with it and
- * mean a *start* date. Anything older than *2 days ago* is the shared `DateConfirm`, reached through
- * the picker's *In the past…*, so this list stays short on purpose: it is the glanceable tail of a
- * completion history, not a date field.
+ * The one preset set whose days go **backward** — the glanceable tail of a completion history — so
+ * it is written out rather than derived from {@link ASK_FROM_PRESETS}, which share only `0` with it
+ * and mean a *start* date. Any other day, older or (since the ceiling went) ahead, is the shared
+ * `DateConfirm`, reached through the picker's *Another day…*, so this list stays short on purpose:
+ * it is a tail, not a date field.
  */
 export const COMPLETED_ON_PRESETS: readonly DatePreset[] = [
   { label: 'Today', days: 0 },

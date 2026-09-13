@@ -382,7 +382,7 @@ export class Overview {
     this.offerCompletion(task, recompleted, on, `Completed — ${task.name}`);
   }
 
-  /** *In the past…* — the shell's one confirm collects the date, then the same recomplete. */
+  /** *Another day…* — the shell's one confirm collects the date, then the same recomplete. */
   private async pickDay(task: Task, completion: TaskPatch): Promise<void> {
     const on = await this.confirms.ask(task.name, this.today());
     if (on !== null) {

@@ -204,11 +204,11 @@ export class TaskPanel {
   }
 
   /**
-   * *In the past…* — anything older than the presets goes through the shell's one confirm, the same
-   * *When did you do it?* the omnibox and the templates list use. Nothing is written if it is
+   * *Another day…* — anything the presets do not cover goes through the shell's one confirm, the
+   * same *When did you do it?* the omnibox and the templates list use. Nothing is written if it is
    * dismissed.
    */
-  protected async completeInThePast(): Promise<void> {
+  protected async completeAnotherDay(): Promise<void> {
     const on = await this.confirms.ask(this.task().name, this.today());
     if (on !== null) {
       this.completeAt(on);

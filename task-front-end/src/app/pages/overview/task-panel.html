@@ -111,9 +111,10 @@
             {{ preset.label }}
           </button>
         }
-        <!-- Older than two days is a real date, and it goes through the shell's one confirm. -->
-        <button mat-menu-item type="button" class="done-when-past" (click)="completeInThePast()">
-          In the past…
+        <!-- Anything but the three presets is a real date, and it goes through the shell's one
+             confirm — behind as well as ahead, since the ceiling went. -->
+        <button mat-menu-item type="button" class="done-when-past" (click)="completeAnotherDay()">
+          Another day…
         </button>
       </mat-menu>
     </div>

@@ -85,23 +85,13 @@
     </div>
 
     <!--
-      The two dates, side by side and both worded. ADR-0019's floor 1 is a rule about *this* screen:
-      on an overview row only one of them can ever be live, but here both are editable and adjacent,
-      which is the pair a calendar glyph and a clock glyph cannot tell apart. They stack below 430px
-      or the second one clips — found at 375px.
+      The two dates, side by side and both worded — *Ask me from* first, *Due* second: the day it
+      starts asking, then the day it must be done by. ADR-0019's floor 1 is a rule about *this*
+      screen: on an overview row only one of them can ever be live, but here both are editable and
+      adjacent, which is the pair a calendar glyph and a clock glyph cannot tell apart. They stack
+      below 430px or the second one clips — found at 375px.
     -->
     <div class="dates">
-      <div class="field">
-        <label for="task-due">Due</label>
-        <input
-          id="task-due"
-          data-field="dueDate"
-          type="date"
-          [value]="draft().dueDate ?? ''"
-          (input)="clearable('dueDate', value($event))"
-        />
-      </div>
-
       <div class="field">
         <label for="task-start">Ask me from</label>
         <input
@@ -127,6 +117,17 @@
             </button>
           }
         </div>
+      </div>
+
+      <div class="field">
+        <label for="task-due">Due</label>
+        <input
+          id="task-due"
+          data-field="dueDate"
+          type="date"
+          [value]="draft().dueDate ?? ''"
+          (input)="clearable('dueDate', value($event))"
+        />
       </div>
     </div>
 

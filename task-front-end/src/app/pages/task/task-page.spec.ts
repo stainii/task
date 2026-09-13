@@ -209,6 +209,17 @@ describe('the form', () => {
     expect(dates?.textContent).toContain('Ask me from');
   });
 
+  it('puts “ask me from” on the left and due on the right', async () => {
+    // Reads in the order the task lives: first the day it starts asking, then the day it must be
+    // done by. The grid lays the fields out in DOM order, so DOM order is the layout.
+    const page = await open(KETEL);
+
+    const fields = [...page.querySelectorAll('.dates [data-field]')].map((field) =>
+      field.getAttribute('data-field'),
+    );
+    expect(fields).toEqual(['startDate', 'dueDate']);
+  });
+
   it('keeps the verbs off it — the panel owns those', async () => {
     // Repeating them would give `CANCELLED` — a brand-new verb with exactly two well-understood
     // entry points — a third one, inside a form (ADR-0018).
