@@ -504,7 +504,14 @@ differently from every lexicographic comparison a TypeScript implementation woul
 walking the history *backwards*, so a void that has itself been voided is already inactive by the
 time it would have removed anything. That direction is also what makes *undo-of-undo is voiding the
 void* terminate: two patches voiding each other is unrepresentable rather than a cycle the algorithm
-has to survive.
+has to survive. Pinned by `16-a-void-that-sorts-before-its-target-does-nothing.json`, which both
+folds failed when it was written: they honoured a forward void, contrary to this paragraph.
+
+The rule has a cost the paragraph above did not count: **a skewed clock could swallow an undo.**
+Undo the laptop's edit on a phone whose clock is behind, and the void sorts before the edit and does
+nothing. So the client stamps an undo at `max(now, target + 1ms)` — it holds the patch it is voiding,
+so it always knows the target's `dateTime`. A real undo therefore always sorts after its target, and
+only a void no client would mint can dangle.
 
 **A change key the fold does not recognise is ignored.** The write-path contract above rejects
 unknown field names with a `400`, and that stands — but it guards the *door*, and the fold also

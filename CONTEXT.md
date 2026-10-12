@@ -69,7 +69,8 @@ appended, never a deletion.
 
 Voids are resolved by walking the history **backwards**, so undo-of-undo is simply voiding the void:
 a void that has itself been voided never removes anything. A void naming a patch that is not earlier
-in fold order is dangling and does nothing.
+in fold order is dangling and does nothing — so an undo is stamped after the patch it names even when
+this device's clock is behind the one that made it, or a skewed clock would swallow the undo.
 
 ### Outbox
 

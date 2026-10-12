@@ -210,13 +210,25 @@ interface ResolvedVoids {
  * has itself been voided is already known to be inactive by the time it would have removed
  * anything, and it makes a cycle of two patches voiding each other impossible to express rather
  * than something the algorithm has to survive.
+ *
+ * A void naming a patch that is not in the history, or that sorts after it, is dangling and does
+ * nothing: it cannot be right, and guessing at what it meant is how an undo comes to remove a change
+ * it never saw. Honouring a void that points forward would also break the walk itself — its target,
+ * if a void, would already have acted before being cancelled. `undoPatch` (`patches.ts`) stamps an
+ * undo after the patch it names, so a real undo never dangles this way.
  */
 function resolveVoids(ordered: readonly TaskPatch[], creationPatch: TaskPatch): ResolvedVoids {
+  const position = new Map(ordered.map((patch, i) => [patch.id, i]));
+
   const voided = new Set<string>();
   let creationVoided = false;
   for (let i = ordered.length - 1; i >= 0; i--) {
     const patch = ordered[i];
     if (voided.has(patch.id) || patch.voids === null) {
+      continue;
+    }
+    const targetPosition = position.get(patch.voids);
+    if (targetPosition === undefined || targetPosition >= i) {
       continue;
     }
     if (patch.voids === creationPatch.id) {
