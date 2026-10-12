@@ -191,4 +191,25 @@ describe('undoPatch', () => {
     expect(undo.taskId).toBe('a');
     expect(undo.id).not.toBe(completion.id);
   });
+
+  it('is stamped by this device’s clock when that clock is past the patch it voids', () => {
+    const completion = completePatch(aTask({ id: 'a' }), new Date('2026-08-14T18:00:00Z'));
+
+    expect(undoPatch(completion, NOW).dateTime).toBe(NOW.toISOString());
+  });
+
+  it('is stamped a millisecond after the patch it voids when this device’s clock is behind', () => {
+    // The fold ignores a void that sorts before its target (fixture 16), so an undo made on a
+    // device whose clock is behind the one that made the patch would silently do nothing. A
+    // millisecond rather than the same instant: a tie is broken on id, which could go either way.
+    const fromAFasterClock = completePatch(aTask({ id: 'a' }), new Date('2026-08-14T19:00:00Z'));
+
+    expect(undoPatch(fromAFasterClock, NOW).dateTime).toBe('2026-08-14T19:00:00.001Z');
+  });
+
+  it('is stamped a millisecond after the patch it voids when both clocks read the same instant', () => {
+    const sameInstant = completePatch(aTask({ id: 'a' }), NOW);
+
+    expect(undoPatch(sameInstant, NOW).dateTime).toBe('2026-08-14T18:30:00.001Z');
+  });
 });

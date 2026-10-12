@@ -1,0 +1,54 @@
+{
+  "rule": "A void only removes a patch that precedes it in fold order. One that sorts before its target - here an undo whose clock reads earlier than the edit it names, though it arrived after it - is dangling and does nothing, so the edit stands. The client never mints one: undo stamps the void after the patch it names.",
+  "taskId": "11111111-0000-0000-0000-000000000016",
+  "patches": [
+    {
+      "id": "aaaaaa16-0000-0000-0000-000000000001",
+      "taskId": "11111111-0000-0000-0000-000000000016",
+      "dateTime": "2026-03-01T08:00:00Z",
+      "sequence": 1,
+      "voids": null,
+      "changes": {
+        "name": "Descale the kettle",
+        "creationDateTime": "2026-03-01T08:00:00Z",
+        "startDate": "2026-03-01",
+        "context": "House",
+        "importance": "NOT_SO_IMPORTANT",
+        "status": "OPEN"
+      }
+    },
+    {
+      "id": "aaaaaa16-0000-0000-0000-000000000002",
+      "taskId": "11111111-0000-0000-0000-000000000016",
+      "dateTime": "2026-03-02T08:00:00Z",
+      "sequence": 2,
+      "voids": null,
+      "changes": {
+        "name": "Descale the kettle and the coffee machine"
+      }
+    },
+    {
+      "id": "aaaaaa16-0000-0000-0000-000000000003",
+      "taskId": "11111111-0000-0000-0000-000000000016",
+      "dateTime": "2026-03-01T20:00:00Z",
+      "sequence": 3,
+      "voids": "aaaaaa16-0000-0000-0000-000000000002",
+      "changes": {}
+    }
+  ],
+  "expected": {
+    "id": "11111111-0000-0000-0000-000000000016",
+    "name": "Descale the kettle and the coffee machine",
+    "creationDateTime": "2026-03-01T08:00:00Z",
+    "startDate": "2026-03-01",
+    "dueDate": null,
+    "context": "House",
+    "importance": "NOT_SO_IMPORTANT",
+    "description": null,
+    "status": "OPEN",
+    "completedOn": null,
+    "cancelledOn": null,
+    "taskTemplateId": null,
+    "occurrenceId": null
+  }
+}

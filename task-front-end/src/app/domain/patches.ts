@@ -174,9 +174,16 @@ export function postponePatch(task: Task, days: number, now: Date): TaskPatch {
  * The fold drops the voided patch's contribution entirely rather than computing a compensating
  * value, so there is nothing for this one to change — and an empty `changes` beside a `voids` is
  * exactly what the server's door allows.
+ *
+ * **Stamped after the patch it voids**, whatever this device's clock says. The fold ignores a void
+ * that sorts before its target (ADR-0004), and the patch may have come from a device whose clock is
+ * ahead of this one — so `now` alone would make the undo silently do nothing. A millisecond past
+ * the target rather than the same instant, because a tie is broken on id and could go either way.
  */
 export function undoPatch(patch: TaskPatch, now: Date): TaskPatch {
-  return { ...patchOn(patch.taskId, now, {}), voids: patch.id };
+  const justAfterTarget = new Date(Date.parse(patch.dateTime) + 1);
+  const stamp = now > justAfterTarget ? now : justAfterTarget;
+  return { ...patchOn(patch.taskId, stamp, {}), voids: patch.id };
 }
 
 /**

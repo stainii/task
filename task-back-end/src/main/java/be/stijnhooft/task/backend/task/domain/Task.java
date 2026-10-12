@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -186,8 +187,15 @@ public record Task(
     ///
     /// A void naming a patch that is not in the history, or that sorts after it, is dangling and
     /// does nothing: it cannot be right, and guessing at what it meant is how an undo comes to
-    /// remove a change it never saw.
+    /// remove a change it never saw. Honouring a void that points forward would also break the
+    /// walk itself - its target, if a void, would already have acted before being cancelled. The
+    /// client stamps an undo after the patch it names, so a real undo never dangles this way.
     private static ResolvedVoids resolveVoids(List<TaskPatch> ordered, TaskPatch creationPatch) {
+        var position = new HashMap<UUID, Integer>();
+        for (int i = 0; i < ordered.size(); i++) {
+            position.put(ordered.get(i).id(), i);
+        }
+
         var voided = new HashSet<UUID>();
         var creationVoided = false;
         for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -197,6 +205,10 @@ public record Task(
             }
             var target = patch.voids();
             if (target == null) {
+                continue;
+            }
+            var targetPosition = position.get(target);
+            if (targetPosition == null || targetPosition >= i) {
                 continue;
             }
             if (target.equals(creationPatch.id())) {
