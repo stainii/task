@@ -53,7 +53,9 @@
   // #21 found the throttle that actually works: prHourlyLimit does not stop rebases, commitHourlyLimit
   // does. With automerge on, PRs no longer pile up — but a red one lingers, and every merge to `main`
   // rebases whatever is open, so both limits stay low.
-  dependencyDashboard: true,
+  dependencyDashboard: {
+    enabled: true,
+  },
   commitHourlyLimit: 2,
   prConcurrentLimit: 3,
 

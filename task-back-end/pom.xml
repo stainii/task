@@ -27,14 +27,15 @@
         <url/>
     </scm>
     <properties>
-        <java.version>26</java.version>
-        <spring-modulith.version>2.1.0</spring-modulith.version>
+        <java.version>27</java.version>
+        <spring-modulith.version>2.2.0</spring-modulith.version>
         <jspecify.version>1.0.1</jspecify.version>
         <testcontainers-keycloak.version>4.3.1</testcontainers-keycloak.version>
         <instancio-junit.version>5.6.0</instancio-junit.version>
         <mapstruct.version>1.6.3</mapstruct.version>
-        <error-prone.version>2.47.0</error-prone.version>
-        <nullaway.version>0.12.7</nullaway.version>
+        <error-prone.version>2.53.0</error-prone.version>
+        <nullaway.version>0.14.4</nullaway.version>
+        <lombok.version>1.18.48</lombok.version>
     </properties>
     <dependencies>
         <dependency>
@@ -231,9 +232,15 @@
                     <compilerArgs>
                         <!-- Error Prone, per docs/quality-bar.md (#10). Both flags below are required by
                              Error Prone itself; the add-exports flags it also needs live in .mvn/jvm.config.
-                             The version pair is load-bearing: error_prone 2.50.0 breaks NullAway
-                             (NoClassDefFoundError: predicates/type/DescendantOf) and 2.41.0 does not run
-                             on JDK 26. Bump the two together and run a clean compile when you do. -->
+                             The version pair is load-bearing: error_prone 2.50.0 breaks NullAway 0.12.x
+                             (NoClassDefFoundError: predicates/type/DescendantOf), 2.41.0 does not run on
+                             JDK 26, and 2.53.0 + NullAway 0.14.4 is the first pair verified on JDK 27.
+                             Bump the two together and run a clean compile when you do.
+
+                             A JDK bump moves three more things with it: <lombok.version> (Lombok 1.18.48
+                             is the first that initialises on javac 27 — ExceptionInInitializerError on
+                             EndPosTable otherwise) and Spring Modulith (2.2.0 brings an ArchUnit that can
+                             read class-file version 71 — "No classes found in packages" otherwise). -->
                         <arg>-XDcompilePolicy=simple</arg>
                         <arg>--should-stop=ifError=FLOW</arg>
                         <!-- Stock severities, plus the date/time and comparison family promoted to ERROR.
