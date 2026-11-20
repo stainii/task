@@ -3,6 +3,7 @@ package be.stijnhooft.task.backend.task.repository;
 import be.stijnhooft.task.backend.task.Importance;
 import be.stijnhooft.task.backend.task.domain.TaskStatus;
 import lombok.RequiredArgsConstructor;
+import org.springframework.jdbc.core.DataClassRowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -28,7 +29,10 @@ public class DueTaskQueries {
                 .sql("SELECT name, importance FROM task WHERE status = :status AND due_date = :date")
                 .param("status", TaskStatus.OPEN.name())
                 .param("date", date)
-                .query(DueTask.class)
+                // A RowMapper, not query(DueTask.class): Spring types the Class overload as
+                // MappedQuerySpec<@Nullable T> (a single-column result can be NULL), and NullAway
+                // holds us to it. A row mapped onto a record is never null; this overload says so.
+                .query(new DataClassRowMapper<>(DueTask.class))
                 .list();
     }
 
